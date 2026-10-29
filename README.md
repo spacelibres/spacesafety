@@ -3,9 +3,9 @@
 仿制 `space-safety.starlink.com` 的卫星轨道安全与交会筛查平台。
 API 名称、数据结构与服务行为与原站一致；实现与部署方式是我们自己的。
 
-当前版本 **0.1.4** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本 **0.1.5** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-> **版本规则**：每次迭代只递增补丁号（`0.1.4` → `0.1.5` → …），
+> **版本规则**：每次迭代只递增补丁号（`0.1.5` → `0.1.6` → …），
 > 并同步更新 `package.json`、`package-lock.json`、git tag 与 `CHANGELOG.md`。
 > 提交前请确认这四处一致。
 

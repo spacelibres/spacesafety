@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { LanguageSwitcher, useTranslator } from "@/lib/i18n/client";
+import { PreferenceDock } from "@/components/PreferenceDock";
+import { useTranslator } from "@/lib/i18n/client";
 
 /**
  * Navigation items, matching the official sidebar (docs/UI-SPEC.md).
@@ -71,7 +72,16 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">{t.t("app.name")}</div>
+      {/*
+        The mark comes from the VI masters in public/vi and must not be
+        reconstructed from type. The horizontal lockup suits this navigation
+        rail; the icon carries the compact breakpoint. `alt` is empty because the
+        adjacent nav already names the product — a screen reader would otherwise
+        hear it twice.
+      */}
+      <Link className="sidebar-brand" href="/" aria-label={t.t("app.name")}>
+        <img src="/vi/horizontal-primary-dark.svg" alt="" width={122} height={27} />
+      </Link>
       {showBanner && <div className="sidebar-env">{env}</div>}
       <div className="sidebar-clock">{clock}</div>
 
@@ -82,7 +92,8 @@ export function Sidebar() {
         />
       </div>
 
-      <LanguageSwitcher />
+      {/* Pushes the preference dock to the bottom-left of the rail. */}
+      <div className="sidebar-spacer" />
 
       <nav className="sidebar-nav" aria-label={t.t("a11y.sidebar")}>
         {NAV.map((item) => {
@@ -100,6 +111,8 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <PreferenceDock />
     </aside>
   );
 }

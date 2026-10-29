@@ -304,6 +304,92 @@ function checkHardcodedText(): void {
   }
 }
 
+
+// --- 8. VI compliance ---------------------------------------------------------
+/**
+ * Enforce the parts of the spaceribre VI that a code change can break silently:
+ *
+ *   - a colour literal outside the palette module opts the page out of the
+ *     theme, which the VI forbids;
+ *   - a monochrome logo master must keep exactly one ink;
+ *   - the full-colour masters must have a themed planet (a frozen navy planet
+ *     next to a changing palette is called out in the VI as a defect).
+ */
+function checkVi(): void {
+  const paletteFile = join(ROOT, "src", "lib", "vi", "palette.ts");
+  const tokensFile = join(ROOT, "src", "app", "vi-tokens.css");
+
+  if (!existsSync(paletteFile)) {
+    fail("vi", "src/lib/vi/palette.ts is missing");
+  }
+  if (!existsSync(tokensFile)) {
+    fail("vi", "src/app/vi-tokens.css is missing; run `npm run vi`");
+  }
+
+  // 8a. No hex literals in UI styles outside the generated tokens.
+  const globals = join(ROOT, "src", "app", "globals.css");
+  if (existsSync(globals)) {
+    const lines = readFileSync(globals, "utf8").split("\n");
+    const offenders = lines
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => /#[0-9a-fA-F]{3,8}\b/.test(line) && !line.trim().startsWith("/*"))
+      .map(({ line, index }) => `globals.css:${index + 1}  ${line.trim()}`);
+    if (offenders.length) {
+      fail(
+        "vi",
+        `${offenders.length} colour literal(s) outside the palette:\n    ${offenders.slice(0, 10).join("\n    ")}`,
+      );
+    }
+  }
+
+  // 8b. Scene code must not carry its own colours.
+  const viewer = join(ROOT, "src", "components", "OrbitViewer.tsx");
+  if (existsSync(viewer)) {
+    const text = readFileSync(viewer, "utf8");
+    const hexes = text.match(/0x[0-9a-fA-F]{6}\b/g) ?? [];
+    if (hexes.length) {
+      fail("vi", `OrbitViewer.tsx has ${hexes.length} hard-coded 3D colour(s): ${hexes.join(", ")}`);
+    }
+  }
+
+  // 8c. Logo masters present, and monochrome ones single-ink.
+  const logoDir = join(ROOT, "public", "vi");
+  if (!existsSync(logoDir)) {
+    fail("vi", "public/vi is missing; run `npm run vi`");
+  } else {
+    for (const variant of ["dark", "light"] as const) {
+      const file = join(logoDir, `icon-primary-${variant}.svg`);
+      if (!existsSync(file)) {
+        fail("vi", `public/vi/icon-primary-${variant}.svg is missing`);
+        continue;
+      }
+      const svg = readFileSync(file, "utf8");
+      if (!svg.includes('data-color-role="planet"')) {
+        fail("vi", `${variant} logo has no themed planet`);
+      }
+    }
+    for (const ink of ["black", "white", "navy"]) {
+      const file = join(logoDir, `icon-${ink}.svg`);
+      if (!existsSync(file)) {
+        fail("vi", `public/vi/icon-${ink}.svg is missing`);
+        continue;
+      }
+      const svg = readFileSync(file, "utf8");
+      // Monochrome: every painted value must be that one ink.
+      const painted = new Set(
+        [...svg.matchAll(/(?:fill|stroke)="(#[0-9a-fA-F]{3,8})"/g)].map((m) => m[1].toLowerCase()),
+      );
+      if (painted.size > 1) {
+        fail("vi", `icon-${ink}.svg is monochrome but uses ${painted.size} inks: ${[...painted].join(", ")}`);
+      }
+    }
+  }
+
+  if (!problems.some((p) => p.check === "vi")) {
+    notes.push("vi: palette, tokens, scene and logo masters consistent");
+  }
+}
+
 // --- run ----------------------------------------------------------------------
 const CHECKS: Array<[string, () => void]> = [
   ["no-python", checkNoPython],
@@ -314,6 +400,7 @@ const CHECKS: Array<[string, () => void]> = [
   ["i18n-missing-key", checkReferencedKeys],
   ["version", checkVersion],
   ["i18n-hardcoded", checkHardcodedText],
+  ["vi", checkVi],
 ];
 
 console.log("\nSpace Safety — project rules\n");

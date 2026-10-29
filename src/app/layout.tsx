@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Sidebar } from "@/components/Shell";
 import { I18nProvider } from "@/lib/i18n/client";
 import { currentLocale, translator } from "@/lib/i18n/registry";
+import { currentTheme } from "@/lib/vi/theme";
 
 import "./globals.css";
 
@@ -22,9 +23,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Resolve the locale once here: `<html lang>` and the client provider must
   // agree, or screen readers and font selection pick the wrong language.
   const locale = await currentLocale();
+  // Resolved on the server so the first paint already carries the right
+  // palette; a browser-only switch would flash the wrong theme.
+  const theme = await currentTheme();
 
   return (
-    <html lang={locale}>
+    <html lang={locale} data-theme={theme}>
       <body>
         <I18nProvider locale={locale}>
           <div className="app">
