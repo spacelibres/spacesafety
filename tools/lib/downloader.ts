@@ -68,7 +68,16 @@ export interface DownloaderOptions {
   log?: (line: string) => void;
 }
 
-export type EphemerisKind = "ocm" | "itc";
+export type EphemerisKind = "ocm" | "itc" | "text";
+
+/**
+ * `text` means "the caller verifies the body itself".
+ *
+ * The downloader still rejects an HTML/JSON error page, but performs no format
+ * check beyond that, because a Spacebook feed (TLE list, SATCAT JSON, CCSDS KVN)
+ * has its own record-boundary test and does not share OCM's `TRAJ_STOP` marker.
+ * Using `ocm` for those files rejected every valid body.
+ */
 
 export interface FetchResult {
   ok: boolean;
@@ -133,7 +142,7 @@ export class EphemerisDownloader {
     this.dialers = new Map(this.options.nodes.map((n) => [n, new SocksDialer(n)]));
   }
 
-  /** Is `path` a complete OCM / ITC body? */
+  /** Is `path` a complete OCM / ITC / plain-text body? */
   async isComplete(path: string, kind: EphemerisKind): Promise<boolean> {
     let handle;
     try {
@@ -144,6 +153,7 @@ export class EphemerisDownloader {
       // its length.
       const first = head.subarray(0, bytesRead).toString("utf8").trimStart();
       if (first.startsWith("<") || first.startsWith("{")) return false;
+      if (kind === "text") return true;
       return kind === "itc" ? await this.isCompleteItc(path, head) : await this.isCompleteOcm(path);
     } catch {
       return false;

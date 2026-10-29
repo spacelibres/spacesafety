@@ -211,11 +211,12 @@ async function main() {
         .prepare(
           `SELECT o.object_name AS name,
                   SUM(CASE WHEN t.state_source = 'operator_ephemeris' THEN 1 ELSE 0 END) eph,
+                  COUNT(t.id) traj,
                   (SELECT COUNT(*) FROM catalog c WHERE c.object_id = o.id) in_catalog
              FROM objects o LEFT JOIN trajectories t ON t.object_id = o.id
             GROUP BY o.id`,
         )
-        .all() as Array<{ name: string; eph: number; in_catalog: number }>;
+        .all() as Array<{ name: string; eph: number; traj: number; in_catalog: number }>;
       db.close();
       check("the database holds Starlink objects", starlink.length > 0, `${starlink.length}`);
 
@@ -228,12 +229,29 @@ async function main() {
       //
       // What must hold for *any* snapshot: every object has at least one operator
       // ephemeris, and every object is reachable by screening via `catalog`.
+      // What must hold for *any* snapshot: every object has at least one usable
+      // trajectory, and every object is reachable by screening via `catalog`.
+      //
+      // "Usable" is deliberately not "has an OCM". The XP-TLE feed lists Starlink
+      // satellites the company publishes no OCM for — `STARLINK-36503` and 9 600
+      // others answer 302 with an empty body — so those objects legitimately hold
+      // a `tle` trajectory and nothing else. Demanding an operator ephemeris for
+      // them asserted a property the source never had. The boundary that does
+      // matter is that nothing is left *without* any trajectory: an object with
+      // zero states can never be screened and never rendered.
       const starlinkAll = objects.filter((o) => /^STARLINK-\d+$/.test(o.name));
-      const noEphemeris = starlinkAll.filter((o) => o.eph === 0);
+      const noTrajectory = starlinkAll.filter((o) => o.traj === 0);
       check(
-        "every Starlink object has an operator ephemeris",
-        noEphemeris.length === 0,
-        noEphemeris.length ? `${noEphemeris.length} missing: ${noEphemeris.slice(0, 3).map((o) => o.name).join(", ")}` : "all",
+        "every Starlink object has at least one trajectory",
+        noTrajectory.length === 0,
+        noTrajectory.length ? `${noTrajectory.length} missing: ${noTrajectory.slice(0, 3).map((o) => o.name).join(", ")}` : "all",
+      );
+
+      const ephOnly = starlinkAll.filter((o) => o.eph > 0).length;
+      check(
+        "most Starlink objects resolve to an operator ephemeris",
+        ephOnly > 0 && ephOnly / Math.max(1, starlinkAll.length) > 0.3,
+        `${ephOnly}/${starlinkAll.length} with an OCM`,
       );
 
       // The failure this guards against: data in `trajectories` that screening

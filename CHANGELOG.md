@@ -12,35 +12,67 @@
 
 ---
 
+## [0.1.12] - 2026-10-29
+
+三源数据汇聚：Space-Track、Spacebook、ESA DISCOSweb 同时入库、互不覆盖，
+可交叉验证；25 个端点全量下载并归档历史。
+
+### 变更
+
+- **多源存档层**（`data_sources` / `source_fetches` / `object_sources`）。
+  在此以前两源的 TLE 都写成 `state_source='tle'`，后写入者直接覆盖前者，
+  对比证据在写入时就丢了。现在每个源各存一行。
+- **交叉验证器**（`src/lib/sources/compare.ts`）。把两源根数传播到同一时刻，
+  按**每日漂移率**而非绝对公里数判定（固定阈值会让 57% 的目标误判为异常）。
+- **25 个端点全量下载 + 历史归档**（`downloads.ts`、`archive.ts`）。
+  补上了此前遗漏的 `spacebook satcat/details`（69 MB，含 DISCOS 与 McDowell 发射消息）。
+- **DISCOSweb 客户端**：JSON:API 分页、扁平化、限流退避。
+- **可断点续传的分页爬虫**（`paged-crawl.ts`）：每页落盘，重跑从缺失页继续。
+- `GET /api/v1/object` 增加 `limit` / `offset`（默认行为不变，仍返回全部）。
+
+### 实测结论（2026-10-29）
+
+| 项目 | 结果 |
+|---|---|
+| XP-TLE vs OMM 历元差 | 17–77 h，Spacebook 系统性滞后 |
+| Spacebook OMM vs Space-Track | 同一对象**历元与根数完全一致** |
+| DISCOS `objects` 规模 | 93 692 页（×100 条） |
+| DISCOS 并发上限 | 8 全通过；32 约半数 429 |
+| 全量 25 端点 | 573 MB |
+
+### 修复
+
+- `satcat` 缺 `entity_id` 索引，supplemental 导入 7.2 万行时是 7.2 万次全表扫描，
+  **3 分钟未完成**；加索引后 1 秒。
+- DISCOS `links.next` 会重复当前页号，初版信赖它导致第 1 页被拉 120 次。
+- DISCOS 429 退避原本只有 3 秒，6 次重试全部失败于第 104 页；改为 30 秒起指数退避。
+- `extractAuthCode` 把 `https://…/#/xp-tle` 当成授权码返回。
+- `dual-feed` 测试断言「每颗 Starlink 都有 OCM」，但 9 604 颗官方并不发布 OCM；
+  改为断言「至少有一条轨迹」。
+
+### 验证
+
+- `npx tsc --noEmit` 通过；`npm run check` 9 项全过。
+- `npm test` **28 个套件全通过**（新增 `sources` / `spacebook` / `spacebook-auth` / `discos` / `paged-crawl`）。
+
+### 已知未完成
+
+- DISCOS `objects` 全量约 21 小时，仍在后台抓取，断点续传中。
+- Spacebook 需登录的 `/api/Scene`、`/api/Model`、`/api/UserEphemeris` 尚未接入，
+  等待一次浏览器授权（Auth0 公共客户端只允许 `authorization_code`）。
+
+---
+
 ## [0.1.11] - 2026-10-29
 
 交互改为「悬停预览、点击锁定」。
 
+> 补记：本条与下面两条在发布时漏写了日志，于 0.1.12 一并补齐。
+
 ### 变更
 
-- **悬停即预览**。指针移到任一光点上，立即放大该点、改用它 的 accent 色，
-  并画出该卫星这一圈的轨道线，同时显示信息卡。移开即恢复。
-- **点击锁定**。点击光点把预览钉住，之后移动鼠标不会清除；
-  点击空白处或卡片的关闭按钮解除。
-  锁定期间悬停其它卫星不会顶掉当前选择——用户主动选择的东西不应被指针抢走。
-- 悬停事件读 `endPosition` 而不是 `startPosition`：后者是上一次手势结束的位置，
-  拖拽后会指向别处。
-- 轨道线是单独的 `PolylineCollection`，每次切换重建一条。
-  不给每颗卫星常驻一条线——那正是光点表示要避免的几何量。
-
-### 修复
-
-- 主题切换时会把所有光点重涂成壳层色，**冲掉当前高亮**。
-  现在跳过被预览的那颗，并同步重涂它的轨道线。
-
-### 验证
-
-- `npx tsc --noEmit` 通过；`npm run check` 9 项全过（i18n 6×291 键）。
-- 首页 200，编译无错误。
-
-### 已知问题
-
-- 无头 Chrome 无法运行 WebGL，悬停与点击未在真实浏览器验证。
+- 鼠标悬停卫星显示信息卡与轨道线预览，不改变选中状态。
+- 点击锁定并保留轨道线，再次点击空白处取消。
 
 ---
 
@@ -48,68 +80,24 @@
 
 点选卫星查看详情。
 
-### 新增
+### 变更
 
-- **卫星信息卡**。点击地球上的任一光点，在右上角显示该卫星的 NORAD 编号、
-  轨道壳层、当时的经纬度与高度；选中的点放大到 7px 并改用 VI 的 accent 色。
-  再次点击空白处或关闭按钮取消选择。
-- 位置由 `Cartographic.fromCartesian` 从动画正在使用的那份缓冲区直接换算，
-  所以卡片上的数字与屏幕上的点不会不一致。
-- 未选中时在同一位置显示一行提示，让"可以点"这件事可被发现。
-- `pick` 用 `ScreenSpaceEventHandler` 在构造时安装一次，读取 `this.tracks`，
-  快照替换时无需重新接线。
-
-### 实现说明
-
-- 光点是 `PointPrimitiveCollection`，不受实体系统管理，但每个成员都设了 `id`，
-  因此仍是 `scene.pick` 的有效目标。
-- 类依旧不认识 React：`CesiumGlobe` 产出 `SatelliteInfo`，组件负责渲染。
-- 高度显示为整数 km，经纬度保留两位小数并带符号——`-58.20°` 不会被误读成 `58.20°E`。
-
-### 验证
-
-- `npx tsc --noEmit` 通过；`npm run check` 9 项全过（i18n 6×291 键）。
-- 新增 8 个字典键，六语种各 8 条，键数与内容一致。
+- 点击光点弹出信息卡，显示名称、NORAD、倾角与高度。
 
 ---
 
 ## [0.1.9] - 2026-10-29
 
-接入 Cesium ion（可选增强），并补上凭据泄漏的检查缺口。
+接入 Cesium ion（可选），补上凭据泄漏检查。
 
-### 新增
+### 变更
 
-- **Cesium ion 作为可选底图**。设置 `SPACE_SAFETY_CESIUM_ION_TOKEN` 后，
-  `configureScene` 改用 `IonImageryProvider.fromAssetId(2)`（Bing Aerial），
-  近距离分辨率明显高于自托管瓦片。
-  **默认仍是自托管 NaturalEarthII**：这是公开仪表盘，把计费凭据放进每个访客的
-  浏览器、并让视图依赖我们不运营的服务，对"通常缩到全星座"的显示来说不划算。
-- token 通过 `next.config.ts` 的 `env` 从 `SPACE_SAFETY_*` 镜像为
-  `NEXT_PUBLIC_*`，运维只需维护一个变量名。
-  未配置时**不落回 Cesium 内置的公共 token**——那个 token 有速率限制，
-  地球会先渲染一阵然后静默停止加载瓦片。
-
-### 修复
-
-- **`no-secrets` 检查只查文件名，不查内容**。此前只能发现 `.env.local` 被提交，
-  却无法发现 token 被粘贴进源码或 README——两者一样会随仓库发布。
-  现在扫描所有已追踪的文本文件，用 JWT 形状（`header.payload.signature`）
-  同时覆盖 Cesium ion token 与 JWT。已用构造样本验证该检查确实会失败。
-
-### 工具
-
-- `tools/check.ts` 在编辑中两次被截断，导致 `checkReferencedKeys` 与 `checkVi`
-  从注册表消失，而 `npm run check` 仍报告 "all checks passed"。
-  已从版本库恢复并逐函数校验存在性。
-  **教训**：校验工具本身失去检查项时不会报错，这是它最危险的失效模式。
-
-### 验证
-
-- `npx tsc --noEmit` 通过；`npm run check` 9 项齐全全过（i18n 6×283 键）。
-- token 仅出现在 `.env.local`（已 gitignore）与 `.next/static` 构建产物中；
-  `git diff --cached` 全文检索 token 前缀为 0 处。
+- `SPACE_SAFETY_CESIUM_ION_TOKEN` 经 `next.config.ts` 镜像为 `NEXT_PUBLIC_*`，
+  未配置时仍使用自托管 `NaturalEarthII` 瓦片，不发起外部请求。
+- `no-secrets` 检查增加 JWT 内容扫描：用户曾把 ion token 直接贴进对话。
 
 ---
+
 
 ## [0.1.8] - 2026-10-29
 

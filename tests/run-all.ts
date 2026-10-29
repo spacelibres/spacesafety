@@ -29,6 +29,11 @@ const SUITES = [
   "tests/worker-companion-pool.test.ts",
   "tests/catalog-policy.test.ts",
   "tests/api.test.ts",
+  "tests/spacebook.test.ts",
+  "tests/sources.test.ts",
+  "tests/spacebook-auth.test.ts",
+  "tests/discos.test.ts",
+  "tests/paged-crawl.test.ts",
 ];
 
 let failed = 0;

@@ -80,6 +80,35 @@ function migrate(sqlite: Database.Database): void {
       column: "companion_id",
       ddl: "ALTER TABLE trajectories ADD COLUMN companion_id TEXT",
     },
+    // The supplemental catalogue states each object's lifecycle status and its
+    // covariance window. Without these columns the screening queue cannot tell
+    // which objects can produce a Pc at all.
+    { table: "satcat", column: "status", ddl: "ALTER TABLE satcat ADD COLUMN status TEXT" },
+    {
+      table: "satcat",
+      column: "ops_status_code",
+      ddl: "ALTER TABLE satcat ADD COLUMN ops_status_code TEXT",
+    },
+    {
+      table: "satcat",
+      column: "covariance_start",
+      ddl: "ALTER TABLE satcat ADD COLUMN covariance_start TEXT",
+    },
+    {
+      table: "satcat",
+      column: "covariance_stop",
+      ddl: "ALTER TABLE satcat ADD COLUMN covariance_stop TEXT",
+    },
+    {
+      table: "satcat",
+      column: "reference_ephemeris_start",
+      ddl: "ALTER TABLE satcat ADD COLUMN reference_ephemeris_start TEXT",
+    },
+    {
+      table: "satcat",
+      column: "reference_ephemeris_stop",
+      ddl: "ALTER TABLE satcat ADD COLUMN reference_ephemeris_stop TEXT",
+    },
   ];
 
   for (const { table, column, ddl } of additions) {
@@ -102,6 +131,12 @@ function migrate(sqlite: Database.Database): void {
   sqlite.exec(
     "CREATE INDEX IF NOT EXISTS trajectories_uploaded_idx ON trajectories(uploaded_at)",
   );
+
+  sqlite.exec("CREATE INDEX IF NOT EXISTS satcat_status_idx ON satcat(status)");
+  // The supplemental feed has no NORAD number and is matched on `entity_id`.
+  // Without this index the import is 72 000 full scans of a 72 000-row table:
+  // it did not finish in three minutes and looked like a network hang.
+  sqlite.exec("CREATE INDEX IF NOT EXISTS satcat_entity_idx ON satcat(entity_id)");
 
   migrateFileText(sqlite);
 }
@@ -395,6 +430,80 @@ CREATE TABLE IF NOT EXISTS pagination_tokens (
   last_used_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS tokens_stream_idx ON pagination_tokens(stream);
+
+CREATE TABLE IF NOT EXISTS satcat (
+  norad_id INTEGER PRIMARY KEY,
+  entity_id TEXT,
+  intl_id TEXT,
+  name TEXT NOT NULL,
+  object_type TEXT,
+  owner TEXT,
+  launch_site TEXT,
+  launch_date TEXT,
+  decay_date TEXT,
+  period REAL,
+  inclination REAL,
+  apogee REAL,
+  perigee REAL,
+  rcs_size TEXT,
+  source_snapshot TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS satcat_name_idx ON satcat(name);
+CREATE INDEX IF NOT EXISTS satcat_type_idx ON satcat(object_type);
+
+CREATE TABLE IF NOT EXISTS data_sources (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  format TEXT NOT NULL,
+  credential_env TEXT,
+  refresh_minutes INTEGER NOT NULL DEFAULT 120,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  notes TEXT,
+  last_success_at TEXT,
+  last_attempt_at TEXT,
+  last_error TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS source_fetches (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  status TEXT NOT NULL DEFAULT 'running',
+  bytes INTEGER,
+  records INTEGER,
+  path TEXT,
+  sha256 TEXT,
+  error TEXT,
+  seq INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS source_fetches_source_idx ON source_fetches(source_id, started_at);
+CREATE INDEX IF NOT EXISTS source_fetches_seq_idx ON source_fetches(seq);
+
+CREATE TABLE IF NOT EXISTS object_sources (
+  norad_id INTEGER NOT NULL,
+  source_id TEXT NOT NULL,
+  epoch TEXT,
+  inclination REAL,
+  raan REAL,
+  eccentricity REAL,
+  arg_perigee REAL,
+  mean_anomaly REAL,
+  mean_motion REAL,
+  bstar REAL,
+  pos_x REAL,
+  pos_y REAL,
+  pos_z REAL,
+  delta_km REAL,
+  fetched_at TEXT NOT NULL,
+  PRIMARY KEY (norad_id, source_id)
+);
+CREATE INDEX IF NOT EXISTS object_sources_source_idx ON object_sources(source_id, norad_id);
+CREATE INDEX IF NOT EXISTS object_sources_norad_idx ON object_sources(norad_id);
 `;
 
 /**

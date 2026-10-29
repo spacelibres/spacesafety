@@ -1,6 +1,6 @@
 {
   "name": "spacesafety",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
@@ -61,7 +61,17 @@
     "vi": "node --conditions=react-server --import tsx tools/vi.ts",
     "build:snapshot": "node --conditions=react-server --import tsx scripts/build-snapshot.ts",
     "cesium:copy": "node --conditions=react-server --import tsx tools/copy-cesium.ts",
-    "postinstall": "node --conditions=react-server --import tsx tools/copy-cesium.ts"
+    "postinstall": "node --conditions=react-server --import tsx tools/copy-cesium.ts",
+    "spacebook:refresh": "node --conditions=react-server --import tsx scripts/spacebook-refresh.ts",
+    "test:spacebook": "node --conditions=react-server --import tsx tests/spacebook.test.ts",
+    "sources:refresh": "node --conditions=react-server --import tsx scripts/sources-refresh.ts",
+    "sources:compare": "node --conditions=react-server --import tsx scripts/sources-compare.ts",
+    "test:sources": "node --conditions=react-server --import tsx tests/sources.test.ts",
+    "spacebook:login": "node --conditions=react-server --import tsx scripts/spacebook-login.ts",
+    "test:spacebook-auth": "node --conditions=react-server --import tsx tests/spacebook-auth.test.ts",
+    "sources:download": "node --conditions=react-server --import tsx scripts/sources-download.ts",
+    "test:discos": "node --conditions=react-server --import tsx tests/discos.test.ts",
+    "test:crawl": "node --conditions=react-server --import tsx tests/paged-crawl.test.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",

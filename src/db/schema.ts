@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
  * Persistence for the Space Safety replica.
@@ -286,7 +286,194 @@ export const screeningJobs = sqliteTable(
   ],
 );
 
-/** Opaque pagination tokens, so a token cannot be forged or reused across streams. */
+/**
+ * Full space object catalogue, as published by COMSPOC's Spacebook SATCAT.
+ *
+ * Kept apart from `objects` on purpose. `objects` holds the small set we track an
+ * ephemeris for (11 000 Starlink plus whatever an operator uploads); SATCAT holds
+ * the complete historical catalogue (72 000 entries, most long decayed) and is
+ * used for three things only:
+ *
+ *   - turning a NORAD number into a name. XP-TLE carries no name line, so
+ *     `noradId -> name` is the only way an object from that feed gets a label.
+ *   - object type / RCS class / owner, which drive the hard-body radius used by
+ *     the collision model.
+ *   - launch and decay dates, so a stale element set can be explained rather
+ *     than looking like a propagation bug.
+ *
+ * Not foreign-keyed to `objects`: a new launch appears in XP-TLE before the
+ * SATCAT refresh catches up, and a rejected FK would drop the orbit.
+ */
+export const satcat = sqliteTable(
+  "satcat",
+  {
+    noradId: integer("norad_id").primaryKey(),
+    /** COMSPOC internal id (UUID). */
+    entityId: text("entity_id"),
+    /** International designator, e.g. `1998-067A`. */
+    intlId: text("intl_id"),
+    name: text("name").notNull(),
+    objectType: text("object_type"),
+    owner: text("owner"),
+    launchSite: text("launch_site"),
+    /** ISO-8601 date, or null when unlaunched/unknown. */
+    launchDate: text("launch_date"),
+    /** Non-null once the object has re-entered. */
+    decayDate: text("decay_date"),
+    period: real("period"),
+    inclination: real("inclination"),
+    apogee: real("apogee"),
+    perigee: real("perigee"),
+    rcsSize: text("rcs_size"),
+    /**
+     * Lifecycle state from the supplemental feed: `Active`, `Dead`, `Debris`,
+     * `RocketBody`, `Unknown`.
+     *
+     * Distinct from `objectType`, which is the launch classification. `Dead`
+     * means the object no longer manoeuvres, which is a *ranging* fact the
+     * screening policy needs and the launch class does not imply.
+     */
+    status: text("status"),
+    /** Operational status code from the provider, `+`/`-`/`D`/... */
+    opsStatusCode: text("ops_status_code"),
+    /**
+     * Start of the published covariance arc, ISO-8601. Null when none is offered.
+     *
+     * This column is what decides whether a screening can produce a Pc: with no
+     * covariance there is no probability, only a miss distance. Storing it on the
+     * catalogue row lets the screening queue skip objects that cannot possibly
+     * yield one, instead of attempting and failing 40 000 times.
+     */
+    covarianceStart: text("covariance_start"),
+    covarianceStop: text("covariance_stop"),
+    /** Start of the provider's reference ephemeris window, ISO-8601. */
+    referenceEphemerisStart: text("reference_ephemeris_start"),
+    referenceEphemerisStop: text("reference_ephemeris_stop"),
+    /** Which snapshot this row came from; lets a partial refresh be detected. */
+    sourceSnapshot: text("source_snapshot"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("satcat_name_idx").on(t.name),
+    index("satcat_type_idx").on(t.objectType),
+    index("satcat_status_idx").on(t.status),
+  ],
+);
+
+/**
+ * Registered upstream data sources.
+ *
+ * The replica merges several feeds that disagree, so "which source said this"
+ * has to be stored rather than inferred. Before this table, Space-Track and
+ * Spacebook TLEs were both written as `state_source = 'tle'` and silently
+ * overwrote each other — 20 000 rows became 29 000 with no record of which
+ * provider was lost.
+ *
+ * `refresh_minutes` encodes the provider's own publication cadence, so the
+ * scheduler can ask "is this due?" instead of polling every feed hourly. The
+ * values come from observed behaviour (below), not from a promise the provider
+ * makes:
+ *
+ *   space-track   ~2 h   GP catalogue is rebuilt a few times a day
+ *   spacebook     ~2 h   OMM `CREATION_DATE` moves on the same order
+ *   starlink-ocm  ~8 h   7-day arcs, refreshed about three times a day
+ *   starlink-itc  ~8 h   same cadence, 3-day arcs
+ */
+export const dataSources = sqliteTable("data_sources", {
+  id: text("id").primaryKey(),
+  /** Human label for the UI. */
+  label: text("label").notNull(),
+  /** `custom` | `public` — whether the fetch needs credentials. */
+  kind: text("kind").notNull(),
+  /** `tle` | `omm` | `ocm` | `itc` | `satcat` | `spaceweather` | `eop`. */
+  format: text("format").notNull(),
+  /** Environment variable prefix holding the credentials, or null. */
+  credentialEnv: text("credential_env"),
+  /** Expected publication interval, minutes. Drives the refresh scheduler. */
+  refreshMinutes: integer("refresh_minutes").notNull().default(120),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  /** Measured quality, set by a comparison run rather than hard-coded. */
+  notes: text("notes"),
+  lastSuccessAt: text("last_success_at"),
+  lastAttemptAt: text("last_attempt_at"),
+  lastError: text("last_error"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * One attempt to pull one source. Append-only history.
+ *
+ * Kept so a gap can be explained later: "the catalogue is two days old" has to
+ * distinguish a provider outage from a scheduler that never ran.
+ */
+export const sourceFetches = sqliteTable(
+  "source_fetches",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id").notNull(),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at"),
+    /** `running` | `ok` | `failed` | `unchanged`. */
+    status: text("status").notNull().default("running"),
+    bytes: integer("bytes"),
+    records: integer("records"),
+    /** Where the raw body landed, relative to the data root. */
+    path: text("path"),
+    /** SHA-256 of the body; identical to the previous pull means `unchanged`. */
+    sha256: text("sha256"),
+    error: text("error"),
+    seq: integer("seq").notNull(),
+  },
+  (t) => [
+    index("source_fetches_source_idx").on(t.sourceId, t.startedAt),
+    index("source_fetches_seq_idx").on(t.seq),
+  ],
+);
+
+/**
+ * What each source currently claims about each object.
+ *
+ * This is the cross-check table. One row per `(norad_id, source_id)` rather than
+ * one per object: the whole point is that two providers describe the same object
+ * differently, and a single-row-per-object design destroys that evidence on
+ * write. The screening path still reads the *resolved* trajectory; this table is
+ * what lets the UI say "these two disagree by 0.003° of inclination".
+ */
+export const objectSources = sqliteTable(
+  "object_sources",
+  {
+    noradId: integer("norad_id").notNull(),
+    sourceId: text("source_id").notNull(),
+    /** Element-set epoch as the provider stated it, ISO-8601. */
+    epoch: text("epoch"),
+    inclination: real("inclination"),
+    raan: real("raan"),
+    eccentricity: real("eccentricity"),
+    argPerigee: real("arg_perigee"),
+    meanAnomaly: real("mean_anomaly"),
+    meanMotion: real("mean_motion"),
+    bstar: real("bstar"),
+    /**
+     * Position at the common comparison epoch, km (ECI).
+     *
+     * Filled by the comparison pass, not by ingest: it needs both sources' arcs
+     * propagated to one instant, which is the only meaningful way to say "these
+     * agree". Null until then.
+     */
+    posX: real("pos_x"),
+    posY: real("pos_y"),
+    posZ: real("pos_z"),
+    /** |Δr| against the reference source, km. */
+    deltaKm: real("delta_km"),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.noradId, t.sourceId] }),
+    index("object_sources_source_idx").on(t.sourceId, t.noradId),
+    index("object_sources_norad_idx").on(t.noradId),
+  ],
+);
 export const paginationTokens = sqliteTable(
   "pagination_tokens",
   {
@@ -308,6 +495,10 @@ export type TrajectoryRow = typeof trajectories.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type CdmRow = typeof cdms.$inferSelect;
 export type ScreeningJobRow = typeof screeningJobs.$inferSelect;
+export type SatcatRow = typeof satcat.$inferSelect;
+export type DataSourceRow = typeof dataSources.$inferSelect;
+export type SourceFetchRow = typeof sourceFetches.$inferSelect;
+export type ObjectSourceRow = typeof objectSources.$inferSelect;
 
 export const nowIso = () => new Date().toISOString();
 export const sqlNow = sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;

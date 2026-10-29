@@ -10,6 +10,15 @@ out/
 certs/ca.key
 certs/client.key
 certs/*.srl
+# 任何新签发的客户端凭证：私钥与证书都是特定部署的产物，不属于代码仓库。
+# 早先只列了 ca.key / client.key / *.srl，于是新签的 catalog-client.key 没有被忽略，
+# 差一点被提交。
+certs/*.key
+certs/*.csr
+certs/*.ext
+certs/*-client.crt
+!certs/ca.crt
+!certs/client.crt
 
 # 环境与凭据
 .env

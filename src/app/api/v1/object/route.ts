@@ -8,6 +8,8 @@ import { intParam, json, readJson, route } from "@/lib/api/http";
 /** Hard-body radius cap documented by the vendor, in metres. */
 const MAX_HARD_BODY_RADIUS_M = 512;
 const MAX_NAME_LENGTH = 256;
+/** Upper bound on `limit`, so one request cannot ask for an unbounded body. */
+const MAX_LIST_LIMIT = 50_000;
 
 function serialize(o: typeof objects.$inferSelect) {
   return {
@@ -26,12 +28,20 @@ function serialize(o: typeof objects.$inferSelect) {
  *
  * Filters: `operator_id`, `norad_id`, and `object_name` (case-insensitive but
  * must fully match, per the vendor's note).
+ *
+ * `limit` / `offset` are an addition to the vendor's signature, not a change: it
+ * accepts no paging, which was tolerable when the only objects were a few
+ * thousand Starlinks but is not now that the Spacebook catalogue is loaded — an
+ * unfiltered call returns 40 000 rows as a single 7 MB JSON body. They default to
+ * "everything", so a vendor-compatible client sees identical results.
  */
 export const GET = route(async ({ request }) => {
   const url = new URL(request.url);
   const operatorId = url.searchParams.get("operator_id") ?? undefined;
   const noradId = intParam(url, "norad_id");
   const objectName = url.searchParams.get("object_name") ?? undefined;
+  const limit = intParam(url, "limit", { min: 1, max: MAX_LIST_LIMIT });
+  const offset = intParam(url, "offset", { min: 0 }) ?? 0;
 
   const { db } = getDb();
   const conditions = [];
@@ -43,11 +53,16 @@ export const GET = route(async ({ request }) => {
     conditions.push(like(objects.objectName, objectName));
   }
 
-  const rows = db
+  // Ordered by name so paging is stable: without an ORDER BY, SQLite is free to
+  // return a different physical order between the two calls a pager makes.
+  const base = db
     .select()
     .from(objects)
     .where(conditions.length ? and(...conditions) : undefined)
-    .all();
+    .orderBy(objects.objectName)
+    .offset(offset);
+
+  const rows = (limit === undefined ? base : base.limit(limit)).all();
 
   return json(200, rows.map(serialize));
 });

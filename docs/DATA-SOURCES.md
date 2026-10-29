@@ -1,7 +1,238 @@
 # 数据源
 
-> 当前聚焦 **Starlink**。`spacebook.com` 是 Cesium 三维 SPA（需浏览器渲染，
-> 非普通 HTTP 站点），尚未接入，见文末「待办」。
+> 数据源分三层：**Starlink 运营方星历**（OCM / ITC，精度最高）、
+> **Space-Track**（最新历元）、**Spacebook**（覆盖最广）。
+> 三者全部入库、互不覆盖，通过 `npm run sources:compare` 交叉验证。
+
+## 0. 多源汇聚总览 ★
+
+每个源都有不同的凭据、更新频率与字段覆盖。**同一颗卫星在多个源里各存一份**，
+不做覆盖，这样才能互相校验。
+
+| 源 | 凭据 | 刷新 | 覆盖 | 实测历元年龄 |
+|---|---|---|---|---|
+| Space-Track `gp` | **需登录** | 2 h | 30 743 | **最新**（基准） |
+| Spacebook OMM | 公开（需代理） | 2 h | 32 809 | 与 Space-Track 相同 |
+| Spacebook entity/TLE | 公开（需代理） | 2 h | **32 809** | 与 OMM 相同（比 XP-TLE 新） |
+| Spacebook XP-TLE | 公开（需代理） | 2 h | 29 566 | **落后 17–77 h** |
+| Spacebook SATCAT | 公开（需代理） | 24 h | 72 310 | — |
+| Spacebook SATCAT supplemental | 公开（需代理） | 24 h | 72 310 | 含**协方差时间窗** |
+| Starlink OCM | 公开 | 8 h | 11 162 | 运营方 7 天弧 |
+
+> `entity/tle` 与 `xp-tle` 是同一类数据的两个端点。实测按 NORAD 去重：
+> `entity/tle` 32 809 个唯一对象，`xp-tle` 29 668，前者**多 3 234 个**，
+> 且历元与 OMM 一致（比 XP-TLE 新 3 天）。**优先用 `entity/tle`**。
+
+凭据写在 `.env.local`（已 gitignore）：
+
+```
+SPACE_SAFETY_SPACETRACK_USER=...
+SPACE_SAFETY_SPACETRACK_PASS=...
+SPACE_SAFETY_PROXY=socks5://127.0.0.1:20170
+```
+
+### 三种表的职责
+
+| 表 | 粒度 | 用途 |
+|---|---|---|
+| `data_sources` | 每源一行 | 注册表：凭据变量、刷新周期、优先级、最近成功时间 |
+| `source_fetches` | 每次抓取一行 | 审计：为何数据旧了——源挂了还是调度没跑 |
+| `object_sources` | **(对象, 源) 一行** | 交叉校验的原始证据 |
+
+`object_sources` 是关键。早期版本把两个源的 TLE 都写成 `state_source='tle'`，
+第二次写入直接覆盖第一次，**对比证据在写入时就丢了**。
+
+### 一个实测发现：Spacebook XP-TLE 系统性滞后
+
+对同一颗卫星比较两源的历元与根数（2026-10-29）：
+
+| 对象 | 历元差 | 分离 |
+|---|---|---|
+| ISS | 54 h | 276 km |
+| STARLINK-1008 | 77 h | 4 337 km |
+| VANGUARD 1 | 17 h | 246 km |
+
+mean motion 的差与历元差**成正比**——这不是数据错误，是陈旧根数。
+所以 XP-TLE 用于**覆盖面**，Space-Track 用于**新鲜度**。
+
+### 判定逻辑（重要）
+
+初版用固定公里阈值，结果 57% 的目标被误判为「异常」。正确做法是**按天漂移率**：
+
+| 条件 | 判定 |
+|---|---|
+| 同历元且差 < 5 km | `agree` — 两源发布的是同一份根数 |
+| 漂移 < 50 km/天 | `agree` |
+| 50–3 000 km/天 | `stale` — 正常的根数老化 |
+| > 3 000 km/天 | `suspect` — 需人工确认 |
+
+`suspect` 还会给出原因分类：
+
+- `same-epoch-disagreement` — 同历元却不一致，**真正的数据矛盾**
+- `uncontrolled-object` — 碎片/火箭体，无轨道保持，短弧就分离
+- `high-orbit` — 高轨，无阻力外推在数天内发散
+- `unexplained` — 无法解释，值得人工看
+
+### OCM 与 TLE 的关系（实测）
+
+STARLINK-1008：OCM 与 Space-Track TLE 的**轨道半径完全吻合**（|r| 差 ≤ 3.7 km），
+但沿迹相位差 1 800–9 000 km，且随历元差振荡。这是 SGP4 沿迹误差的典型表现，
+也正是 **TLE 不能用于精密定轨**的直接证据。
+
+```bash
+npm run sources:refresh                    # 按各源周期刷新
+npm run sources:refresh -- --force         # 强制全部刷新
+npm run sources:compare                    # 交叉验证 2 000 个样本
+npm run sources:compare -- --norad 44714 --verbose
+```
+
+## 0.1 协方差覆盖（决定能否算 Pc）
+
+SATCAT supplemental 给出每个对象的**协方差时间窗**，这是 Pc 可算性的前置条件：
+
+| 状态 | 对象数 | 其中带协方差 |
+|---|---|---|
+| Debris | 35 943 | 12 341 |
+| Active | 18 524 | **17 479** |
+| Dead | 10 759 | 5 536 |
+| RocketBody | 6 919 | 2 465 |
+| Unknown | 165 | 114 |
+| **合计** | **72 310** | **37 935** |
+
+也就是说：**37 935 个对象有协方差窗口**，远多于 Starlink 的 11 162 颗。
+筛查队列可以直接查 `satcat.covariance_start` 跳过无法产出 Pc 的对象，
+而不是尝试 4 万次再失败。
+
+> 落地时踩过：supplemental 用 `entityId` 关联（没有 NORAD），
+> 因缺索引导致 7.2 万次全表扫描，**3 分钟没跑完**（看起来像网络卡死）。
+> 加 `satcat_entity_idx` 后 **1 秒**完成。
+
+## 0.2 ESA DISCOSweb（第三个源）
+
+DISCOSweb 是 ESA 太空环境报告办公室维护的数据库，与其他两源的重叠在于身份，
+**不同在于物理模型**：
+
+| | Space-Track | Spacebook | DISCOSweb |
+|---|---|---|---|
+| 对象数 | 71 198 | 72 310 | ~936 万条记录（含历史/碎片） |
+| 物理参数 | 无 | RCS 分级 | **质量、形状、直径、横截面积** |
+| 来源 | 18th SDS | COMSPOC | ESA，运营方申报 |
+
+物理模型是唯一能**改变计算结果**而不只是描述的东西：碰撞截面需要面积和形状，
+另两源都不提供。
+
+### 认证方式（重要）
+
+DISCOSweb 用 **Personal Access Token**，不是账号密码：
+
+```
+Authorization: Bearer <token>
+DiscosWeb-Api-Version: 2
+Accept: application/vnd.api+json
+```
+
+账号密码只能登录网页，**无法通过 API 换取 token**（实测）：
+
+| 尝试 | 结果 |
+|---|---|
+| `POST /api/auth/login` | 400 “The CSRF token is missing”（它是浏览器表单） |
+| `GET /api/auth/login` | 401 unauthorized |
+| `POST /api/auth` | 405 Method Not Allowed |
+
+Token 在 `https://discosweb.esoc.esa.int/tokens` 生成，写入
+`.env.local` 的 `SPACE_SAFETY_DISCOS_TOKEN`。
+
+### 规模与并发（实测）
+
+| 资源 | 页数（×100 条） |
+|---|---|
+| `objects` | **93 692** |
+| `initial-orbits` | 64 186 |
+| `destination-orbits` | 232（23 192 条） |
+| `launches` | 7 379 |
+| `launch-vehicles/engines` | 944 |
+
+单页约 **1.1 秒**。串行下 `objects` 需要 **约 28 小时**，全量 168 790 页约 52 小时。
+
+并发实测（同一 token）：
+
+| 并发 | 结果 |
+|---|---|
+| 8 | 全部 200 |
+| 32 | 约一半 429 |
+
+所以默认并发 8，并在遇到 429 时**自动减半 + 指数退避**（30s 起，上限 10 分钟）。
+
+> 踩过的坑：初版退避只有 3 秒，6 次重试全部失败于第 104 页；
+> 而实际上 token 只需等一分钟。退避必须按分钟级设计。
+
+### 断点续传
+
+93,692 页不可能一次跑完。`PagedCrawler` 把**每一页缓存在磁盘**，重跑时从第一个缺失页继续：
+
+```
+data/discos-cache/objects/000001.json … 093692.json
+```
+
+中断的代价是一页，而不是整份。这也是 `--loop` 能安全运行的前提。
+
+> 另一个坑：DISCOSweb 的 `links.next` 有时会**重复当前页号**。
+> 初版信任它，结果 2 分钟内把第 1 页拉了 120 次。现在页号由客户端自己递增，
+> 只用 link 的路径与过滤条件。
+
+```bash
+npm run sources:download -- --only discos-objects --force
+SPACE_SAFETY_DISCOS_CONCURRENCY=6 npm run sources:download -- --only discos-objects
+```
+
+## 0.3 全量下载与历史归档
+
+25 个端点、全量约 573 MB，按各自更新频率定时抓取：
+
+```bash
+npm run sources:download -- --list        # 列出 25 个端点与周期
+npm run sources:download                 # 只下到期的
+npm run sources:download -- --force      # 全部
+npm run sources:download -- --loop       # 常驻，每 5 分钟检查一次
+```
+
+归档布局（保留历史以便监控上游篡改）：
+
+```
+data/archive/<endpoint>/<YYYY-MM-DD>/<HHmmss>-<sha256前12>.<ext>
+```
+
+保留策略：7 天内全留；90 天内每天首尾各一；更早每月一份。
+**最新一份永不删除**。内容未变时不重写文件（哈希比对）。
+
+## 0.4 Spacebook 登录（Auth0）
+
+Spacebook 用 Auth0。实测鉴权边界：
+
+| 端点 | 匿名 | 说明 |
+|---|---|---|
+| `/api/entity/tle`、`omm/json`、`satcat`、`satcat/supplemental` | ✅ 200 | 目录数据，无需登录 |
+| `/api/spaceweather/*`、`/api/eop/*` | ✅ 200 | 环境数据 |
+| `/api/Scene`、`/api/Model`、`/api/UserEphemeris` | ❌ 401 | 需 access token |
+
+**为什么不能直接用账密**：该 Auth0 公共客户端只允许 `authorization_code`。
+实测 `password` 与 `device_code` 均返回
+`403 unauthorized_client: Grant type not allowed`，`client_credentials` 返回 401。
+
+所以流程是**一次性浏览器授权**，之后用 refresh token 自动续期：
+
+```bash
+npm run spacebook:login                  # 打印授权链接
+npm run spacebook:login -- --code '<回调地址>' --verifier <v>
+npm run spacebook:login -- --refresh    # 之后自动续期
+npm run spacebook:login -- --status     # 查看缓存状态（不泄露 token）
+```
+
+Token 存 `data/.spacebook-token.json`（已 gitignore，权限 0600），
+代码见 `src/lib/sources/spacebook-auth.ts`。
+
+**当前状态**：目录类数据已全部匿名入库；需要登录的三个端点尚未接入，
+等待完成一次浏览器授权。
 
 ## 1. Starlink OCM 星历（推荐）★
 
@@ -174,13 +405,86 @@ ITRF → 极移 → R3(GMST) → 章动 → 岁差 → J2000
 2. **ITC 文件内没有 `OBJECT_NAME` 字段**，卫星身份只来自文件名。
 
 
-## 待办：spacebook.com
+## 4. Spacebook / COMSPOC —— 全目录身份层 ★
 
-- 站点使用 **Cesium** 做三维渲染，是前端 SPA；`curl` 任意路径返回 404，
-  必须用真实浏览器渲染。
-- 需要先确定：代理配置方式、可抓取范围、数据许可。
-- 目标是补齐**非 Starlink 目标**（其他星座、碎片）及其物理参数，
-  以成为碰撞概率计算的真实「次对象」来源。
+spacebook.com 的前端是 Cesium SPA，但**数据全部来自同域的普通 HTTP 端点**，
+直接抓 JSON/CSV/KVN 即可，不需要浏览器。
+
+| 端点 | 格式 | 体积 | 用途 |
+|---|---|---|---|
+| `/api/Entity/xp-tle` | TLE（无名称行） | 4.2 MB | 全部在轨目标根数 |
+| `/api/entity/omm/json` | CCSDS OMM | 30 MB | 同轨道 + 名称 + 目录字段 |
+| `/api/entity/satcat` | JSON 数组 | 21 MB | 历史全目录 72 310 条 |
+| `/api/spaceweather/full` | CCSDS KVN | 3.5 MB | F10.7 / Ap（阻力） |
+| `/api/eop/full` | CCSDS KVN | 2.5 MB | 极移、UT1-UTC |
+
+### 实测规模（2026-10-29）
+
+| 项目 | 值 |
+|---|---|
+| XP-TLE 记录 | **29 668**（解析 0 错误，321 ms） |
+| OMM 记录 | 32 810（含 11 161 颗 Starlink） |
+| SATCAT 记录 | 72 310 |
+| XP-TLE 含名称 | **0**（两行格式，没有第三行） |
+| 入库耗时 | 29 566 个对象 **1.5 s**（单事务） |
+
+### 两个必须知道的行为
+
+1. **所有 query 参数都被忽略。** `?noradId=`、`?limit=`、`?format=` 一律返回
+   完全相同的全量 body（实测恒为 4 153 520 字节）。所以没有单对象接口，
+   也没有分页——每次刷新都是全量下载 + 本地过滤。
+2. **会静默截断。** 连接提前关闭时 `fetch` 仍然成功，而**截断的 TLE 会解析成
+   更小的目录且零报错**。因此 `SpacebookClient.verify` 同时检查字节下限、
+   首字节不是 HTML、以及尾部停在记录边界；解析结果低于 20 000 条直接拒收。
+
+### 身份解析优先级
+
+XP-TLE 不带名称，因此名称按 `NORAD → 名称` 从两个源合并：
+
+```
+OMM OBJECT_NAME  >  SATCAT name  >  NORAD-<id>
+```
+
+OMM 优先是因为它由运营方发布，而 SATCAT 有时仍是发射代号的占位名。
+
+### 物理参数
+
+SATCAT 给的是 RCS **分级**而不是半径，映射为保守的硬体半径（宁可偏大，
+漏报比误报更糟）：
+
+| RCS 等级 | 硬体半径 |
+|---|---|
+| LARGE | 5.0 m |
+| MEDIUM | 1.5 m |
+| SMALL | 0.5 m |
+| 未知 | 1.5 m |
+
+机动能力按类型推断：只有 `PAYLOAD` 视为可机动，`DEBRIS` / `ROCKET BODY` 一律否。
+
+### 入库方式
+
+```bash
+npm run spacebook:refresh                 # 下载 + 校验 + 解析 + 入库
+npm run spacebook:refresh -- --no-download  # 用当天已下好的快照
+npm run spacebook:refresh -- --max-age 7    # 丢弃超过 7 天的根数
+```
+
+结果写三处：`satcat`（全量替换）、`objects`（operator = `catalog`）、
+`trajectories`（`state_source = 'tle'`，`point_count = 1`，`has_covariance = 0`）。
+
+**Starlink 不会被覆盖**：它们的 OCM 轨迹是另一行（`state_source =
+'operator_ephemeris'`），TLE 只是并列的第二个来源。这正是「两套数据都入库」
+的落点，也让筛查端能按 `source-policy` 选择用哪一套。
+
+### 为什么 TLE 只做身份与初筛
+
+SGP4 不带协方差，算不出 Pc。所以 XP-TLE 的角色是：
+
+- 给 `/objects` 提供 NORAD 编号与名称；
+- 给非 Starlink 目标提供初筛轨迹；
+- 与 OCM 在同历元交叉校验（偏差大 = 有一方过期）。
+
+交会筛查的 Pc 仍然只来自 OCM 的 6×6 协方差。
 
 ---
 
@@ -196,6 +500,15 @@ const states = mergeOcmCovariance(ocm);
 import { fetchManifest, fetchEphemeris } from "@/lib/sources/starlink-public";
 const manifest = await fetchManifest();     // 11163 条
 const eph = await fetchEphemeris(manifest[0]);
+
+// Spacebook：全目录身份层
+import { SpacebookClient } from "@/lib/sources/spacebook";
+const sb = new SpacebookClient();            // 默认读 SPACE_SAFETY_PROXY
+const snap = await sb.fetch("xp-tle");       // 下载 + 校验，返回 path/bytes/ok
+
+import { TleCatalogueIngest, loadSatcat } from "@/lib/sources/spacebook-ingest";
+const satcat = loadSatcat(sqlite);           // Map<noradId, SatcatMeta>
+new TleCatalogueIngest().run(sqlite, tles, satcat, names);  // 单事务，29k 条约 1.5 s
 ```
 
 测试中有真实数据样本：`tests/fixtures/ocm-*.txt`、
