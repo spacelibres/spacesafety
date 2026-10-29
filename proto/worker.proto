@@ -1,0 +1,202 @@
+// Space Eyes — worker control plane.
+//
+// The compute plane lives on a local machine; the public API lives on a VPS.
+// The worker dials OUT to the VPS and holds a bidirectional stream open. The
+// VPS then pushes jobs down that stream and the worker streams results back.
+//
+// Rationale for a stream rather than VPS-initiated calls:
+//   - The compute box needs no inbound reachability (NAT/firewall friendly).
+//   - One connection carries both dispatch and result traffic, so there is no
+//     polling latency and no separate callback endpoint to secure.
+//   - Backpressure is expressed naturally: the worker only reports "ready"
+//     when it has capacity, so the scheduler never floods it.
+
+syntax = "proto3";
+
+package spaceeyes.worker.v1;
+
+option go_package = "spaceeyes/worker/v1;workerv1";
+
+// ---------------------------------------------------------------------------
+// Shared value types
+// ---------------------------------------------------------------------------
+
+// A time-tagged cartesian state. Position km, velocity km/s, inertial frame.
+message StateVector {
+  // Unix epoch milliseconds (UTC).
+  int64 epoch_ms = 1;
+  double px = 2;
+  double py = 3;
+  double pz = 4;
+  double vx = 5;
+  double vy = 6;
+  double vz = 7;
+  // Row-major 6x6 covariance, km^2 and km^2/s. Empty when the uploader did
+  // not supply covariance, which is what makes Pc NULL downstream.
+  repeated double covariance = 8;
+}
+
+// A trajectory as the screening engine needs it: already converted to the
+// inertial frame and sorted by time.
+message TrajectorySample {
+  string trajectory_id = 1;
+  string object_id = 2;
+  string object_name = 3;
+  // Combined hard-body radius in km (sum of both objects for the pair, or the
+  // object's own radius when supplied per-side).
+  double hard_body_radius_km = 4;
+  repeated StateVector states = 5;
+  // "operator_ephemeris" | "spacex_optical"
+  string state_source = 6;
+}
+
+// One candidate conjunction to evaluate.
+message ScreeningJob {
+  string job_id = 1;
+  TrajectorySample primary = 2;
+  TrajectorySample secondary = 3;
+  // Compute budget hint; the worker may lower its sample density to fit.
+  uint32 max_sample_points = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Results
+// ---------------------------------------------------------------------------
+
+message CloseApproach {
+  // Time of closest approach, Unix epoch ms.
+  int64 tca_epoch_ms = 1;
+  // Miss distance in km, projected into the encounter plane.
+  double miss_distance_km = 2;
+  // 3D miss distance, km.
+  double total_miss_distance_km = 3;
+  // Relative speed at TCA, km/s.
+  double relative_speed_km_s = 4;
+  // Probability of collision in [0,1]. Absent => NULL Pc in the CDM.
+  optional double probability_of_collision = 5;
+  // Why Pc could not be computed, when absent.
+  string pc_failure_reason = 6;
+  // RTN miss vector of the secondary relative to the primary, km.
+  double rtn_r = 7;
+  double rtn_t = 8;
+  double rtn_n = 9;
+  // 2D combined covariance in the encounter plane, km^2.
+  double cov_xx = 10;
+  double cov_xy = 11;
+  double cov_yy = 12;
+  // True when relative speed is low enough that 2D Pc is questionable.
+  bool low_relative_speed = 13;
+}
+
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  JOB_STATUS_COMPLETED = 1;
+  JOB_STATUS_FAILED = 2;
+  // The worker ran out of time; the VPS may requeue or give up.
+  JOB_STATUS_TIMEOUT = 3;
+}
+
+message ScreeningResult {
+  string job_id = 1;
+  JobStatus status = 2;
+  // Zero or more close approaches found inside the screening volume.
+  repeated CloseApproach approaches = 3;
+  string error = 4;
+  // Wall-clock compute time in ms, for capacity planning.
+  uint32 compute_ms = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Worker -> VPS stream messages
+// ---------------------------------------------------------------------------
+
+message WorkerHello {
+  string worker_id = 1;
+  // Free-form version string, checked against the VPS's supported range.
+  string version = 2;
+  // Max jobs the worker wants in flight at once.
+  uint32 concurrency = 3;
+  // Human-readable host label, surfaced in ops dashboards.
+  string host_label = 4;
+}
+
+message WorkerHeartbeat {
+  uint32 jobs_in_flight = 1;
+  // Recent average compute time, ms.
+  uint32 avg_compute_ms = 2;
+}
+
+message WorkerMessage {
+  oneof payload {
+    WorkerHello hello = 1;
+    ScreeningResult result = 2;
+    WorkerHeartbeat heartbeat = 3;
+    // Graceful drain: the VPS should stop dispatching to this stream.
+    bool draining = 4;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// VPS -> worker stream messages
+// ---------------------------------------------------------------------------
+
+message DispatchJob {
+  ScreeningJob job = 1;
+}
+
+message CancelJob {
+  string job_id = 1;
+}
+
+message ServerMessage {
+  oneof payload {
+    DispatchJob dispatch = 1;
+    CancelJob cancel = 2;
+    // Sent in reply to a heartbeat; the worker should exit cleanly.
+    bool shutdown = 3;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+// WorkerControl is implemented by the VPS and dialled by the compute node.
+service WorkerControl {
+  // Long-lived bidirectional channel: jobs down, results up.
+  rpc Connect(stream WorkerMessage) returns (stream ServerMessage);
+}
+
+// ---------------------------------------------------------------------------
+// Coordinator service (VPS-internal and ops-facing)
+// ---------------------------------------------------------------------------
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ok = 1;
+  string version = 2;
+  uint32 connected_workers = 3;
+  uint32 jobs_queued = 4;
+  uint32 jobs_in_flight = 5;
+}
+
+message QueuedJob {
+  string job_id = 1;
+  string object1_name = 2;
+  string object2_name = 3;
+  int64 queued_at_ms = 4;
+}
+
+message QueueRequest {
+  uint32 limit = 1;
+}
+
+message QueueResponse {
+  repeated QueuedJob jobs = 1;
+}
+
+service Coordinator {
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc Queue(QueueRequest) returns (QueueResponse);
+}

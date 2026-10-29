@@ -1,0 +1,38 @@
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+.venv/
+.venv-dl/
+
+# 证书：只有服务端/客户端密钥不能入库。
+# ca.crt、client.crt、identity.json 是公开信息，用于让读者知道证书的形态。
+certs/ca.key
+certs/client.key
+certs/*.srl
+
+# 环境与凭据
+.env
+.env.local
+.env.*.local
+*.pem
+*.p12
+*.pfx
+
+# 本地计算数据：星历缓存、数据库、Spacebook 下载源文件。
+# 这些是几十 GB 量级，永远不进版本库；仓库里只保存可以重新下载/重新计算的脚本。
+data/*
+!data/.gitkeep
+
+# 运行时产物
+*.log
+*.tsbuildinfo
+/tmp/
+core
+core.*
+
+# 编辑器与系统
+.DS_Store
+.idea/
+.vscode/
+*.swp
