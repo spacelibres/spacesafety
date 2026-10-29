@@ -51,6 +51,8 @@ type PointPrimitive = import("cesium").PointPrimitive;
 interface Track {
   /** `points * 3`, km, ECEF. */
   points: Float32Array;
+  /** Samples in this revolution. */
+  count: number;
   /** The point primitive drawn for this satellite. */
   point: PointPrimitive;
   shell: string;
@@ -139,8 +141,20 @@ export class CesiumGlobe {
   private animationStart = 0;
   /** Click handler, owned by the view layer. */
   private readonly onPick: SatellitePickHandler | undefined;
-  /** The currently highlighted satellite, or null. */
-  private selected: Track | null = null;
+  /** The satellite a click pinned; survives the pointer moving away. */
+  private locked: Track | null = null;
+  /** The satellite under the pointer. */
+  private hovered: Track | null = null;
+  /**
+   * The orbit line for whichever satellite is previewed.
+   *
+   * One primitive, replaced on every change: drawing a single polyline is cheap,
+   * and keeping a line per satellite is exactly the geometry the point
+   * representation exists to avoid.
+   */
+  private preview: import("cesium").PolylineCollection | null = null;
+  /** The previewed satellite, so the line and the card come from one source. */
+  private previewTrack: Track | null = null;
   /** Its normal size, so deselection can restore rather than guess. */
   private selectedSize: number;
   /** Shell colours, kept so a theme change can recolour the dots. */
@@ -400,6 +414,7 @@ export class CesiumGlobe {
 
       this.tracks.push({
         points,
+        count: points.length / 3,
         point,
         shell: track.shell,
         norad: track.norad,
@@ -426,48 +441,113 @@ export class CesiumGlobe {
     const { cesium, viewer } = this;
     const handler = new cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 
+    // Hover previews, click locks. The move handler reads `endPosition`:
+    // `startPosition` is where the previous gesture ended, which after a drag is
+    // nowhere near the pointer.
+    handler.setInputAction((motion: { endPosition: import("cesium").Cartesian2 }) => {
+      if (this.disposed) return;
+      const track = this.pickAt(motion.endPosition);
+      if (track === this.hovered) return;
+      this.hovered = track;
+      // A lock outranks the pointer: moving off a pinned satellite must not clear
+      // what the user deliberately selected.
+      this.showPreview(this.locked ?? this.hovered);
+      // The card follows the preview when nothing is locked, so it appears on
+      // hover; once locked it stays put.
+      if (!this.locked) this.onPick?.(this.previewTrack ? this.describe(this.previewTrack) : null);
+    }, cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
     handler.setInputAction((event: { position: import("cesium").Cartesian2 }) => {
       if (this.disposed) return;
-      const picked = viewer.scene.pick(event.position) as
-        | { id?: { norad?: string } }
-        | undefined;
-      const norad = picked?.id?.norad;
-      if (!norad) {
-        this.select(null);
-        this.onPick?.(null);
-        return;
-      }
-      const track = this.tracks.find((candidate) => candidate.norad === norad) ?? null;
-      if (!track) {
-        this.select(null);
-        this.onPick?.(null);
-        return;
-      }
-      this.select(track);
-      this.onPick?.(this.describe(track));
+      this.locked = this.pickAt(event.position);
+      this.showPreview(this.locked ?? this.hovered);
+      this.onPick?.(this.previewTrack ? this.describe(this.previewTrack) : null);
     }, cesium.ScreenSpaceEventType.LEFT_CLICK);
 
     this.pickHandler = handler;
   }
 
-  /** Highlight one satellite, or clear the highlight with `null`. */
-  private select(track: Track | null): void {
-    if (this.selected) {
-      this.selected.point.pixelSize = this.selectedSize;
-      // Restore the shell colour the theme gave it.
-      const shellColour = this.shells.get(this.selected.shell);
-      if (shellColour) {
-        this.selected.point.color = this.cesium.Color.fromCssColorString(shellColour);
-      }
+  /**
+   * Clear the locked selection and its orbit line.
+   *
+   * Called by the info card's close button: the class owns the highlight, so the
+   * view cannot clear it by unmounting the card alone — the locked satellite would
+   * stay pinned and reappear on the next hover.
+   */
+  clearPick(): void {
+    this.locked = null;
+    this.showPreview(this.hovered);
+  }
+
+  /** The satellite under a screen point, or null. */
+  private pickAt(position: import("cesium").Cartesian2): Track | null {
+    const picked = this.viewer.scene.pick(position) as
+      | { id?: { norad?: string } }
+      | undefined;
+    const norad = picked?.id?.norad;
+    if (!norad) return null;
+    return this.tracks.find((candidate) => candidate.norad === norad) ?? null;
+  }
+
+  /**
+   * Show one satellite's orbit and highlight its dot; `null` clears both.
+   *
+   * The dot grows and takes the selection accent, and the orbit is drawn as one
+   * closed polyline in the same accent.
+   */
+  private showPreview(track: Track | null): void {
+    const { cesium, viewer } = this;
+
+    // Put the previously highlighted dot back the way the palette had it.
+    const previous = this.previewTrack;
+    if (previous && previous !== track) {
+      previous.point.pixelSize = POINT_PIXELS;
+      previous.point.color = this.shellColour(previous.shell);
     }
 
-    this.selected = track;
+    if (this.preview) {
+      viewer.scene.primitives.remove(this.preview);
+      this.preview = null;
+    }
+
+    this.previewTrack = track;
     if (!track) return;
 
-    this.selectedSize = track.point.pixelSize ?? POINT_PIXELS;
     track.point.pixelSize = SELECTED_PIXELS;
-    // The selection accent is the palette's, not a literal, so it re-themes.
     track.point.color = this.toColor(this.theme.accent);
+
+    const collection = new cesium.PolylineCollection();
+    const positions: import("cesium").Cartesian3[] = [];
+    for (let i = 0; i < track.count; i += 1) {
+      positions.push(
+        new cesium.Cartesian3(
+          track.points[i * 3] * 1000,
+          track.points[i * 3 + 1] * 1000,
+          track.points[i * 3 + 2] * 1000,
+        ),
+      );
+    }
+    collection.add({
+      positions,
+      width: 1.5,
+      loop: true,
+      material: this.material(this.theme.accent, 0.55),
+    });
+    this.preview = viewer.scene.primitives.add(collection);
+  }
+
+  /** A dot's resting colour: the shell ramp, or the palette fallback. */
+  private shellColour(shell: string): import("cesium").Color {
+    return this.cesium.Color.fromCssColorString(
+      this.shells.get(shell) ?? cssColour(this.theme.primary),
+    );
+  }
+
+  /** A constant-colour material from one of our numeric scene colours. */
+  private material(value: number, alpha: number): import("cesium").Material {
+    return new this.cesium.Material({
+      fabric: { type: "Color", uniforms: { color: this.toColor(value, alpha) } },
+    });
   }
 
   /** Resolve a track's instantaneous geography from the buffer the animation uses. */
@@ -486,7 +566,10 @@ export class CesiumGlobe {
 
   /** Remove the constellation primitive and forget its members. */
   private clearConstellation(): void {
-    this.selected = null;
+    this.locked = null;
+    this.hovered = null;
+    this.previewTrack = null;
+    this.preview = null;
     this.tracks.length = 0;
     if (!this.points) return;
     this.viewer.scene.primitives.remove(this.points);
@@ -565,15 +648,24 @@ export class CesiumGlobe {
     const labelOutline = this.toColor(theme.labelOutline, 0.9);
 
     // Dots take their colour from the palette, so they follow the theme too.
-    const fallback = cssColour(theme.primary);
     const colours = new Map<string, import("cesium").Color>();
     for (const track of this.tracks) {
+      // The previewed dot is repainted below; the shell ramp would flatten it.
+      if (track === this.previewTrack) continue;
       let colour = colours.get(track.shell);
       if (!colour) {
-        colour = this.cesium.Color.fromCssColorString(this.shells.get(track.shell) ?? fallback);
+        colour = this.shellColour(track.shell);
         colours.set(track.shell, colour);
       }
       track.point.color = colour;
+    }
+
+    if (this.previewTrack && this.preview) {
+      this.previewTrack.point.color = this.toColor(theme.accent);
+      const accent = this.material(theme.accent, 0.55);
+      for (let i = 0; i < this.preview.length; i += 1) {
+        this.preview.get(i).material = accent;
+      }
     }
   }
 
@@ -609,7 +701,10 @@ export class CesiumGlobe {
       this.pickHandler.destroy();
       this.pickHandler = null;
     }
-    this.selected = null;
+    this.preview = null;
+    this.previewTrack = null;
+    this.locked = null;
+    this.hovered = null;
     this.tracks.length = 0;
     this.points = null;
     this.grid = null;

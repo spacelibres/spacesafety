@@ -156,7 +156,10 @@ export function ConstellationGlobe({ height = 620 }: Props) {
             <button
               type="button"
               className="satellite-card-close"
-              onClick={() => setSelected(null)}
+              onClick={() => {
+                globeRef.current?.clearPick();
+                setSelected(null);
+              }}
               aria-label={t.t("constellation.clearSelection")}
             >
               ×
