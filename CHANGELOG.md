@@ -12,6 +12,35 @@
 
 ---
 
+## [0.1.8] - 2026-10-29
+
+地球表面改用 Cesium 自带的分级瓦片底图，删除手塞的 2.5 MB 全幅贴图。
+
+### 变更
+
+- **底图换成 `NaturalEarthII` TMS 瓦片**。上一版用 `SingleTileImageryProvider`
+  把一张 5400×2700 的 Blue Marble（2.5 MB）当作单瓦片加载——无论视角如何都是全量下载，
+  无法分级，而且这幅写实地表在轨道数据视图里喧宾夺主。
+  现在用的是 Cesium 包自带的 `Assets/Textures/NaturalEarthII`（三个层级共 42 张、608 KB），
+  随 `public/cesium/` 一起部署，**没有新增文件**。
+- 删除 `public/geo/earth-blue-marble.jpg`（2.5 MB），`public/geo/` 目录随之移除。
+- URL 使用 `{z}/{reverseY}/{x}`：这套瓦片是 TMS 行序（原点在南极），
+  用 XYZ 会得到上下颠倒但依然“看起来合理”的地球，很容易蒙混过关；
+  代码里写了为什么。
+
+### 验证
+
+- `npx tsc --noEmit` 通过；`npm run check` 9 项全过。
+- `/cesium/Assets/Textures/NaturalEarthII/0/0/0.jpg` 200（12 KB）、
+  `/…/2/0/1.jpg` 200（9 KB）；`/geo/earth-blue-marble.jpg` 返回 404。
+
+### 已知问题
+
+- `NaturalEarthII` 最高只有 z=2（约 0.176°/像素），拉得很近时地表会发糊。
+  轨道数据视图里可接受；若将来需要近地视图，再加一层更高分辨率底图。
+
+---
+
 ## [0.1.7] - 2026-10-29
 
 按反馈移除地球上 177 个国家名称标注；国名数据作为参考数据归档保留。

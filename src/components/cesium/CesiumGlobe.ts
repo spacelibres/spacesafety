@@ -165,17 +165,27 @@ export class CesiumGlobe {
     scene.globe.baseColor = this.toColor(this.theme.globe);
     scene.globe.enableLighting = false;
 
-    // Imagery: our own Blue Marble, so no provider token and no network call.
+    // Imagery: Cesium's own Natural Earth II tiles, which ship with the package
+    // (608 KB across three zoom levels) and are already served from
+    // `public/cesium` by `tools/copy-cesium.ts`. No provider token, no external
+    // network call, and no big extra asset: the previous single 5400x2700 JPEG
+    // was 2.5 MB loaded in full at every zoom level.
+    //
+    // Note the URL scheme: this tileset uses TMS rows (origin at the south pole,
+    // `{reverseY}`) rather than the XYZ rows most web maps use. Getting that
+    // wrong renders the southern hemisphere upside down, which looks plausible
+    // enough to survive a casual glance.
     const imagery = scene.imageryLayers;
     imagery.removeAll();
-    const provider = new this.cesium.SingleTileImageryProvider({
-      url: "/geo/earth-blue-marble.jpg",
-      tileWidth: 5400,
-      tileHeight: 2700,
+    const provider = new this.cesium.UrlTemplateImageryProvider({
+      url: "/cesium/Assets/Textures/NaturalEarthII/{z}/{reverseY}/{x}.jpg",
+      maximumLevel: 2,
+      tilingScheme: new this.cesium.GeographicTilingScheme(),
+      rectangle: this.cesium.Rectangle.MAX_VALUE,
     });
     const layer = imagery.addImageryProvider(provider);
     // Brightness/saturation are theme-driven: on the dark theme the imagery is
-    // toned down so the orbit lines stay the dominant layer.
+    // toned down so the constellation stays the dominant layer.
     layer.brightness = this.theme.mode === "dark" ? 0.62 : 1.0;
     layer.saturation = this.theme.mode === "dark" ? 0.75 : 1.0;
 
