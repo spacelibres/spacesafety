@@ -74,18 +74,19 @@ code,
 }
 
 .sidebar-brand {
-  display: block;
-  /* VI clear space: 0.25 of the logo canvas height around the mark. 108px tall
-     canvas at 27px high => 7px minimum; 16px vertical padding leaves room. */
-  padding: 16px 16px 12px;
+  display: flex;
+  justify-content: center;
+  /* VI clear space: 0.25 of the canvas height around the mark. A 105px-high mark
+     needs 26px; the padding below and the rail's side margins supply it. */
+  padding: 20px 16px 16px;
 }
 .sidebar-brand img {
   display: block;
-  /* Fixed width, not 100%: a full-width image ignores the padding above and
-     loses the VI's clear space on the left edge. 122x27 keeps the 810:180
-     canvas ratio to within 0.02. */
-  width: 122px;
-  height: 27px;
+  /* Fixed size, not 100%: the stacked master is 620x430, so 152px wide implies
+     105px tall. Both values are explicit to keep the canvas ratio exact and stop
+     the mark stretching inside a flex container. */
+  width: 152px;
+  height: 105px;
 }
 
 /* Language switcher. The visible <label> text was colliding with the select
@@ -831,67 +832,6 @@ button.btn.primary:hover {
   padding: 0;
 }
 
-/* ------------------------------------------------------------- viewer */
-
-.viewer {
-  position: relative;
-  width: 100%;
-  background: radial-gradient(
-    ellipse at 50% 45%,
-    var(--viewer-center) 0%,
-    var(--bg) 72%
-  );
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.viewer canvas {
-  display: block;
-}
-.viewer-overlay {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  pointer-events: none;
-}
-.viewer-badge {
-  font-size: 10.5px;
-  font-family: var(--mono);
-  color: var(--text-dim);
-  background: var(--overlay);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 2px 7px;
-  width: fit-content;
-}
-.viewer-legend {
-  position: absolute;
-  /* Bottom-right, above the coordinate readout. The left side is where the Sun
-     and Moon pass as the globe rotates, and the top-left holds the badge. */
-  bottom: 40px;
-  right: 12px;
-  display: flex;
-  gap: 14px;
-  font-size: 10.5px;
-  color: var(--text-dim);
-  background: var(--overlay);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 4px 9px;
-}
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.legend-swatch {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
 /* ---------------------------------------------------------------- misc */
 
 .sparkline {
@@ -913,9 +853,15 @@ button.btn.primary:hover {
     width: 56px;
   }
   .sidebar-brand img {
-    /* Compact breakpoint: the icon master, per the VI's small-size rule. */
+    /* Compact breakpoint: the icon master, per the VI's small-size rule. The
+       stacked mark cannot shrink below legibility, so it is replaced rather than
+       scaled. */
     content: url("/vi/icon-primary-dark.svg");
-    max-width: 28px;
+    width: 28px;
+    height: 28px;
+  }
+  .sidebar-brand {
+    padding: 14px 16px 10px;
   }
   .sidebar-clock,
   .sidebar-search,
@@ -925,4 +871,90 @@ button.btn.primary:hover {
   .content {
     padding: 16px 12px 40px;
   }
+}
+
+/* --------------------------------------------------- constellation view */
+
+.constellation {
+  position: relative;
+  width: 100%;
+}
+
+.constellation-canvas {
+  width: 100%;
+  position: relative;
+  background: radial-gradient(ellipse at 50% 45%, var(--viewer-center) 0%, var(--bg) 72%);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.constellation-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Shell legend: which inclination/altitude groups are on screen, and how many. */
+.constellation-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  min-width: 168px;
+  padding: 8px 10px;
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 10.5px;
+  line-height: 1.55;
+  pointer-events: none;
+}
+
+.constellation-summary {
+  color: var(--text);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-dim);
+}
+
+.legend-key {
+  font-family: var(--mono);
+  flex: 1 1 auto;
+}
+
+.legend-count {
+  font-family: var(--mono);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cesium's widget chrome: no credit overlap, no default white background. */
+.constellation-canvas .cesium-widget,
+.constellation-canvas .cesium-widget canvas {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.constellation-canvas .cesium-viewer,
+.constellation-canvas .cesium-viewer-cesiumWidgetContainer {
+  width: 100%;
+  height: 100%;
+}
+
+/* Attribution stays (it is a licence condition) but must not cover the legend. */
+.constellation-canvas .cesium-widget-credits {
+  font-size: 9px;
+  opacity: 0.55;
+  text-shadow: none;
+}
+
+.constellation-canvas .cesium-credit-textContainer,
+.constellation-canvas .cesium-credit-logoContainer {
+  color: var(--text-dim);
 }

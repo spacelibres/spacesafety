@@ -1,6 +1,6 @@
 {
   "name": "spacesafety",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
@@ -58,12 +58,16 @@
     "probe:manifest": "node --conditions=react-server --import tsx tools/probe-manifest.ts",
     "probe:screen": "node --conditions=react-server --import tsx tools/probe-screen.ts",
     "fetch:geo": "node --conditions=react-server --import tsx tools/fetch-geo.ts",
-    "vi": "node --conditions=react-server --import tsx tools/vi.ts"
+    "vi": "node --conditions=react-server --import tsx tools/vi.ts",
+    "build:snapshot": "node --conditions=react-server --import tsx scripts/build-snapshot.ts",
+    "cesium:copy": "node --conditions=react-server --import tsx tools/copy-cesium.ts",
+    "postinstall": "node --conditions=react-server --import tsx tools/copy-cesium.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
     "@grpc/proto-loader": "^0.8.1",
     "better-sqlite3": "^13.0.3",
+    "cesium": "^1.146.0",
     "drizzle-orm": "^0.38.3",
     "next": "^15.1.0",
     "react": "^19.0.0",

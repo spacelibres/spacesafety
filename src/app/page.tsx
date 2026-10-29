@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
-import { getTranslator } from "@/lib/i18n/registry";
+import { ConstellationGlobe } from "@/components/cesium/ConstellationGlobe";
+import { currentLocale, getTranslator } from "@/lib/i18n/registry";
 import {
   getCatalogSummary,
   getOverview,
@@ -10,8 +11,6 @@ import {
   riskThresholds,
 } from "@/lib/queries";
 import { countdownTo, formatGps } from "@/lib/space-safety/gps";
-
-import HomeViewer from "./HomeViewer";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +21,7 @@ export default async function HomePage() {
   const catalog = getCatalogSummary(6);
   const thresholds = riskThresholds();
   const t = await getTranslator();
+  const locale = await currentLocale();
 
   return (
     <>
@@ -81,7 +81,10 @@ export default async function HomePage() {
               <span className="count">{t.t("overview.orbitalViewCaption")}</span>
             </div>
             <div className="card-body flush">
-              <HomeViewer limit={60} />
+              {/* The whole constellation, not the newest 60 catalog entries: this
+                  card is the global picture, and screening results below it are
+                  the detail. */}
+              <ConstellationGlobe height={460} locale={locale} />
             </div>
           </section>
 

@@ -5,6 +5,7 @@ import { I18nProvider } from "@/lib/i18n/client";
 import { currentLocale, translator } from "@/lib/i18n/registry";
 import { currentTheme } from "@/lib/vi/theme";
 
+import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./globals.css";
 
 /**

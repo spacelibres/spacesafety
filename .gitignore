@@ -29,6 +29,12 @@ data/*
 *.tsbuildinfo
 /tmp/
 
+# 生成物：星座快照由 `npm run build:snapshot` 从 TLE 重新生成（12 MB），
+# Cesium 的运行时资源由 `npm install` 后的拷贝脚本填充。两者都不进版本库，
+# 否则每次构建都会产生一个无法审阅的巨大 diff。
+/public/data/
+/public/cesium/
+
 # 崩溃转储。必须带锚点：裸写 `core` 会连同 `src/lib/core/`（计算内核）
 # 一起忽略，仓库里就会缺掉整个筛查内核而看似正常。
 /core
@@ -40,7 +46,3 @@ data/*
 .idea/
 .vscode/
 *.swp
-
-# Python 字节码
-__pycache__/
-*.pyc

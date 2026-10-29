@@ -80,7 +80,7 @@ export function Sidebar() {
         hear it twice.
       */}
       <Link className="sidebar-brand" href="/" aria-label={t.t("app.name")}>
-        <img src="/vi/horizontal-primary-dark.svg" alt="" width={122} height={27} />
+        <img src="/vi/stacked-primary-dark.svg" alt="" width={152} height={105} />
       </Link>
       {showBanner && <div className="sidebar-env">{env}</div>}
       <div className="sidebar-clock">{clock}</div>

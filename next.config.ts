@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   // screenshot and, worse, on a real screen. Errors still surface in the
   // terminal and as a full overlay.
   devIndicators: false,
+
+  // The dev server is reached both as localhost and as this machine's LAN
+  // address; without this Next warns on every request for /_next/*.
+  allowedDevOrigins: ["127.0.0.1", "192.168.31.75"],
 };
 
 export default nextConfig;

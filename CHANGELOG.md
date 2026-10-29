@@ -12,122 +12,57 @@
 
 ---
 
-## [0.1.5] - 2026-10-29
+## [0.1.6] - 2026-10-29
 
-按 spacelibre VI 标准重做配色，并把轨道视图从"一个黑球加一堆线"改成真正的地球视图。
-
-### 新增
-
-- **VI 规范落地**（`CONTRIBUTING.md` 新增第 9 节，来源 github.com/spacelibres/vi）：
-  - `src/lib/vi/palette.ts` 是唯一颜色来源，采用预设 `01-electric-orbit`
-    （primary `#007BFF`，与 logo 母版一致）。
-  - `tools/vi.ts` 从调色板生成 `src/app/vi-tokens.css` 与 `public/vi/*.svg`，
-    颜色一律由生成，禁止手写十六进制值。
-  - Logo 使用 VI 的真实矢量母版（`design/vi-source/`，逐字节保留），
-    单色母版不做任何改色；全彩母版按主题重着色星球（深色 `#FF3733` / 浅色 `#E00400`），
-    蒙版结构色 black/white 保持不变。
-  - 12 组对比度全部 ≥ 4.5:1。VI 的状态色原本是按白纸设计的，在深色背景上只有 2.9:1，
-    新增 `legibleOn()` 自动推导最接近的可读版本，而不是另造一套"暗色专用色"。
-- **地球视图**：
-  - 透明球体 + 15° 间隔经纬网格（赤道与本初子午线加粗）。
-  - 177 个国家边界（Natural Earth 1:110m，公有领域）。
-  - 国名标注，六语种取自 Natural Earth 自带的 `NAME_ZH/EN/ES/FR/DE/JA` 列，
-    无需手工翻译；标注按屏幕包围盒去重，面朝相机者优先，不会重叠。
-  - 太阳与月亮按真实地心方向放置（Meeus 算法，太阳 ~0.01°，月亮 ~0.3°），
-    光照方向与所绘太阳一致；另有 1800 颗确定分布的星空。
-  - 鼠标悬停读取球面经纬度，按度分秒格式化显示。
-- **偏好设置**：语言与外观移到侧栏左下角，默认均为「跟随系统」
-  （语言读 `navigator.languages`，外观读 `prefers-color-scheme`），也可手动指定。
-- 新增 `npm run vi`（生成 VI 资源）、`npm run fetch:geo`（下载国界数据）。
+把首页的地球视图统一到 Cesium，并修掉一次全量星座渲染卡死浏览器的问题。
 
 ### 修复
 
-- `stats-row`、`home-grid`、`sidebar-language`、`sr-only` 等类被页面引用但**从未定义**，
-  统计卡片竖排、轨道视图占满整行、语言选择器文字重叠。
-- 浅色主题失效：`:root` 与 `[data-theme="light"]` 特异性相同，浅色规则被覆盖。
-  改为 `:root[data-theme="light"]`，不再依赖源顺序。
-- Next.js 开发指示器浮标压住左下角偏好区，已在 `next.config.ts` 关闭。
-- 轨道过密导致地球被完全遮住（60 条 181 点折线叠在 1.05 地球半径内）：
-  改为 2 条完整轨道 + 其余降采样为背景点云。
-- 国名标注互相重叠（Chile/Bolivia/Paraguay 叠在一起）：加入屏幕空间碰撞剔除。
-
-### 验证
-
-- `tsc --noEmit` 0 错误；23 个测试套件 43 条断言全过；`npm run check` 9 项全过。
-- 7 个页面全部 200；zh-CN / ja / de 下界面文案与国名均正确切换。
-- 截图核对：地球轮廓、国界、国名、太阳、经纬度读数、左下角偏好区均正常。
-
----
-
-## [0.1.4] - 2026-10-29
-
-新增项目规则、六语种界面，并把全部工具从 Python 迁到 TypeScript。
-
-### 新增
-
-- **`CONTRIBUTING.md`**：约束性项目规则——技术栈（TS + Next.js + Three.js）、
-  面向对象开发标准、脚本必须用 TS、多语言要求、版本与提交规则、仓库内容规则、
-  提交前必跑的三项检查。规则的修改也要走版本流程。
-- **多语言（zh-CN / en / es / fr / de / ja）**：
-  - `src/lib/i18n/` 提供 `Translator` 类（`t`/`number`/`dateTime`/`probability`），
-    274 个键 × 6 个语种；缺失键在提交前由检查器拦下，而不是运行时静默回退。
-  - 语言由 `locale` cookie 决定，服务端渲染 `<html lang>` 与文案，侧栏有切换器。
-  - 技术标识（对象名、CCSDS 字段名、单位、API 路径）按规范不翻译。
-- **`tools/check.ts`**：提交前自检 8 项——无 Python 残留、`.gitignore` 无危险规则、
-  计算内核已入库、无凭据/数据入库、六语种键一致、页面引用的键都存在、
-  版本四处一致、无硬编码界面文案。
+- **13 000 条轨道不再绘制**（`src/components/cesium/CesiumGlobe.ts`）。
+  上一版为每颗卫星画一整圈轨道折线，13 000 条 × 约 100 段，光晕全部堆在地球边缘，
+  帧率跌到不可用。现在**每颗卫星只画一个光点**（`PointPrimitiveCollection`，
+  一个图元批量提交），并按 `ORBIT_PERIOD_SECONDS` 沿采样轨道推进位置，
+  整片星座每帧只写 13 000 个 `position`、不分配任何对象。
+- **切换主题时光点不变色**。现在 `applyTheme` 同步按壳层重算光点颜色。
+- **每帧重建 13 000 个材质**。`tick()` 原本每帧给所有轨道重新赋材质，
+  开销超过整个场景其余部分，视觉上还表现为闪烁而不是运动。
+- **经纬网建了又删**。`addGrid()` 先加一个实体再立刻移除，留下游离实体。
+- **切换语言时国名叠加**。`addBasemap` 重新调用只追加不清理，现在先移除旧标签。
+- `CesiumGlobe` 的 `addBasemap` / `addConstellation` 缺参数（`locale`、壳层配色），
+  与 `ConstellationGlobe` 的调用不匹配。
 
 ### 变更
 
-- `tools/*.py`（8 个文件、1 341 行）全部重写为 TypeScript 并接入 `npm run`：
-  `serve`、`fetch:ephemeris`、`fetch:docs`、`fetch:screenshots`、`ingest:all`、
-  `probe:manifest`、`probe:screen`、`check`。新增 `tools/lib/downloader.ts`（SOCKS5
-  下载、整文件完整性校验）与 `tools/lib/chrome.ts`（无头 Chrome 渲染）。
-- `probe:screen` 补上了原先只有 Python 版才有的采样点统计与耗时分布。
-
-### 修复
-
-- 下载工具读的是裸 `PROXY` 且默认硬编码本地端口，`.env.local` 的
-  `SPACE_SAFETY_PROXY` 被静默忽略；现改为读文档化变量名，默认直连。
-- `client.tsx` 曾从 `registry.ts` 导入，而后者用了 `next/headers`，
-  导致所有页面编译失败（500）。已把字典与工厂函数拆到 `tables.ts`。
-- 并行编辑曾把 39 个字典键从**所有**语种同时删掉，`i18n` 检查因六语种仍然互相
-  一致而未能发现，页面直接把键名渲染成标题。已补回，并新增 `i18n-missing-key`
-  检查专门覆盖这一类。
-- `PcHistoryChart` 改为必须在 Provider 内才能渲染，导致图表轴测试失败；
-  现在缺少上下文时回退到默认语言而不是抛错。
+- 首页的轨道视图从 Three.js（`HomeViewer` + `OrbitViewer`）换成 Cesium
+  （`ConstellationGlobe`），显示全量星座而非最新 60 条。
+  TLE 只用于显示这条边界没有变：交会筛查仍只读 OCM。
+- 经纬网改用一个 `PolylineCollection` 图元；国家名称仍走实体路径
+  （标签自动避让只有实体系统提供，177 个在其设计密度内）。
+- `public/cesium/`（Cesium 运行时资源，7 MB）与 `public/data/`（星座快照，12 MB）
+  不再入库。新增 `tools/copy-cesium.ts` 并在 `postinstall` 里自动执行，
+  只拷 `Workers`/`Assets`/`ThirdParty`/`Widgets` 四个运行时目录，
+  不拷 `Cesium.js`/`index.js`/`index.cjs` 那 15 MB 模块入口。
+- 删除被取代的实现：`src/components/globe/*`、`OrbitViewer.tsx`、`HomeViewer.tsx`、
+  `src/lib/vi/scene.ts`、`/api/render/tracks`，以及只服务于它们的 `viewer.*` 字典键
+  （六语种同步删除）与 `.viewer*` 样式。
+- `tools/check.ts` 的 VI 场景检查改为扫描 `src/components/cesium/`，
+  原先只检查已删除的 `OrbitViewer.tsx`，等于空转。
+- `next.config.ts` 增加 `allowedDevOrigins`，消除本机通过 LAN 地址访问时的警告。
 
 ### 验证
 
-- `npx tsc --noEmit`：0 错误。
-- `npm test`：23 个套件、43 条断言全部通过。
-- `npm run check`：8 项规则检查全部通过（274 键 × 6 语种）。
-- 实测 7 个页面在 zh-CN / en / ja 下均返回 200，标题与表头正确本地化。
+- `npx tsc --noEmit` 通过；`npm run check` 9 项全过（i18n 6×283 键）。
+- `npm run serve` 后首页 200，`/data/constellation.json` 200（12.7 MB）、
+  `/geo/countries-110m.geojson` 200、`/cesium/Widgets/widgets.css` 200。
+
+### 已知问题
+
+- 光点用恒定像素大小，拉近时不会随之变大；后续可改成按距离缩放。
+- 无头 Chrome 下 WebGL 不可用，本机未能截图核验渲染结果，需在真实浏览器确认。
 
 ---
 
-## [0.1.3] - 2026-10-29
-
-修复 **v0.1.1 与 v0.1.2 的仓库缺少计算内核**。
-
-### 修复
-
-- `.gitignore` 中为忽略崩溃转储而写的裸 `core` 规则，把 `src/lib/core/`
-  整个目录一并忽略——`screening.ts`、`alfano.ts`、`propagator.ts`、
-  `time-windows.ts` 等 10 个文件从未进入版本库。克隆该仓库无法编译，
-  且 `git status` 不会提示，因为文件被当作「有意忽略」。
-  改为带锚点的 `/core`、`/core.*`、`/core.[0-9]*`。
-- 移除误入库的 `tools/__pycache__/*.pyc`，并在 `.gitignore` 补充 Python 字节码规则。
-
-### 验证
-
-- `git ls-files src/lib/core` 现在列出全部 10 个内核文件。
-- 本地源码 135 个文件与入库文件逐一比对，无遗漏。
-- `tsc --noEmit` 无错误；23 个测试套件全过。
-
----
-
-## [0.1.2] - 2026-10-29
+## [0.1.5] - 2026-10-29
 
 统一命名：项目所有层面只使用 **spacesafety**，不再出现旧名 `spaceeyes`。
 

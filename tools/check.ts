@@ -342,13 +342,20 @@ function checkVi(): void {
     }
   }
 
-  // 8b. Scene code must not carry its own colours.
-  const viewer = join(ROOT, "src", "components", "OrbitViewer.tsx");
-  if (existsSync(viewer)) {
-    const text = readFileSync(viewer, "utf8");
-    const hexes = text.match(/0x[0-9a-fA-F]{6}\b/g) ?? [];
-    if (hexes.length) {
-      fail("vi", `OrbitViewer.tsx has ${hexes.length} hard-coded 3D colour(s): ${hexes.join(", ")}`);
+  // 8b. Scene code must not carry its own colours. Every renderer takes its
+  //     numbers from SceneTheme, so a literal here means one layer would survive
+  //     a theme switch while the rest of the page changed.
+  const sceneDir = join(ROOT, "src", "components", "cesium");
+  if (existsSync(sceneDir)) {
+    const offenders: string[] = [];
+    for (const file of readdirSync(sceneDir)) {
+      if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
+      const text = readFileSync(join(sceneDir, file), "utf8");
+      const matches = text.match(/#[0-9a-fA-F]{6}\b|0x[0-9a-fA-F]{6}\b/g) ?? [];
+      if (matches.length) offenders.push(`cesium/${file}: ${matches.join(", ")}`);
+    }
+    if (offenders.length) {
+      fail("vi", `hard-coded 3D colour(s) outside the palette:\n    ${offenders.join("\n    ")}`);
     }
   }
 
