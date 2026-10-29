@@ -500,5 +500,57 @@ export type DataSourceRow = typeof dataSources.$inferSelect;
 export type SourceFetchRow = typeof sourceFetches.$inferSelect;
 export type ObjectSourceRow = typeof objectSources.$inferSelect;
 
+/**
+ * Physical model from ESA DISCOSweb.
+ *
+ * Separate from `satcat` because it answers a different question and has a
+ * different key: SATCAT is keyed by NORAD number and describes identity, while
+ * this table carries the mass and cross-section that decide collision risk and
+ * is keyed by DISCOSweb's own object id.
+ *
+ * ## Why the cross-section columns matter
+ *
+ * Measured on STARLINK-1008: `xSectMin` 0.23 m², `xSectMax` 23.66 m², average
+ * 13.56. A probability computed from a single "RCS class → radius" guess cannot
+ * distinguish those, and the error lands directly in Pc.
+ *
+ * Coverage of the 93 692 archived records: 42 327 have a mass, 41 188 have an
+ * average cross-section.
+ */
+export const discosObjects = sqliteTable(
+  "discos_objects",
+  {
+    /** DISCOSweb object id; a string because it is not always numeric. */
+    discosId: text("discos_id").primaryKey(),
+    noradId: integer("norad_id"),
+    cosparId: text("cospar_id"),
+    name: text("name"),
+    objectClass: text("object_class"),
+    mission: text("mission"),
+    /** kg. */
+    mass: real("mass"),
+    /** Provider vocabulary: `Sphere`, `Box + 1 Pan`, … */
+    shape: text("shape"),
+    /** Metres. */
+    width: real("width"),
+    height: real("height"),
+    depth: real("depth"),
+    diameter: real("diameter"),
+    span: real("span"),
+    /** Square metres. */
+    xSectMax: real("x_sect_max"),
+    xSectMin: real("x_sect_min"),
+    xSectAvg: real("x_sect_avg"),
+    /** `YYYY-MM-DD`. */
+    firstEpoch: text("first_epoch"),
+    predDecayDate: text("pred_decay_date"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("discos_objects_norad_idx").on(t.noradId),
+    index("discos_objects_name_idx").on(t.name),
+  ],
+);
+
 export const nowIso = () => new Date().toISOString();
 export const sqlNow = sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;

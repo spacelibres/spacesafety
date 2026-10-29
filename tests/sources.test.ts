@@ -360,6 +360,45 @@ function main() {
   check("OCM is chosen as the reference", withOcm.referenceSource === "starlink-ocm", withOcm.referenceSource);
   check("the TLE is measured against it", (withOcm.worstDeltaKm ?? 0) > 0);
 
+  // An OCM that states no epoch must not become the comparison's clock. Doing so
+  // made `jointMs` NaN, nulled every position, and reported 526 of 1 492 objects
+  // as unpropagatable when their element sets agreed perfectly.
+  const ocmNoEpoch = compareSources(
+    44714,
+    [
+      state(44714, "space-track", base),
+      { ...state(44714, "spacebook-omm", sameB), epoch: null },
+      { ...state(44714, "starlink-ocm", base), epoch: null, inclination: null },
+    ],
+    new Map([
+      ["space-track", base],
+      ["spacebook-omm", sameB],
+    ]),
+    { ocm: new Map([["starlink-ocm", sampler]]) },
+  );
+  check(
+    "an epochless source is never the reference",
+    ocmNoEpoch.referenceSource !== "starlink-ocm",
+    ocmNoEpoch.referenceSource,
+  );
+  check(
+    "and the comparison still produces a position",
+    ocmNoEpoch.worstDeltaKm !== null,
+    String(ocmNoEpoch.worstDeltaKm),
+  );
+  check(
+    "so the object is not reported as unpropagatable",
+    ocmNoEpoch.verdict !== "unpropagatable",
+    ocmNoEpoch.verdict,
+  );
+
+  // Phase error is the headline number for an aged pair.
+  check(
+    "a stale pair reports a phase error in minutes",
+    aged.worstPhaseMinutes !== null && aged.worstPhaseMinutes > 0,
+    `${aged.worstPhaseMinutes?.toFixed(1)} min`,
+  );
+
   // Summaries must not lose the counts.
   const s = summarize([identical, mismatch, aged, single, debris]);
   check("summary counts every verdict", s.compared === 5, `${s.compared}`);

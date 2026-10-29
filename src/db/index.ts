@@ -504,6 +504,30 @@ CREATE TABLE IF NOT EXISTS object_sources (
 );
 CREATE INDEX IF NOT EXISTS object_sources_source_idx ON object_sources(source_id, norad_id);
 CREATE INDEX IF NOT EXISTS object_sources_norad_idx ON object_sources(norad_id);
+
+CREATE TABLE IF NOT EXISTS discos_objects (
+  discos_id TEXT PRIMARY KEY,
+  norad_id INTEGER,
+  cospar_id TEXT,
+  name TEXT,
+  object_class TEXT,
+  mission TEXT,
+  mass REAL,
+  shape TEXT,
+  width REAL,
+  height REAL,
+  depth REAL,
+  diameter REAL,
+  span REAL,
+  x_sect_max REAL,
+  x_sect_min REAL,
+  x_sect_avg REAL,
+  first_epoch TEXT,
+  pred_decay_date TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS discos_objects_norad_idx ON discos_objects(norad_id);
+CREATE INDEX IF NOT EXISTS discos_objects_name_idx ON discos_objects(name);
 `;
 
 /**

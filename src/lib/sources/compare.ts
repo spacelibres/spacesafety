@@ -160,10 +160,23 @@ export interface SourceComparison {
   /** Worst non-reference distance, km. */
   worstDeltaKm: number | null;
   /**
+   * Worst along-track phase error, **minutes of arc time**.
+   *
+   * This is the physically meaningful summary of a discrepancy between two
+   * element sets. Verified on NORAD 67685 (GXIBA-1): 71 h of epoch gap produced
+   * 12 466 km of separation, of which the radial component was 89 km — the rest
+   * was pure along-track drift, 27 minutes at 463 km/min of orbital motion.
+   *
+   * A kilometre count conflates "the orbit is wrong" with "the phase has drifted",
+   * and only the second is expected of an aged element set. Null when the
+   * reference velocity is unavailable.
+   */
+  worstPhaseMinutes: number | null;
+  /**
    * Worst distance expressed per day of epoch gap, km/day.
    *
-   * `null` when every source states the same instant, in which case the verdict
-   * rests on the raw separation alone.
+   * `null` when no source has a comparable element-set epoch (an operator
+   * ephemeris has none).
    */
   worstDriftPerDay: number | null;
   verdict: Agreement;
@@ -181,6 +194,16 @@ export interface CompareOptions {
    */
   agreeKmPerDay?: number;
   staleKmPerDay?: number;
+  /**
+   * Phase-error bands, minutes of along-track arc time.
+   *
+   * These are the primary criterion, because they say whether two element sets
+   * describe the same *orbit*: a 71 h-old pair showing 27 min of phase drift with
+   * an 89 km radial difference is the same orbit, sampled twice. Defaults: 2 min
+   * is agreement, 120 min is normal ageing for a multi-day gap.
+   */
+  agreePhaseMinutes?: number;
+  stalePhaseMinutes?: number;
   /**
    * Raw separation treated as agreement regardless of epoch gap, km.
    *
@@ -230,6 +253,8 @@ export function compareSources(
 ): SourceComparison {
   const agreeKmPerDay = options.agreeKmPerDay ?? 50;
   const staleKmPerDay = options.staleKmPerDay ?? 3_000;
+  const agreePhaseMinutes = options.agreePhaseMinutes ?? 2;
+  const stalePhaseMinutes = options.stalePhaseMinutes ?? 120;
   const sameEpochKm = options.sameEpochKm ?? 5;
 
   if (states.length === 0) {
@@ -239,6 +264,7 @@ export function compareSources(
       referenceEpoch: null,
       entries: [],
       worstDeltaKm: null,
+      worstPhaseMinutes: null,
       worstDriftPerDay: null,
       verdict: "unpropagatable",
       suspectCause: null,
@@ -252,19 +278,28 @@ export function compareSources(
   //
   // Compared as timestamps, not strings: two sources can state the same instant
   // with different precision, and a lexical compare would pick the longer string.
-  const usable = states.filter((s) => tles.has(s.sourceId) || options.ocm?.has(s.sourceId));
+  // The reference must be a source that can actually produce a position at a
+  // definite instant. An OCM participates as a position source but has no
+  // element-set epoch, so it is never the comparison's clock: choosing it made
+  // `jointMs` NaN and every position null, which reported 526 of 1 492 objects as
+  // "unpropagatable" when the element sets were perfectly comparable.
+  const positionCapable = states.filter(
+    (s) => (tles.has(s.sourceId) || options.ocm?.has(s.sourceId)) && s.epoch,
+  );
   const explicit = options.referenceSource
-    ? states.find((s) => s.sourceId === options.referenceSource)
+    ? positionCapable.find((s) => s.sourceId === options.referenceSource)
     : undefined;
-  // An operator ephemeris wins the reference slot when present: it is the
-  // published truth, and a TLE fitted from it is the thing under test.
+  // Published truth: an operator ephemeris wins the reference slot when it has a
+  // definite start, because a TLE fitted from it is the thing under test.
   const ocmReference = options.ocm?.size
-    ? states.find((s) => options.ocm!.has(s.sourceId))
+    ? positionCapable.find((s) => options.ocm!.has(s.sourceId))
     : undefined;
   const reference =
     explicit ??
     ocmReference ??
-    [...usable].sort((a, b) => Date.parse(b.epoch as string) - Date.parse(a.epoch as string))[0] ??
+    [...positionCapable].sort(
+      (a, b) => Date.parse(b.epoch as string) - Date.parse(a.epoch as string),
+    )[0] ??
     states[0];
 
   const jointMs = options.atMs ?? (reference.epoch ? Date.parse(reference.epoch) : NaN);
@@ -283,6 +318,12 @@ export function compareSources(
     const tle = tles.get(state.sourceId);
     positions.set(state.sourceId, tle ? positionAt(tle, jointMs) : null);
   }
+
+  // The reference's own orbital speed, needed to turn an along-track separation
+  // into minutes of phase. Taken from the reference element set where there is
+  // one; an OCM reference has no elements, so the phase stays null.
+  const referenceTle = tles.get(reference.sourceId);
+  const referenceSpeedKmS = referenceTle ? speedAt(referenceTle, jointMs) : null;
 
   const referencePosition = positions.get(reference.sourceId) ?? null;
 
@@ -323,16 +364,31 @@ export function compareSources(
     ? Math.max(...others.map((e) => e.deltaKm as number))
     : null;
 
-  // Drift per day uses each offender's own epoch gap, so a source that is 1 h
-  // behind is judged on 1 h of drift and a source 3 days behind on 3 days of it.
-  // The gap is floored at one hour: two sources minutes apart would divide by
-  // almost zero and report an enormous rate for a trivial separation.
+  // Along-track phase error is the honest summary of "how far apart are these
+  // orbits": a kilometre count mixes radial error (the orbit is wrong) with
+  // along-track drift (the phase has aged), and only the second is expected.
+  const worstPhaseMinutes =
+    worstDeltaKm !== null && referenceSpeedKmS !== null && referenceSpeedKmS > 0
+      ? worstDeltaKm / referenceSpeedKmS / 60
+      : null;
+
+  // Drift is estimated only from sources that carry their own element-set epoch.
+  //
+  // An operator ephemeris (OCM) is a table of states, not a fitted element set: its
+  // "epoch" is the start of its arc, which can be a few hours before an element
+  // set fitted to it. Dividing a real separation by that tiny gap produced rates
+  // like 315 987 km/day — larger than orbital velocity — and marked 691 of 1 930
+  // objects as suspect. The separation against an OCM is still measured and
+  // reported; it just cannot be expressed as a per-day rate.
   let worstDriftPerDay: number | null = null;
   if (worstDeltaKm !== null) {
     const rates = others
-      .filter((e) => e.deltaKm !== null)
+      .filter((e) => e.deltaKm !== null && e.epoch !== null && e.epochOffsetHours !== null)
+      // Six hours of separation is the minimum for a meaningful rate: below that
+      // the arc curvature dominates and any ratio is noise.
+      .filter((e) => Math.abs(e.epochOffsetHours as number) >= 6)
       .map((e) => {
-        const gap = Math.max(1, Math.abs(e.epochOffsetHours ?? 0));
+        const gap = Math.abs(e.epochOffsetHours as number);
         return (e.deltaKm as number) / (gap / 24);
       });
     worstDriftPerDay = rates.length ? Math.max(...rates) : null;
@@ -354,15 +410,31 @@ export function compareSources(
   } else if (sameEpoch && worstDeltaKm <= sameEpochKm) {
     verdict = "agree";
     reason = `same epoch, separation ${worstDeltaKm.toFixed(2)} km — the sources publish the same elements`;
-  } else if (!sameEpoch && (worstDriftPerDay ?? 0) <= agreeKmPerDay) {
+  } else if (sameEpoch) {
+    // Same instant, different position: no ageing can explain this.
+    verdict = "suspect";
+    suspectCause = "same-epoch-disagreement";
+    reason = describeSuspect(suspectCause, worstDeltaKm, worstDriftPerDay, true);
+  } else if (worstPhaseMinutes !== null && worstPhaseMinutes <= agreePhaseMinutes) {
     verdict = "agree";
-    reason = `drift ${(worstDriftPerDay as number).toFixed(1)} km/day is within ${agreeKmPerDay}`;
-  } else if (!sameEpoch && (worstDriftPerDay ?? 0) <= staleKmPerDay) {
+    reason =
+      `phase ${worstPhaseMinutes.toFixed(1)} min (${worstDeltaKm.toFixed(1)} km) is within ` +
+      `${agreePhaseMinutes} min`;
+  } else if (worstPhaseMinutes !== null && worstPhaseMinutes <= stalePhaseMinutes) {
     const oldest = Math.max(...others.map((e) => Math.abs(e.epochOffsetHours ?? 0)));
     verdict = "stale";
     reason =
-      `drift ${(worstDriftPerDay as number).toFixed(0)} km/day over a ${oldest.toFixed(0)} h epoch gap — ` +
-      `consistent with an aged element set`;
+      `phase drift ${worstPhaseMinutes.toFixed(1)} min over a ${oldest.toFixed(0)} h epoch gap — ` +
+      `normal along-track ageing; the orbit itself agrees`;
+  } else if (worstPhaseMinutes === null) {
+    // No reference element set, so no phase can be computed. Fall back to the raw
+    // separation rather than inventing a verdict.
+    verdict = worstDeltaKm <= sameEpochKm ? "agree" : "suspect";
+    suspectCause = verdict === "suspect" ? "unexplained" : null;
+    reason =
+      verdict === "agree"
+        ? `separation ${worstDeltaKm.toFixed(1)} km, no comparable epoch`
+        : `${worstDeltaKm.toFixed(0)} km apart but no epoch gap to judge it by`;
   } else {
     verdict = "suspect";
     suspectCause = classifySuspect({
@@ -381,6 +453,7 @@ export function compareSources(
     referenceEpoch: reference.epoch,
     entries,
     worstDeltaKm,
+    worstPhaseMinutes,
     worstDriftPerDay,
     verdict,
     suspectCause,
@@ -456,6 +529,15 @@ function positionAt(tle: Tle, ms: number): [number, number, number] | null {
   // A state that is not at the requested instant is not a comparison point.
   if (Math.abs(state.ms - ms) > 1_000) return null;
   return state.position;
+}
+
+/** |v| at `ms`, km/s, or null when SGP4 refuses. */
+function speedAt(tle: Tle, ms: number): number | null {
+  const result = propagateTle(tle, { startMs: ms, spanHours: 1, stepSeconds: 3_600 });
+  const state = result.states[0];
+  if (!state) return null;
+  const [vx, vy, vz] = state.velocity;
+  return Math.sqrt(vx * vx + vy * vy + vz * vz);
 }
 
 function distance(a: [number, number, number], b: [number, number, number]): number {

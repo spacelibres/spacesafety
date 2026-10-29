@@ -69,14 +69,6 @@ async function main(): Promise<void> {
         AND t.state_source IN ('space-track','spacebook-xp-tle','spacebook-omm',
                                'operator_ephemeris')`,
   );
-  // Operator ephemerides become the reference, so they have to appear in the
-  // per-source table as well even though they carry no TLE-shaped elements. The
-  // row is synthesised from the OCM's own header rather than from a TLE.
-  const upsertOcmState = sqlite.prepare(
-    `INSERT INTO object_sources (norad_id, source_id, epoch, fetched_at)
-     VALUES (?, 'starlink-ocm', ?, ?)
-     ON CONFLICT(norad_id, source_id) DO UPDATE SET epoch = excluded.epoch`,
-  );
   // Object class and size come from SATCAT, which is the only source that has
   // them for every catalogue number. Without them a debris object and a
   // station-kept satellite look identically alarming.
@@ -119,16 +111,16 @@ async function main(): Promise<void> {
       if (parsed[0]) tles.set(row.sourceId, parsed[0]);
     }
 
-    // Make the operator ephemeris visible to the comparison as a participant.
+    // The operator ephemeris participates as a position source, not as an element
+    // set. Its `epoch` is deliberately null: an OCM's arc start is not a fitted
+    // element-set epoch, and attaching one made the drift calculation divide a
+    // real separation by a one-hour gap and report rates above orbital velocity.
     const withOcm = [...states];
     if (ocm.size > 0 && !withOcm.some((s) => s.sourceId === "starlink-ocm")) {
-      const sampler = ocm.get("starlink-ocm")!;
-      const epoch = new Date(sampler.startMs).toISOString();
-      upsertOcmState.run(noradId, epoch, new Date().toISOString());
       withOcm.push({
         noradId,
         sourceId: "starlink-ocm",
-        epoch,
+        epoch: null,
         inclination: null,
         raan: null,
         eccentricity: null,
@@ -169,11 +161,11 @@ async function main(): Promise<void> {
 
   if (summary.worst.length > 0) {
     console.log("  worst separations:");
-    console.log("    norad   worst km  verdict   reason");
+    console.log("    norad   worst km  phase min  verdict   reason");
     for (const c of summary.worst) {
       console.log(
         `    ${String(c.noradId).padEnd(7)} ${fmt(c.worstDeltaKm).padStart(8)}  ` +
-          `${c.verdict.padEnd(9)} ${c.reason}`,
+          `${fmt(c.worstPhaseMinutes).padStart(9)}  ${c.verdict.padEnd(9)} ${c.reason}`,
       );
     }
     console.log();
