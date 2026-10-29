@@ -213,7 +213,7 @@ console.log("\nPre-filter — kernel agreement (the property that matters)");
   //
   // Here we use the strongest available evidence directly: a real pair of close
   // approaches from cached Starlink ephemerides.
-  const cache = process.env.SPACE_EYES_CACHE ?? "./data/ephemeris-cache";
+  const cache = process.env.SPACE_SAFETY_CACHE ?? "./data/ephemeris-cache";
   // `.itc` holds the Modified ITC; `.txt` holds the OCM. This test wants the ITC
   // because `parseStarlinkEphemeris` reads that format.
   const itcFile = `${cache}/STARLINK-38128.itc`;

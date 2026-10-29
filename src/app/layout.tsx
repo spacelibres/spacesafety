@@ -5,7 +5,7 @@ import { Sidebar } from "@/components/Shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Space Eyes — Space Safety",
+  title: "Space Safety",
   description:
     "Satellite orbit safety and conjunction assessment, modelled on space-safety.starlink.com",
 };

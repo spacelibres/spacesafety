@@ -7,21 +7,21 @@
  * All heavy work lives here: propagation, close-approach search, and the Alfano
  * probability integral. The API host never computes.
  *
- *   SPACE_EYES_GRPC_HOST=vps.example.com:50051 \
- *   SPACE_EYES_GRPC_CA=./certs/grpc-ca.pem \
- *   SPACE_EYES_GRPC_CERT=./certs/worker.pem \
- *   SPACE_EYES_GRPC_KEY=./certs/worker-key.pem \
+ *   SPACE_SAFETY_GRPC_HOST=vps.example.com:50051 \
+ *   SPACE_SAFETY_GRPC_CA=./certs/grpc-ca.pem \
+ *   SPACE_SAFETY_GRPC_CERT=./certs/worker.pem \
+ *   SPACE_SAFETY_GRPC_KEY=./certs/worker-key.pem \
  *   npm run worker
  *
  * ## Compute threads
  *
  * Compute runs on `worker_threads`, one per core minus one, so a single worker
- * process uses the whole machine. `SPACE_EYES_WORKER_THREADS=1` (or `0`) keeps
+ * process uses the whole machine. `SPACE_SAFETY_WORKER_THREADS=1` (or `0`) keeps
  * everything on the main thread, which is what the tests and the demo use. See
  * `pool.ts` for why each thread parses nothing and the main thread parses once.
  *
  * Dispatch messages carry trajectory ids rather than megabytes of ephemeris, so
- * the worker resolves raw files from a local cache (`SPACE_EYES_TRAJECTORY_DIR`,
+ * the worker resolves raw files from a local cache (`SPACE_SAFETY_TRAJECTORY_DIR`,
  * files named `<trajectory-id>.<ext>`). Anything it cannot resolve is reported as
  * a structured failure and the API requeues it.
  */
@@ -426,21 +426,21 @@ function defaultResolver(dir: string | undefined) {
 }
 
 async function main() {
-  const address = process.env.SPACE_EYES_GRPC_HOST ?? "localhost:50051";
+  const address = process.env.SPACE_SAFETY_GRPC_HOST ?? "localhost:50051";
   const threads = resolveThreadCount();
   // One in-flight job per thread keeps every core busy; extra queueing would
   // only add latency without improving throughput.
   const concurrency = Number(
-    process.env.SPACE_EYES_WORKER_CONCURRENCY ?? Math.max(2, threads),
+    process.env.SPACE_SAFETY_WORKER_CONCURRENCY ?? Math.max(2, threads),
   );
 
   const worker = startWorker({
     address,
     concurrency,
     threads,
-    trajectoryDir: process.env.SPACE_EYES_TRAJECTORY_DIR,
-    apiOrigin: process.env.SPACE_EYES_API_ORIGIN,
-    workerToken: process.env.SPACE_EYES_WORKER_TOKEN,
+    trajectoryDir: process.env.SPACE_SAFETY_TRAJECTORY_DIR,
+    apiOrigin: process.env.SPACE_SAFETY_API_ORIGIN,
+    workerToken: process.env.SPACE_SAFETY_WORKER_TOKEN,
   });
 
   const shutdown = () => {

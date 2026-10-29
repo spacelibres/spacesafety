@@ -77,10 +77,10 @@ async function main() {
   // Budget: every thread holds the shard plus its cross-shard tail. Sized from the
   // shard count, never left at the 512 MB default, which evicted tracks mid-run and
   // made the sweep report thousands of pairs as "not resident".
-  if (!process.env.SPACE_EYES_THREAD_MEMORY_MB) {
+  if (!process.env.SPACE_SAFETY_THREAD_MEMORY_MB) {
     // A cross-shard tail can reach the whole catalog in the worst case (the first
     // shard screens against everything), so the budget covers that.
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = "16384";
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = "16384";
   }
 
   const { db } = getDb();

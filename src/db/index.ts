@@ -18,7 +18,7 @@ export interface DbHandle {
 let instance: DbHandle | undefined;
 
 export function databasePath(): string {
-  return process.env.SPACE_EYES_DB ?? "./data/spaceeyes.sqlite";
+  return process.env.SPACE_SAFETY_DB ?? "./data/spacesafety.sqlite";
 }
 
 /**

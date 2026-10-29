@@ -29,10 +29,10 @@ function check(name: string, cond: boolean, detail = "") {
   }
 }
 
-const workDir = mkdtempSync(join(tmpdir(), "spaceeyes-test-"));
-process.env.SPACE_EYES_DB = join(workDir, "test.sqlite");
-process.env.SPACE_EYES_ALLOW_X_OPERATOR = "1";
-process.env.SPACE_EYES_DEMO = "1";
+const workDir = mkdtempSync(join(tmpdir(), "spacesafety-test-"));
+process.env.SPACE_SAFETY_DB = join(workDir, "test.sqlite");
+process.env.SPACE_SAFETY_ALLOW_X_OPERATOR = "1";
+process.env.SPACE_SAFETY_DEMO = "1";
 // NODE_ENV is readonly at the type level.
 
 async function main() {
@@ -53,7 +53,7 @@ async function main() {
 
   db.insert(schema.operators)
     .values([
-      { id: opId, name: "Space Eyes", email: "ops@spaceeyes.test", phone: "+1", maxObjects: 5, createdAt: now, updatedAt: now },
+      { id: opId, name: "Space Safety", email: "ops@spacesafety.test", phone: "+1", maxObjects: 5, createdAt: now, updatedAt: now },
       { id: otherOpId, name: "Peer Operator", email: "peer@example.test", phone: "+2", maxObjects: 5, createdAt: now, updatedAt: now },
     ])
     .run();
@@ -71,7 +71,7 @@ async function main() {
   console.log("\nAPI — auth");
   {
     const { authenticateRequest } = await import("../src/lib/api/auth");
-    const headers = new Headers({ "x-space-eyes-operator": opId });
+    const headers = new Headers({ "x-space-safety-operator": opId });
     const principal = authenticateRequest(headers);
     check("dev header authenticates", principal.operatorId === opId, principal.operatorName);
 

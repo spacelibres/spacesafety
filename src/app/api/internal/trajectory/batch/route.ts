@@ -26,11 +26,11 @@ export const dynamic = "force-dynamic";
  * the compute node, where the rest of the kernel lives, and leaves this endpoint a
  * plain database read.
  *
- * Access is gated on SPACE_EYES_WORKER_TOKEN, shared with the compute node.
+ * Access is gated on SPACE_SAFETY_WORKER_TOKEN, shared with the compute node.
  */
 export const POST = route(
   async ({ request }) => {
-    const expected = process.env.SPACE_EYES_WORKER_TOKEN;
+    const expected = process.env.SPACE_SAFETY_WORKER_TOKEN;
     if (!expected) {
       throw ApiError.forbidden("trajectory batch endpoint is disabled");
     }

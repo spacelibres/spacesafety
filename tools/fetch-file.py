@@ -31,7 +31,7 @@ TEXT_HEADS = {b" ", b"\t", b"\n", b"\r", b"-", b"C", b"M", b"c", b"m", b"0", b"1
 
 def make_session(proxy):
     s = requests.Session()
-    s.headers["user-agent"] = "SpaceEyes/0.1 (orbit-safety replica)"
+    s.headers["user-agent"] = "SpaceSafety/0.1 (orbit-safety replica)"
     if proxy:
         s.proxies = {"http": proxy, "https": proxy}
     return s
@@ -74,7 +74,9 @@ def try_route(url, proxy):
 
 def download(url, out, expect):
     routes = []
-    env_proxy = os.environ.get("PROXY", "http://127.0.0.1:20171")
+    # SPACE_SAFETY_PROXY is the documented name; empty means direct, which is
+    # what starlink.com needs. A bare PROXY is accepted for ad-hoc use.
+    env_proxy = os.environ.get("SPACE_SAFETY_PROXY") or os.environ.get("PROXY") or ""
     if env_proxy:
         routes.append(env_proxy)
     routes.append(None)

@@ -34,7 +34,7 @@ async function main() {
   // otherwise the driver dies at 4 GB while parsing, well before it needs to.
   if (!process.execArgv.some((a) => a.startsWith("--max-old-space-size"))) {
     const { spawnSync } = process.getBuiltinModule("node:child_process");
-    const heapMb = process.env.SPACE_EYES_HEAP_MB ?? "65536";
+    const heapMb = process.env.SPACE_SAFETY_HEAP_MB ?? "65536";
     const child = spawnSync(
       process.execPath,
       [`--max-old-space-size=${heapMb}`, ...process.execArgv, ...process.argv.slice(1)],
@@ -88,12 +88,12 @@ async function main() {
   // one copy regardless of thread count. The budget only needs to cover that shared
   // total plus slack — sizing it per thread by thread count (an earlier version set
   // 16 GB) claimed far more than the machine has and died at the heap limit.
-  if (!process.env.SPACE_EYES_THREAD_MEMORY_MB) {
+  if (!process.env.SPACE_SAFETY_THREAD_MEMORY_MB) {
     const objects = limit === Number.MAX_SAFE_INTEGER ? 11_200 : limit;
     const sharedMb = objects * 3.31;
     // Each thread's cache also tracks its own residency bookkeeping, and the
     // covariance is copied out per lookup, so allow a fixed working allowance.
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = String(Math.ceil(sharedMb + 2048));
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = String(Math.ceil(sharedMb + 2048));
   }
 
   // The driver itself holds every raw file for the current block plus the packed

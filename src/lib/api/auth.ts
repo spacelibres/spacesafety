@@ -175,25 +175,25 @@ export function decodeClientCert(raw: string): string | null {
 /**
  * Development/demo escape hatch.
  *
- * When `SPACE_EYES_ALLOW_X_OPERATOR=1`, an `x-space-eyes-operator` header may
+ * When `SPACE_SAFETY_ALLOW_X_OPERATOR=1`, an `x-space-safety-operator` header may
  * stand in for a certificate. This exists so the API is reachable from
  * `npm run dev`, from tests, and from the seeded demo without provisioning mTLS
  * first.
  *
- * It is refused in production *unless* `SPACE_EYES_ALLOW_X_OPERATOR` is
- * explicitly set together with `SPACE_EYES_DEMO=1`. Requiring both means a
+ * It is refused in production *unless* `SPACE_SAFETY_ALLOW_X_OPERATOR` is
+ * explicitly set together with `SPACE_SAFETY_DEMO=1`. Requiring both means a
  * production deployment cannot accidentally inherit the bypass from a stray
  * env var, while an intentionally public demo can still be stood up.
  */
 export function authenticateDev(headers: Headers): Principal | null {
-  if (process.env.SPACE_EYES_ALLOW_X_OPERATOR !== "1") return null;
+  if (process.env.SPACE_SAFETY_ALLOW_X_OPERATOR !== "1") return null;
 
-  // Requiring `SPACE_EYES_DEMO=1` alongside the bypass means a real deployment
+  // Requiring `SPACE_SAFETY_DEMO=1` alongside the bypass means a real deployment
   // cannot inherit it from a stray variable, while an intentional public demo
   // can still be stood up (including under `next start`).
-  if (process.env.SPACE_EYES_DEMO !== "1") return null;
+  if (process.env.SPACE_SAFETY_DEMO !== "1") return null;
 
-  const operatorId = headers.get("x-space-eyes-operator");
+  const operatorId = headers.get("x-space-safety-operator");
   if (!operatorId) return null;
 
   const { db } = getDb();

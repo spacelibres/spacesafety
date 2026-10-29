@@ -1,4 +1,4 @@
-// Space Eyes — worker control plane.
+// Space Safety — worker control plane.
 //
 // The compute plane lives on a local machine; the public API lives on a VPS.
 // The worker dials OUT to the VPS and holds a bidirectional stream open. The
@@ -13,9 +13,9 @@
 
 syntax = "proto3";
 
-package spaceeyes.worker.v1;
+package spacesafety.worker.v1;
 
-option go_package = "spaceeyes/worker/v1;workerv1";
+option go_package = "spacesafety/worker/v1;workerv1";
 
 // ---------------------------------------------------------------------------
 // Shared value types

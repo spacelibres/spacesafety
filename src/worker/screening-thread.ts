@@ -237,10 +237,10 @@ const sharedTracks = new Map<string, Track>();
  *
  * Default 512 MB: enough for ~25 three-day Starlink arcs at 20 MB each, which is
  * more than one dispatch typically touches, while keeping a 16-thread pool inside
- * a few GB. `SPACE_EYES_THREAD_MEMORY_MB=0` disables eviction.
+ * a few GB. `SPACE_SAFETY_THREAD_MEMORY_MB=0` disables eviction.
  */
 const memoryBudgetBytes = (): number =>
-  Number(process.env.SPACE_EYES_THREAD_MEMORY_MB ?? 512) * 1024 * 1024;
+  Number(process.env.SPACE_SAFETY_THREAD_MEMORY_MB ?? 512) * 1024 * 1024;
 
 let usedBytes = 0;
 
@@ -275,7 +275,7 @@ function evictUntilUnderBudget(): void {
  * Bounded by total characters rather than entry count: one Starlink file is
  * ~40 MB, so a count-based cap of "a few hundred" would be tens of gigabytes.
  */
-const CACHE_MAX_CHARS = Number(process.env.SPACE_EYES_THREAD_CACHE_CHARS ?? 400_000_000);
+const CACHE_MAX_CHARS = Number(process.env.SPACE_SAFETY_THREAD_CACHE_CHARS ?? 400_000_000);
 const sources: SourceMap = {};
 let cachedChars = 0;
 

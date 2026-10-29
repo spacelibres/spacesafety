@@ -58,7 +58,7 @@ export function Sidebar() {
 
   // The environment banner is a safety feature of the official UI: it must be
   // impossible to confuse staging with production.
-  const env = process.env.NEXT_PUBLIC_SPACE_EYES_ENV ?? "staging";
+  const env = process.env.NEXT_PUBLIC_SPACE_SAFETY_ENV ?? "staging";
   const showBanner = env !== "production";
 
   return (

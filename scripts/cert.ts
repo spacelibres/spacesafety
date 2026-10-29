@@ -34,7 +34,7 @@ import { credentials, operators } from "../src/db/schema";
  * the current value instead of whatever was set at module load.
  */
 function certDir(): string {
-  return process.env.SPACE_EYES_CERT_DIR ?? "./certs";
+  return process.env.SPACE_SAFETY_CERT_DIR ?? "./certs";
 }
 function caKeyPath(): string {
   return join(certDir(), "ca.key");
@@ -115,7 +115,7 @@ export function ensureCa(): { created: boolean; certPath: string } {
     "-out",
     caCertPath(),
     "-subj",
-    "/CN=Space Eyes Local CA/O=Space Eyes/OU=Operations",
+    "/CN=Space Safety Local CA/O=Space Safety/OU=Operations",
     "-extensions",
     "v3_ca",
     "-config",
@@ -167,7 +167,7 @@ export function issueClientCertificate(opts: IssueOptions): IssuedCertificate {
 
   const subject =
     `/CN=${opts.commonName}` +
-    `/O=${opts.organization ?? "Space Eyes"}` +
+    `/O=${opts.organization ?? "Space Safety"}` +
     `/OU=${opts.organizationalUnit ?? "Operations"}`;
 
   // Key + CSR (EC P-384, SHA-384 — the shape the vendor documents).

@@ -12,6 +12,39 @@
 
 ---
 
+## [0.1.2] - 2026-10-29
+
+统一命名：项目所有层面只使用 **spacesafety**，不再出现旧名 `spaceeyes`。
+
+### 变更
+
+- 包名、GitHub 仓库、本地项目目录、数据库文件全部改为 `spacesafety`
+  （`data/spaceeyes.sqlite` → `data/spacesafety.sqlite`，原有 53 GB 数据原地重命名，未重新导入）。
+- 环境变量前缀 `SPACE_EYES_` → `SPACE_SAFETY_`，共 37 个，代码读取点 111 处。
+- gRPC 包名 `spaceeyes.worker.v1` → `spacesafety.worker.v1`（**线协议不兼容**，
+  入口层与计算端必须同时升级）。
+- 演示认证头 `x-space-eyes-operator` → `x-space-safety-operator`。
+- 日志前缀 `[space-eyes]` → `[space-safety]`，CDM 生成方标识 `SPACEEYES` → `SPACESAFETY`。
+- 页面标题、侧栏品牌、下载脚本 User-Agent 统一为 Space Safety。
+- 新增 `.env.example`：列出全部 37 个变量并逐个标注用途，已用脚本校验
+  每一项都在代码中存在读取点。
+
+### 修复
+
+- 下载工具读的是裸 `PROXY` 且默认硬编码 `http://127.0.0.1:20171`，
+  导致 `.env.local` 里的 `SPACE_SAFETY_PROXY` 被静默忽略，且无代理的机器上仍会先试代理。
+  改为读文档化的变量名，默认直连。
+- 改名后标题出现 `Space Safety — Space Safety`，已合并为单一标题。
+
+### 验证
+
+- `npm test`：23 个套件全过。
+- `tsc --noEmit` 无错误。
+- 数据库重命名后校验：`catalog` 与 `objects` 均为 11 162 行，数据完整。
+- 服务以新名启动：`/`、`/conjunctions`、`/objects` 均返回 200。
+
+---
+
 ## [0.1.1] - 2026-10-29
 
 首个纳入版本库的版本。此前的工作区从未初始化 git，因此这一版是全部既有功能的

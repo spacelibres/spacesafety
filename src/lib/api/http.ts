@@ -67,7 +67,7 @@ export function errorResponse(err: unknown, correlationId: string): Response {
   const message = err instanceof Error ? err.message : String(err);
   const apiErr = ApiError.internal(message);
   // Never leak a stack trace to a client, but make it findable in server logs.
-  console.error(`[space-eyes] unhandled error (${correlationId}):`, err);
+  console.error(`[space-safety] unhandled error (${correlationId}):`, err);
   return json(500, errorBody(apiErr, correlationId), correlationId);
 }
 

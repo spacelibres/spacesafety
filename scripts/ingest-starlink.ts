@@ -16,7 +16,7 @@ async function main() {
   loadEnvLocal();
 
   /** Where pre-downloaded ephemerides live; see `tools/download-starlink.py`. */
-  const CACHE_DIR = process.env.SPACE_EYES_CACHE_DIR ?? "./data/ephemeris-cache";
+  const CACHE_DIR = process.env.SPACE_SAFETY_CACHE_DIR ?? "./data/ephemeris-cache";
 
   const { getDb } = await import("../src/db");
   const { objects } = await import("../src/db/schema");
@@ -66,7 +66,7 @@ async function main() {
     process.exit(2);
   }
 
-  console.log(`\nSpace Eyes — Starlink dual-feed ingest (${targets.length} object(s))\n`);
+  console.log(`\nSpace Safety — Starlink dual-feed ingest (${targets.length} object(s))\n`);
 
   // The manifest is needed for the ITC side even when the object names came from
   // the database, because ITC files are only reachable through it.

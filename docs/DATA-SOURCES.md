@@ -216,8 +216,8 @@ manifest 文件名中的数字是投送序号，不是 NORAD id。
 放在 `.env.local`（已在 `.gitignore` 中）：
 
 ```
-SPACE_EYES_SPACETRACK_USER=<email>
-SPACE_EYES_SPACETRACK_PASS=<password>
+SPACE_SAFETY_SPACETRACK_USER=<email>
+SPACE_SAFETY_SPACETRACK_PASS=<password>
 ```
 
 脚本会自动读取 `.env.local`（`scripts/env.ts`）；Next.js 应用原生支持。

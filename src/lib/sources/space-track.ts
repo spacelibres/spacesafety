@@ -19,8 +19,8 @@
  * ## Credentials
  *
  * Read from the environment, never hard-coded:
- *   SPACE_EYES_SPACETRACK_USER
- *   SPACE_EYES_SPACETRACK_PASS
+ *   SPACE_SAFETY_SPACETRACK_USER
+ *   SPACE_SAFETY_SPACETRACK_PASS
  *
  * The module reports a structured "not configured" result rather than throwing,
  * so the application runs without credentials and simply has no catalogue.
@@ -75,13 +75,13 @@ function num(value: string | undefined | null): number | null {
 
 /** Read credentials from the environment. */
 export function spaceTrackConfig(): SpaceTrackConfig | null {
-  const user = process.env.SPACE_EYES_SPACETRACK_USER?.trim();
-  const pass = process.env.SPACE_EYES_SPACETRACK_PASS;
+  const user = process.env.SPACE_SAFETY_SPACETRACK_USER?.trim();
+  const pass = process.env.SPACE_SAFETY_SPACETRACK_PASS;
   if (!user || !pass) return null;
   return {
     user,
     pass,
-    timeoutMs: Number(process.env.SPACE_EYES_SPACETRACK_TIMEOUT_MS ?? 45_000),
+    timeoutMs: Number(process.env.SPACE_SAFETY_SPACETRACK_TIMEOUT_MS ?? 45_000),
   };
 }
 
@@ -111,7 +111,7 @@ async function login(cfg: SpaceTrackConfig): Promise<string> {
       body,
       signal: controller.signal,
       headers: {
-        "user-agent": "SpaceEyes/0.1 (orbit-safety replica)",
+        "user-agent": "SpaceSafety/0.1 (orbit-safety replica)",
         "content-type": "application/x-www-form-urlencoded",
       },
     });
@@ -123,7 +123,7 @@ async function login(cfg: SpaceTrackConfig): Promise<string> {
     }
     if (/failed/i.test(text)) {
       throw new SpaceTrackError(
-        "Space-Track rejected the credentials (check SPACE_EYES_SPACETRACK_USER/PASS)",
+        "Space-Track rejected the credentials (check SPACE_SAFETY_SPACETRACK_USER/PASS)",
         res.status,
       );
     }

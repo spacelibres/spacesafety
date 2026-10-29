@@ -18,7 +18,7 @@ import os
 import subprocess
 import sys
 
-PROJECT = "/mnt/272bb81e-0746-4b47-98c3-82cb633860fa/spaceeyes"
+PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MEASURE = r'''
 // @ts-nocheck

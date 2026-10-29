@@ -41,7 +41,7 @@ interface CreateOperatorBody {
  * the credential model yet, so we gate it on an explicit bootstrap flag.
  */
 export const POST = route(async ({ request }) => {
-  if (process.env.SPACE_EYES_ADMIN !== "1") {
+  if (process.env.SPACE_SAFETY_ADMIN !== "1") {
     throw ApiError.forbidden("only system administrators may create operators");
   }
 

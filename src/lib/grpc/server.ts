@@ -66,7 +66,7 @@ export class ComputeChannel {
   private port = 0;
 
   /** Bind the gRPC server. Idempotent. */
-  async start(port = Number(process.env.SPACE_EYES_GRPC_PORT ?? 50051)): Promise<number> {
+  async start(port = Number(process.env.SPACE_SAFETY_GRPC_PORT ?? 50051)): Promise<number> {
     if (this.server) return this.port;
 
     const proto = loadProto();
@@ -99,10 +99,10 @@ export class ComputeChannel {
     this.refillTimer = setInterval(() => this.refill(), REFILL_INTERVAL_MS);
     this.requeueTimer = setInterval(() => {
       const n = requeueStale();
-      if (n > 0) console.warn(`[space-eyes] requeued ${n} stale screening job(s)`);
+      if (n > 0) console.warn(`[space-safety] requeued ${n} stale screening job(s)`);
     }, REQUEUE_INTERVAL_MS);
 
-    console.log(`[space-eyes] compute channel listening on :${bound}`);
+    console.log(`[space-safety] compute channel listening on :${bound}`);
     return bound;
   }
 
@@ -193,7 +193,7 @@ export class ComputeChannel {
         };
         this.workers.set(id, session);
         console.log(
-          `[space-eyes] worker ${session.label} connected (concurrency ${session.concurrency}, v${session.version})`,
+          `[space-safety] worker ${session.label} connected (concurrency ${session.concurrency}, v${session.version})`,
         );
         this.refill();
         return;
@@ -207,7 +207,7 @@ export class ComputeChannel {
       }
 
       if (msg.draining && session) {
-        console.log(`[space-eyes] worker ${session.label} is draining`);
+        console.log(`[space-safety] worker ${session.label} is draining`);
         return;
       }
 
@@ -217,7 +217,7 @@ export class ComputeChannel {
           handleResult(msg.result, session.id);
         } catch (err) {
           console.error(
-            `[space-eyes] failed to ingest result ${msg.result.jobId}:`,
+            `[space-safety] failed to ingest result ${msg.result.jobId}:`,
             err,
           );
         }
@@ -228,13 +228,13 @@ export class ComputeChannel {
     const drop = () => {
       if (session) {
         this.workers.delete(session.id);
-        console.log(`[space-eyes] worker ${session.label} disconnected`);
+        console.log(`[space-safety] worker ${session.label} disconnected`);
       }
     };
     call.on("end", drop);
     call.on("cancelled", drop);
     call.on("error", (err: Error) => {
-      console.warn(`[space-eyes] worker stream error: ${err.message}`);
+      console.warn(`[space-safety] worker stream error: ${err.message}`);
       drop();
     });
   }
@@ -281,7 +281,7 @@ function handleResult(result: ScreeningResultMsg, workerId: string): void {
     .get();
 
   if (!job) {
-    console.warn(`[space-eyes] result for unknown job ${result.jobId}`);
+    console.warn(`[space-safety] result for unknown job ${result.jobId}`);
     return;
   }
   if (job.status === "completed") {
@@ -328,11 +328,11 @@ function requeueJob(jobId: string): void {
 
 /** TLS is mandatory in production: this channel carries ephemerides. */
 function serverCredentials(): grpc.ServerCredentials {
-  const certPath = process.env.SPACE_EYES_GRPC_CERT;
-  const keyPath = process.env.SPACE_EYES_GRPC_KEY;
+  const certPath = process.env.SPACE_SAFETY_GRPC_CERT;
+  const keyPath = process.env.SPACE_SAFETY_GRPC_KEY;
 
   if (certPath && keyPath) {
-    const caPath = process.env.SPACE_EYES_GRPC_CA;
+    const caPath = process.env.SPACE_SAFETY_GRPC_CA;
     return grpc.ServerCredentials.createSsl(
       caPath ? readFileSync(caPath) : null,
       [{ private_key: readFileSync(keyPath), cert_chain: readFileSync(certPath) }],
@@ -343,7 +343,7 @@ function serverCredentials(): grpc.ServerCredentials {
 
   if (process.env.NODE_ENV === "production") {
     throw new Error(
-      "refusing to start the compute channel without TLS in production (set SPACE_EYES_GRPC_CERT/KEY)",
+      "refusing to start the compute channel without TLS in production (set SPACE_SAFETY_GRPC_CERT/KEY)",
     );
   }
   return grpc.ServerCredentials.createInsecure();

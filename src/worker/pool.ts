@@ -26,7 +26,7 @@
  * ## Sizing
  *
  * Default is `availableParallelism() - 1`, leaving a core for the event loop and
- * gRPC. Override with `SPACE_EYES_WORKER_THREADS`. Setting it to 1 keeps the
+ * gRPC. Override with `SPACE_SAFETY_WORKER_THREADS`. Setting it to 1 keeps the
  * inline path (no threads at all), which is what the tests and the demo use.
  */
 
@@ -145,7 +145,7 @@ interface Slot {
 /** Resolve the thread count from an explicit option, else the environment. */
 export function resolveThreadCount(threads?: number): number {
   if (typeof threads === "number") return Math.max(0, Math.floor(threads));
-  const fromEnv = Number(process.env.SPACE_EYES_WORKER_THREADS);
+  const fromEnv = Number(process.env.SPACE_SAFETY_WORKER_THREADS);
   if (Number.isFinite(fromEnv) && fromEnv >= 0) return Math.floor(fromEnv);
   // Leave one core for the event loop and the gRPC client.
   return Math.max(0, availableParallelism() - 1);
@@ -397,7 +397,7 @@ export function createPool(opts: PoolOptions = {}): ScreeningPool {
   // Read lazily on each call: a module-level constant would freeze the first
   // value seen, and a test (or an operator) that changes it would have no effect.
   const packCacheMaxBytes = (): number =>
-    Number(process.env.SPACE_EYES_PACK_CACHE_MB ?? 1024) * 1024 * 1024;
+    Number(process.env.SPACE_SAFETY_PACK_CACHE_MB ?? 1024) * 1024 * 1024;
   let packCacheBytes = 0;
 
   function evictFromPackCache(): void {
@@ -461,7 +461,7 @@ export function createPool(opts: PoolOptions = {}): ScreeningPool {
       // tsx registers a loader for the parent; worker threads do not inherit it,
       // so pass it explicitly for the .ts entry point.
       execArgv: process.execArgv.filter((a) => a !== "--inspect"),
-      name: `space-eyes-compute-${slots.indexOf(slot)}`,
+      name: `space-safety-compute-${slots.indexOf(slot)}`,
     });
     slot.worker = worker;
 

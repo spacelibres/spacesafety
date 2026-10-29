@@ -42,8 +42,8 @@ function check(name: string, cond: boolean, detail = "") {
   }
 }
 
-const workDir = mkdtempSync(join(tmpdir(), "spaceeyes-dualfeed-"));
-process.env.SPACE_EYES_DB = join(workDir, "test.sqlite");
+const workDir = mkdtempSync(join(tmpdir(), "spacesafety-dualfeed-"));
+process.env.SPACE_SAFETY_DB = join(workDir, "test.sqlite");
 
 async function main() {
   console.log("\nSchema — dual-feed columns");
@@ -88,7 +88,7 @@ async function main() {
     const { db } = getDb();
 
     // Real fixtures: the OCM and ITC we hold for one satellite.
-    const OCM = "/tmp/spaceeyes-dualfeed-ocm.txt";
+    const OCM = "/tmp/spacesafety-dualfeed-ocm.txt";
     const ITC = "./data/ephemeris-cache/STARLINK-38128.txt";
     if (!existsSync(ITC)) {
       console.log("  skip  (no cached ITC; run npm run demo:seed)");
@@ -189,8 +189,8 @@ async function main() {
   {
     // The point of the whole migration, checked against the shipped database if it
     // is present. Skipped in a bare checkout.
-    const live = "./data/spaceeyes.sqlite";
-    if (!existsSync(live) || process.env.SPACE_EYES_DB === live) {
+    const live = "./data/spacesafety.sqlite";
+    if (!existsSync(live) || process.env.SPACE_SAFETY_DB === live) {
       console.log("  skip  (no populated database in this working tree)");
     } else {
       const Better = (await import("better-sqlite3")).default;

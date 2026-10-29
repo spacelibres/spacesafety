@@ -1,4 +1,4 @@
-# Space Eyes — 架构说明
+# Space Safety — 架构说明
 
 仿制 `space-safety.starlink.com` 的全栈平台。API 名称、请求/响应结构、
 以及可观察的服务行为与官方一致（依据见 `SPEC-BEHAVIOR.md`）。
@@ -525,8 +525,8 @@ graph TD
 
 | 环境变量 | 默认 | 范围 |
 |---|---|---|
-| `SPACE_EYES_THREAD_MEMORY_MB` | 512 | 每个计算线程的打包轨迹预算；`0` 关闭淘汰 |
-| `SPACE_EYES_PACK_CACHE_MB` | 1024 | 主线程打包缓存的预算；`0` 关闭淘汰 |
+| `SPACE_SAFETY_THREAD_MEMORY_MB` | 512 | 每个计算线程的打包轨迹预算；`0` 关闭淘汰 |
+| `SPACE_SAFETY_PACK_CACHE_MB` | 1024 | 主线程打包缓存的预算；`0` 关闭淘汰 |
 
 实测（48 条 3 天轨迹 × 8 线程，每线程都见过每一条）：
 

@@ -89,7 +89,7 @@ export const GET = route(async ({ request, correlationId }) => {
   const fetched = await fetchGpByNorad(noradId!);
   if (fetched.notConfigured) {
     throw ApiError.serviceUnavailable(
-      "Space-Track credentials are not configured (SPACE_EYES_SPACETRACK_USER/PASS)",
+      "Space-Track credentials are not configured (SPACE_SAFETY_SPACETRACK_USER/PASS)",
     );
   }
   if (fetched.error) {

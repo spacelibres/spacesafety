@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Resolved relative to this file so it works from any working directory. */
 export const PROTO_PATH =
-  process.env.SPACE_EYES_PROTO ?? join(HERE, "../../../proto/worker.proto");
+  process.env.SPACE_SAFETY_PROTO ?? join(HERE, "../../../proto/worker.proto");
 
 export const PROTOCOL_VERSION = "1.0.0";
 
@@ -206,9 +206,9 @@ export function loadProto(): LoadedProto {
   });
 
   const pkg = grpc.loadPackageDefinition(definition) as unknown as {
-    spaceeyes: { worker: { v1: Record<string, unknown> } };
+    spacesafety: { worker: { v1: Record<string, unknown> } };
   };
-  const v1 = pkg.spaceeyes.worker.v1;
+  const v1 = pkg.spacesafety.worker.v1;
 
   loaded = {
     WorkerControlServiceDefinition: (
@@ -230,21 +230,21 @@ export function loadProto(): LoadedProto {
  * refused in production. Local development may opt in explicitly.
  */
 export function clientCredentials(): grpc.ChannelCredentials {
-  if (process.env.SPACE_EYES_GRPC_INSECURE === "1") {
+  if (process.env.SPACE_SAFETY_GRPC_INSECURE === "1") {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "SPACE_EYES_GRPC_INSECURE is refused in production: the compute channel carries ephemerides",
+        "SPACE_SAFETY_GRPC_INSECURE is refused in production: the compute channel carries ephemerides",
       );
     }
     return grpc.credentials.createInsecure();
   }
 
-  const caPath = process.env.SPACE_EYES_GRPC_CA;
+  const caPath = process.env.SPACE_SAFETY_GRPC_CA;
   if (caPath) {
     return grpc.credentials.createSsl(
       readFileSync(caPath),
-      readFileSync(process.env.SPACE_EYES_GRPC_KEY ?? ""),
-      readFileSync(process.env.SPACE_EYES_GRPC_CERT ?? ""),
+      readFileSync(process.env.SPACE_SAFETY_GRPC_KEY ?? ""),
+      readFileSync(process.env.SPACE_SAFETY_GRPC_CERT ?? ""),
     );
   }
 

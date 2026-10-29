@@ -27,10 +27,10 @@ function check(name: string, cond: boolean, detail = "") {
   }
 }
 
-const workDir = mkdtempSync(join(tmpdir(), "spaceeyes-optical-"));
-process.env.SPACE_EYES_DB = join(workDir, "test.sqlite");
-process.env.SPACE_EYES_ALLOW_X_OPERATOR = "1";
-process.env.SPACE_EYES_DEMO = "1";
+const workDir = mkdtempSync(join(tmpdir(), "spacesafety-optical-"));
+process.env.SPACE_SAFETY_DB = join(workDir, "test.sqlite");
+process.env.SPACE_SAFETY_ALLOW_X_OPERATOR = "1";
+process.env.SPACE_SAFETY_DEMO = "1";
 
 const MU = 398600.4418;
 const R = 6378.137 + 550;
@@ -103,7 +103,7 @@ async function main() {
     db.insert(schema.operators)
       .values({
         id: opId,
-        name: "Space Eyes",
+        name: "Space Safety",
         email: "ops@test",
         phone: null,
         maxObjects: 10,
@@ -176,7 +176,7 @@ async function main() {
 
     if (route && metaRoute) {
       const req = new Request(`http://x/api/v1/trajectory/${opticalRow.id}`, {
-        headers: { "x-space-eyes-operator": opId },
+        headers: { "x-space-safety-operator": opId },
       });
       const res = await route.GET(req, {
         params: Promise.resolve({ id: opticalRow.id }),
@@ -194,7 +194,7 @@ async function main() {
       );
 
       const mreq = new Request(`http://x/api/v1/trajectory/${opticalRow.id}/metadata`, {
-        headers: { "x-space-eyes-operator": opId },
+        headers: { "x-space-safety-operator": opId },
       });
       const mres = await metaRoute.GET(mreq, {
         params: Promise.resolve({ id: opticalRow.id }),

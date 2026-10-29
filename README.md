@@ -1,13 +1,24 @@
-# Space Eyes
+# Space Safety
 
 仿制 `space-safety.starlink.com` 的卫星轨道安全与交会筛查平台。
 API 名称、数据结构与服务行为与原站一致；实现与部署方式是我们自己的。
 
-当前版本 **0.1.1** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本 **0.1.2** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-> **版本规则**：每次迭代只递增补丁号（`0.1.1` → `0.1.2` → …），
+> **版本规则**：每次迭代只递增补丁号（`0.1.2` → `0.1.3` → …），
 > 并同步更新 `package.json`、`package-lock.json`、git tag 与 `CHANGELOG.md`。
 > 提交前请确认这四处一致。
+
+## 命名约定
+
+项目名 **spacesafety**，代码、配置、数据库与 gRPC 包名统一使用这一个名字：
+
+| 位置 | 值 |
+|---|---|
+| 包名 / 目录 / 数据库文件 | `spacesafety`、`data/spacesafety.sqlite` |
+| 环境变量前缀 | `SPACE_SAFETY_`（全量清单见 [`.env.example`](.env.example)） |
+| gRPC 包 | `spacesafety.worker.v1` |
+| 演示认证头 | `x-space-safety-operator` |
 
 ## 仓库不含计算数据
 
@@ -19,7 +30,8 @@ API 名称、数据结构与服务行为与原站一致；实现与部署方式�
 
 ```bash
 npm install
-npm run demo       # 拉取真实 Starlink 星历并筛出交会事件
+cp .env.example .env.local   # 按需填写凭据；该文件不入库
+npm run demo                 # 拉取真实 Starlink 星历并筛出交会事件
 npm run build && npx next start -p 3000
 ```
 
@@ -28,7 +40,7 @@ npm run build && npx next start -p 3000
 演示模式需要两个环境变量（缺一则 API 抛 `401`）：
 
 ```bash
-SPACE_EYES_ALLOW_X_OPERATOR=1 SPACE_EYES_DEMO=1 npx next start -p 3000
+SPACE_SAFETY_ALLOW_X_OPERATOR=1 SPACE_SAFETY_DEMO=1 npx next start -p 3000
 ```
 
 ## 参考材料
@@ -123,13 +135,13 @@ npm run demo:conjunction -- --seed   # 派生一个合作目标，产生交会
 
 ```bash
 # VPS
-SPACE_EYES_WORKER_TOKEN=secret npm run vps        # gRPC :50051
+SPACE_SAFETY_WORKER_TOKEN=secret npm run vps        # gRPC :50051
 
 # 计算节点
-SPACE_EYES_GRPC_INSECURE=1 \
-SPACE_EYES_GRPC_HOST=vps.example.com:50051 \
-SPACE_EYES_API_ORIGIN=https://vps.example.com \
-SPACE_EYES_WORKER_TOKEN=secret \
+SPACE_SAFETY_GRPC_INSECURE=1 \
+SPACE_SAFETY_GRPC_HOST=vps.example.com:50051 \
+SPACE_SAFETY_API_ORIGIN=https://vps.example.com \
+SPACE_SAFETY_WORKER_TOKEN=secret \
 npm run worker
 ```
 
@@ -176,7 +188,7 @@ $ npm run bench -- --count 200 --offline
 
 1. **mTLS 必须在 TLS 终止层完成**，并把证书以 `X-Client-Cert`
    透传给应用（nginx: `$ssl_client_escaped_cert`）。
-2. **计算通道必须启用 TLS**：`SPACE_EYES_GRPC_CERT/KEY/CA`。
+2. **计算通道必须启用 TLS**：`SPACE_SAFETY_GRPC_CERT/KEY/CA`。
    未配置时生产环境会拒绝启动。
-3. `SPACE_EYES_DEMO` 与 `SPACE_EYES_ALLOW_X_OPERATOR` 仅供演示，
+3. `SPACE_SAFETY_DEMO` 与 `SPACE_SAFETY_ALLOW_X_OPERATOR` 仅供演示，
    生产环境不要设置。

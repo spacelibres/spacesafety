@@ -1,6 +1,6 @@
 # 申请 Starlink Space Safety API 接入（分步操作指南）
 
-> 本文件说明如何完成 mTLS 凭证申请。**这一步必须以 Space Eyes 组织授权人的身份完成**，
+> 本文件说明如何完成 mTLS 凭证申请。**这一步必须以 Space Safety 组织授权人的身份完成**，
 > 无法由工具或第三方代办：SpaceX 要求申请人签署服务条款，并认证其有权代表组织签署。
 
 ## 为什么必须由你来做
@@ -34,7 +34,7 @@ API **仅对卫星运营方开放**。如果你是运营方（拥有或即将拥
 ```bash
 openssl req -new -newkey ec:<(openssl ecparam -name secp384r1) -nodes \
   -keyout client.key -sha384 -out client.csr \
-  -subj "/CN=spaceeyes/O=Space Eyes/OU=Operations"
+  -subj "/CN=spacesafety/O=Space Safety/OU=Operations"
 ```
 
 > 如需修改组织名，编辑 `certs/identity.json` 后重新执行上面的命令。
@@ -42,7 +42,7 @@ openssl req -new -newkey ec:<(openssl ecparam -name secp384r1) -nodes \
 ## 第 2 步：发送申请邮件
 
 **收件人**：`space-safety-onboarding@spacex.com`
-**主题**：`Space Safety Platform onboarding request — Space Eyes`
+**主题**：`Space Safety Platform onboarding request — Space Safety`
 
 正文模板（请补全 `<>` 内信息后发送）：
 
@@ -52,7 +52,7 @@ Hello SpaceX Space Safety team,
 We would like to request onboarding to the Starlink Space Safety Platform
 for the following organization.
 
-Organization:      Space Eyes
+Organization:      Space Safety
 Country:           <国家/地区>
 Website:           <官网 URL>
 Primary contact:   <姓名>, <职务>
@@ -70,13 +70,13 @@ Intended use:
 Requested environment: staging first, production after validation.
 
 Our CSR for client-certificate signing is attached (EC P-384 / SHA-384,
-CN=spaceeyes, O=Space Eyes, OU=Operations).
+CN=spacesafety, O=Space Safety, OU=Operations).
 
 Please also send the passkey setup instructions for the web UI.
 
 Best regards,
 <姓名>
-<职务>, Space Eyes
+<职务>, Space Safety
 ```
 
 **附件**：`certs/client.csr`

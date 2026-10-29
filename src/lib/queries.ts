@@ -18,7 +18,7 @@ import { gpsNanosToDate } from "@/lib/space-safety/gps";
 
 /** Risk bands, configurable so operators can match their own action thresholds. */
 export function riskThresholds() {
-  const raw = process.env.SPACE_EYES_RISK_THRESHOLDS ?? "1e-4,1e-5";
+  const raw = process.env.SPACE_SAFETY_RISK_THRESHOLDS ?? "1e-4,1e-5";
   const [high, medium] = raw.split(",").map(Number);
   return {
     high: Number.isFinite(high) ? high : 1e-4,

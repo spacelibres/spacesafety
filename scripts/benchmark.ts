@@ -49,7 +49,7 @@ import type {
 } from "../src/lib/grpc/proto";
 import { fetchEphemeris, fetchManifest, parseStarlinkEphemeris } from "../src/lib/sources/starlink-public";
 
-const CACHE_DIR = process.env.SPACE_EYES_CACHE ?? "./data/ephemeris-cache";
+const CACHE_DIR = process.env.SPACE_SAFETY_CACHE ?? "./data/ephemeris-cache";
 /** Starlink hard-body radius: 17.66 m diameter. */
 const HBR_KM = 0.00883;
 /** Coarse sample budget per job, matching what the worker sends. */
@@ -566,9 +566,9 @@ async function main() {
   const countArg = process.argv.indexOf("--count");
   const count = countArg !== -1 ? Number(process.argv[countArg + 1]) || 200 : 200;
   const offline = process.argv.includes("--offline");
-  const realLimit = Number(process.env.SPACE_EYES_BENCH_REAL ?? 20);
+  const realLimit = Number(process.env.SPACE_SAFETY_BENCH_REAL ?? 20);
 
-  console.log(`\nSpace Eyes — screening benchmark`);
+  console.log(`\nSpace Safety — screening benchmark`);
   console.log(`  satellites per sweep : ${fmt(count)}`);
   console.log(`  coarse sample budget : ${fmt(MAX_SAMPLE_POINTS)} per pair\n`);
 

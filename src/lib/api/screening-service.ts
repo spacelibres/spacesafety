@@ -275,7 +275,7 @@ export function ingestScreeningResult(params: {
       const cdmJson = buildCdmJson({
         id: cdmId,
         createdAt: now,
-        originator: "SPACEEYES",
+        originator: "SPACESAFETY",
         approach,
         parties: {
           object1Id: o1.id,

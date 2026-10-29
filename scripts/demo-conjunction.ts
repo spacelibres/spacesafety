@@ -31,7 +31,7 @@ import { normaliseTrajectory, type NormalisedTrajectory } from "../src/lib/api/v
 import { screen } from "../src/lib/core/screening";
 import { formatDoyTimestamp, toLowerTriangle6x6 } from "../src/lib/orbit/itc";
 
-const CACHE_DIR = process.env.SPACE_EYES_CACHE ?? "./data/ephemeris-cache";
+const CACHE_DIR = process.env.SPACE_SAFETY_CACHE ?? "./data/ephemeris-cache";
 const PARTNER_OPERATOR_ID = "33333333-3333-4333-8333-333333333333";
 const PARTNER_OPERATOR_NAME = "Demo Partner";
 const HBR_KM = 0.00883;
@@ -41,7 +41,7 @@ async function main() {
   const doSeed = process.argv.includes("--seed");
 
   const primaryName =
-    process.env.SPACE_EYES_PRIMARY ?? "STARLINK-38128";
+    process.env.SPACE_SAFETY_PRIMARY ?? "STARLINK-38128";
   const cachePath = join(CACHE_DIR, `${primaryName}.txt`);
   if (!existsSync(cachePath)) {
     console.error(
@@ -96,7 +96,7 @@ function derivePartner(
   primary: NormalisedTrajectory,
   primaryName: string,
 ): NormalisedTrajectory {
-  const angleDeg = Number(process.env.SPACE_EYES_INC_DELTA_DEG ?? 0.02);
+  const angleDeg = Number(process.env.SPACE_SAFETY_INC_DELTA_DEG ?? 0.02);
   const a = (angleDeg * Math.PI) / 180;
   const ca = Math.cos(a);
   const sa = Math.sin(a);
@@ -105,7 +105,7 @@ function derivePartner(
   // node, giving sub-metre misses (Pc = 1, which is correct but uninteresting).
   // Adding a constant cross-track bias moves the crossing into the 100 m to
   // 5 km band, which spans low, medium and high risk.
-  const biasKm = Number(process.env.SPACE_EYES_CROSS_BIAS_KM ?? 0.04);
+  const biasKm = Number(process.env.SPACE_SAFETY_CROSS_BIAS_KM ?? 0.04);
 
   // Image the first state's position to pick a rotation axis roughly along the
   // primary's velocity, so the defect is mostly cross-track at the crossing.
@@ -287,7 +287,7 @@ async function seed(
   // Cross-inclined orbits converge twice per revolution, so a 3-day arc yields
   // ~90 approaches. A demo is clearer with a handful of events, so trim both
   // trajectories to their first few hours before screening.
-  const horizonHours = Number(process.env.SPACE_EYES_HORIZON_HOURS ?? 6);
+  const horizonHours = Number(process.env.SPACE_SAFETY_HORIZON_HOURS ?? 6);
   const horizonMs = horizonHours * 3_600_000;
   const trimmed = (s: ReturnType<typeof toSample>) => {
     const t0 = Number(s.states[0].epochMs);

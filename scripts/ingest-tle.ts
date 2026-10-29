@@ -40,7 +40,7 @@ async function main() {
     .filter((o) => o.noradId !== null)
     .slice(0, limit);
 
-  console.log(`\nSpace Eyes — TLE ingest (${targets.length} object(s))\n`);
+  console.log(`\nSpace Safety — TLE ingest (${targets.length} object(s))\n`);
 
   let ok = 0;
   let failed = 0;

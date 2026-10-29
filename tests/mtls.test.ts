@@ -29,12 +29,12 @@ function check(name: string, cond: boolean, detail = "") {
   }
 }
 
-const workDir = mkdtempSync(join(tmpdir(), "spaceeyes-mtls-"));
-process.env.SPACE_EYES_DB = join(workDir, "test.sqlite");
-process.env.SPACE_EYES_CERT_DIR = join(workDir, "certs");
+const workDir = mkdtempSync(join(tmpdir(), "spacesafety-mtls-"));
+process.env.SPACE_SAFETY_DB = join(workDir, "test.sqlite");
+process.env.SPACE_SAFETY_CERT_DIR = join(workDir, "certs");
 // The dev bypass must be off for these assertions to mean anything.
-delete process.env.SPACE_EYES_ALLOW_X_OPERATOR;
-delete process.env.SPACE_EYES_DEMO;
+delete process.env.SPACE_SAFETY_ALLOW_X_OPERATOR;
+delete process.env.SPACE_SAFETY_DEMO;
 
 const OP_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -49,7 +49,7 @@ async function main() {
   db.insert(schema.operators)
     .values({
       id: OP_ID,
-      name: "Space Eyes",
+      name: "Space Safety",
       email: "ops@test",
       phone: null,
       maxObjects: 5,
@@ -84,7 +84,7 @@ async function main() {
     // The chain must verify against our CA.
     const verify = execFileSync(
       "openssl",
-      ["verify", "-CAfile", join(process.env.SPACE_EYES_CERT_DIR!, "ca.crt"), cert.certPath],
+      ["verify", "-CAfile", join(process.env.SPACE_SAFETY_CERT_DIR!, "ca.crt"), cert.certPath],
       { encoding: "utf8" },
     );
     check("certificate chains to the CA", verify.includes(": OK"), verify.trim());

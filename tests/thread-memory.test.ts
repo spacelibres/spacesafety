@@ -103,7 +103,7 @@ async function main() {
 
   {
     // Budget of three arcs, twelve trajectories sent.
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = String((arcBytes * 3) / 1024 / 1024);
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = String((arcBytes * 3) / 1024 / 1024);
     const pool = createPool({ threads: 1 });
 
     const results = [];
@@ -136,7 +136,7 @@ async function main() {
   {
     // Drive the thread directly so residency is observable, rather than inferred.
     const { loadPacked } = await import("../src/worker/screening-thread");
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = String((arcBytes * 2) / 1024 / 1024);
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = String((arcBytes * 2) / 1024 / 1024);
 
     const bufferOf = (id: string) => {
       const b = new SharedArrayBuffer(arcBytes);
@@ -170,7 +170,7 @@ async function main() {
     check("recently used entry survives", ids.includes("keep-1"));
     check("new entry is admitted", ids.includes("newcomer"));
 
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = "512";
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = "512";
     check(
       "resident bytes reported by the thread match what was loaded",
       sharedBytes() > 0,
@@ -183,7 +183,7 @@ async function main() {
   {
     // The case that would be a real bug: a trajectory is evicted, then a job
     // names it again. The pool must notice and re-send, not fail the job.
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = String((arcBytes * 2) / 1024 / 1024);
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = String((arcBytes * 2) / 1024 / 1024);
     const pool = createPool({ threads: 2 });
 
     // Fill past the budget.
@@ -214,7 +214,7 @@ async function main() {
   console.log("\nBudget — disabled");
 
   {
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = "0";
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = "0";
     // 2 threads: `threads <= 1` deliberately runs inline, in which case there is
     // no per-thread residency to report at all.
     const pool = createPool({ threads: 2 });
@@ -228,7 +228,7 @@ async function main() {
       bytes(pool.residentBytes),
     );
     await pool.shutdown();
-    process.env.SPACE_EYES_THREAD_MEMORY_MB = "512";
+    process.env.SPACE_SAFETY_THREAD_MEMORY_MB = "512";
   }
 
   console.log(`\n${pass} passed, ${fail} failed\n`);

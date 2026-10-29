@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start (or restart) the Space Eyes web UI detached from any terminal.
+"""Start (or restart) the Space Safety web UI detached from any terminal.
 
 The dev server is started under its own session so closing the terminal or the
 agent that launched it cannot take it down, and its output goes to a log file
@@ -13,15 +13,15 @@ import sys
 import time
 import urllib.request
 
-PROJECT = "/mnt/272bb81e-0746-4b47-98c3-82cb633860fa/spaceeyes"
-LOG = "/tmp/spaceeyes-web.log"
-PIDFILE = "/tmp/spaceeyes-web.pid"
-PORT = int(os.environ.get("SPACE_EYES_PORT", "3000"))
+PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOG = "/tmp/spacesafety-web.log"
+PIDFILE = "/tmp/spacesafety-web.pid"
+PORT = int(os.environ.get("SPACE_SAFETY_PORT", "3000"))
 
 ENV = {
     **os.environ,
-    "SPACE_EYES_DEMO": "1",
-    "SPACE_EYES_ALLOW_X_OPERATOR": "1",
+    "SPACE_SAFETY_DEMO": "1",
+    "SPACE_SAFETY_ALLOW_X_OPERATOR": "1",
     "NODE_OPTIONS": "--max-old-space-size=8192",
 }
 

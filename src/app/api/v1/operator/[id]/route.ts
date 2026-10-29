@@ -45,7 +45,7 @@ export const PATCH = route(async ({ params, request, principal }) => {
   if (!row) throw ApiError.notFound(`operator ${id} not found`);
 
   const isSelf = principal.operatorId === id;
-  const isAdmin = process.env.SPACE_EYES_ADMIN === "1";
+  const isAdmin = process.env.SPACE_SAFETY_ADMIN === "1";
   if (!isSelf && !isAdmin) {
     throw ApiError.forbidden("operators may only modify their own record");
   }

@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * Persistence for the Space Eyes replica.
+ * Persistence for the Space Safety replica.
  *
  * Shapes mirror the vendor's data model (`docs/SPEC-BEHAVIOR.md` §2) with two
  * deliberate additions that are invisible to API clients:

@@ -6,7 +6,7 @@
  * (inclination and mean altitude) so a reused name cannot be mistaken for the
  * real object.
  *
- * Requires `SPACE_EYES_SPACETRACK_USER` / `SPACE_EYES_SPACETRACK_PASS`.
+ * Requires `SPACE_SAFETY_SPACETRACK_USER` / `SPACE_SAFETY_SPACETRACK_PASS`.
  *
  *   npm run norad:backfill            # write
  *   npm run norad:backfill -- --dry-run
@@ -25,7 +25,7 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const { backfillNoradIds } = await import("../src/lib/sources/norad");
 
-  console.log(`\nSpace Eyes — NORAD catalogue backfill${dryRun ? " (dry run)" : ""}\n`);
+  console.log(`\nSpace Safety — NORAD catalogue backfill${dryRun ? " (dry run)" : ""}\n`);
 
   const result = await backfillNoradIds({ dryRun });
 

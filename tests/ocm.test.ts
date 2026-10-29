@@ -102,7 +102,7 @@ console.log("\nFrames — covariance handling");
 }
 
 console.log("\nOCM — real 7-day Starlink ephemeris");
-const OCM_PATH = process.env.SPACE_EYES_OCM_SAMPLE ?? "/tmp/ocm.txt";
+const OCM_PATH = process.env.SPACE_SAFETY_OCM_SAMPLE ?? "/tmp/ocm.txt";
 if (!existsSync(OCM_PATH)) {
   console.log(`  skip: no sample at ${OCM_PATH}`);
 } else {

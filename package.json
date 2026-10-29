@@ -1,8 +1,8 @@
 {
-  "name": "spaceeyes",
-  "version": "0.1.1",
+  "name": "spacesafety",
+  "version": "0.1.2",
   "private": true,
-  "description": "Space Eyes — satellite orbit safety & conjunction assessment dashboard",
+  "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

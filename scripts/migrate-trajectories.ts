@@ -32,7 +32,7 @@ async function main() {
   const { sqlite } = getDb();
   const hash = (t: string) => createHash("sha256").update(t).digest("hex");
 
-  console.log(`\nSpace Eyes — trajectory migration${dryRun ? " (dry run)" : ""}\n`);
+  console.log(`\nSpace Safety — trajectory migration${dryRun ? " (dry run)" : ""}\n`);
 
   // ---------------------------------------------------------------- covariates
   const rows = sqlite

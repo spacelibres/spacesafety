@@ -31,7 +31,7 @@ import {
   type ManifestEntry,
 } from "../src/lib/sources/starlink-public";
 
-const CACHE_DIR = process.env.SPACE_EYES_CACHE ?? "./data/ephemeris-cache";
+const CACHE_DIR = process.env.SPACE_SAFETY_CACHE ?? "./data/ephemeris-cache";
 /** Starlink hard-body radius: 17.66 m diameter. */
 const HBR_KM = 0.00883;
 
@@ -40,7 +40,7 @@ async function main() {
   const count = countArg !== -1 ? Number(process.argv[countArg + 1]) || 6 : 6;
   const offline = process.argv.includes("--offline");
 
-  console.log(`\nSpace Eyes — demo seed (${count} satellites)\n`);
+  console.log(`\nSpace Safety — demo seed (${count} satellites)\n`);
 
   const { db, sqlite } = getDb();
   const now = new Date().toISOString();
@@ -49,7 +49,7 @@ async function main() {
   const starlinkId = "22222222-2222-4222-8222-222222222222";
 
   for (const op of [
-    { id: selfId, name: "Space Eyes", email: "ops@spaceeyes.example", phone: "+86 10 0000 0000" },
+    { id: selfId, name: "Space Safety", email: "ops@spacesafety.example", phone: "+86 10 0000 0000" },
     { id: starlinkId, name: "Starlink", email: "satellite-operators@starlink.com", phone: "+1 310 363 6000" },
   ]) {
     db.insert(operators)

@@ -14,14 +14,14 @@ import time
 
 import requests
 
-PROXY = os.environ.get("PROXY", "http://127.0.0.1:20171")
+PROXY = os.environ.get("SPACE_SAFETY_PROXY") or os.environ.get("PROXY") or ""
 BASE = "https://www.starlink.com/public-files/ephemerides"
 MANIFEST = "/tmp/manifest.txt"
 
 
 def session():
     s = requests.Session()
-    s.headers["user-agent"] = "SpaceEyes/0.1 (orbit-safety replica)"
+    s.headers["user-agent"] = "SpaceSafety/0.1 (orbit-safety replica)"
     if PROXY:
         s.proxies = {"http": PROXY, "https": PROXY}
     return s
