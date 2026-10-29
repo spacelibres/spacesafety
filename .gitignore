@@ -23,6 +23,12 @@ certs/*.srl
 # 这些是几十 GB 量级，永远不进版本库；仓库里只保存可以重新下载/重新计算的脚本。
 data/*
 !data/.gitkeep
+# 例外：参考数据的说明文档是项目文档，必须入库；数据文件本身仍然忽略。
+!data/reference/
+!data/reference/README.md
+# 但 data/reference/ 下的实际数据仍然不入库。
+data/reference/*
+!data/reference/README.md
 
 # 运行时产物
 *.log

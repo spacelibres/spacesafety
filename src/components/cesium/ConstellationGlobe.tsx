@@ -18,7 +18,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { parseCountries, type CountryFeature } from "@/lib/geo/countries";
 import type { SnapshotFile } from "@/lib/geo/snapshot";
 import { shellColours, shellLabel, type ShellLegendEntry } from "@/lib/geo/shells";
 import { useTranslator } from "@/lib/i18n/client";
@@ -29,16 +28,14 @@ import { CesiumGlobe } from "./CesiumGlobe";
 
 interface Props {
   height?: number;
-  locale: string;
 }
 
-export function ConstellationGlobe({ height = 620, locale }: Props) {
+export function ConstellationGlobe({ height = 620 }: Props) {
   const t = useTranslator();
   const mountRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<CesiumGlobe | null>(null);
 
   const [snapshot, setSnapshot] = useState<SnapshotFile | null>(null);
-  const [countries, setCountries] = useState<CountryFeature[]>([]);
   const [legend, setLegend] = useState<ShellLegendEntry[]>([]);
   const [theme, setTheme] = useState<SceneTheme>(() => defaultSceneTheme());
   const [error, setError] = useState<string | null>(null);
@@ -73,21 +70,12 @@ export function ConstellationGlobe({ height = 620, locale }: Props) {
     };
   }, []);
 
-  // Basemap.
+  // Basemap: graticule only. Country names are deliberately not drawn — see
+  // `src/lib/geo/countries.ts` for why the data is archived but not rendered.
   useEffect(() => {
-    let cancelled = false;
-    fetch("/geo/countries-110m.geojson")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data) => {
-        if (!cancelled) setCountries(parseCountries(data));
-      })
-      .catch(() => {
-        if (!cancelled) setCountries([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!ready) return;
+    globeRef.current?.addBasemap();
+  }, [ready]);
 
   // Create the globe once.
   useEffect(() => {
@@ -122,12 +110,6 @@ export function ConstellationGlobe({ height = 620, locale }: Props) {
     // instance by the effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Basemap and language.
-  useEffect(() => {
-    if (!ready || !globeRef.current) return;
-    globeRef.current.addBasemap(countries, locale);
-  }, [ready, countries, locale]);
 
   // Tracks.
   useEffect(() => {

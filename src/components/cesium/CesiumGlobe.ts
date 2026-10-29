@@ -31,7 +31,6 @@
  * density it was designed for.
  */
 
-import type { CountryFeature } from "@/lib/geo/countries";
 import type { SnapshotFile } from "@/lib/geo/snapshot";
 import { dequantise } from "@/lib/geo/snapshot";
 import { cssColour, type SceneTheme } from "@/lib/vi/theme-bridge";
@@ -39,9 +38,8 @@ import { cssColour, type SceneTheme } from "@/lib/vi/theme-bridge";
 /** Cesium is loaded dynamically: it is ~2 MB of JS and must not block first paint. */
 type CesiumModule = typeof import("cesium");
 type Viewer = import("cesium").Viewer;
-type Entity = import("cesium").Entity;
-type PolylineCollection = import("cesium").PolylineCollection;
 type PointCollection = import("cesium").PointPrimitiveCollection;
+type PolylineCollection = import("cesium").PolylineCollection;
 type PointPrimitive = import("cesium").PointPrimitive;
 
 /**
@@ -88,10 +86,7 @@ export class CesiumGlobe {
    */
   private points: PointCollection | null = null;
   private readonly tracks: Track[] = [];
-  /** The graticule, one primitive for the same reason. */
   private grid: PolylineCollection | null = null;
-  /** Country label entities, the one place the entity path is still worth it. */
-  private countryLabels: Entity[] = [];
   /** Wall-clock start of the animation, so every satellite shares one phase. */
   private animationStart = 0;
   /** Shell colours, kept so a theme change can recolour the dots. */
@@ -194,15 +189,19 @@ export class CesiumGlobe {
   }
 
   /**
-   * Draw the graticule and country labels.
+   * Draw the basemap: the graticule only.
    *
-   * Called again when the language changes, so it must replace the previous
-   * labels rather than stack a second set on top of them.
+   * Country labels used to be drawn here from `CountryFeature[]`. They were the
+   * densest text on a view whose subject is the constellation and they competed
+   * with it, so they are gone. The data itself is archived — see
+   * `src/lib/geo/countries.ts` — for the day a view needs to mark a ground
+   * station or a launch site.
+   *
+   * Idempotent: called again whenever the theme re-renders the component.
    */
-  addBasemap(countries: CountryFeature[], locale: string): void {
+  addBasemap(): void {
     if (this.disposed) return;
     if (!this.grid) this.addGrid();
-    this.addCountryLabels(countries, locale);
   }
 
   /**
@@ -247,36 +246,6 @@ export class CesiumGlobe {
     collection.add({ positions: equator, width: 1.5, material: equatorMaterial });
 
     this.grid = viewer.scene.primitives.add(collection);
-  }
-
-  /** Country names, one label each, decluttered by Cesium. */
-  private addCountryLabels(countries: CountryFeature[], locale: string): void {
-    const { cesium, viewer } = this;
-    // Language changed: remove the previous set so labels do not double up.
-    for (const label of this.countryLabels) viewer.entities.remove(label);
-    this.countryLabels = [];
-
-    for (const country of countries) {
-      const name = country.names[locale] ?? country.names.en;
-      if (!name) continue;
-      const entity = viewer.entities.add({
-        position: cesium.Cartesian3.fromDegrees(country.label[0], country.label[1], 20_000),
-        label: {
-          text: name,
-          font: "11px system-ui, -apple-system, sans-serif",
-          fillColor: this.toColor(this.theme.labelText),
-          outlineColor: this.toColor(this.theme.labelOutline, 0.9),
-          outlineWidth: 3,
-          style: cesium.LabelStyle.FILL_AND_OUTLINE,
-          verticalOrigin: cesium.VerticalOrigin.CENTER,
-          // Cesium hides overlapping labels for us, which is the decluttering
-          // problem the Three.js version had to solve by hand.
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          scale: 0.9,
-        },
-      });
-      this.countryLabels.push(entity);
-    }
   }
 
   /**
@@ -416,11 +385,6 @@ export class CesiumGlobe {
     }
     const labelFill = this.toColor(theme.labelText);
     const labelOutline = this.toColor(theme.labelOutline, 0.9);
-    for (const label of this.countryLabels) {
-      if (!label.label) continue;
-      label.label.fillColor = new this.cesium.ConstantProperty(labelFill);
-      label.label.outlineColor = new this.cesium.ConstantProperty(labelOutline);
-    }
 
     // Dots take their colour from the palette, so they follow the theme too.
     const fallback = cssColour(theme.primary);
@@ -466,7 +430,6 @@ export class CesiumGlobe {
     this.tracks.length = 0;
     this.points = null;
     this.grid = null;
-    this.countryLabels = [];
     if (!this.viewer.isDestroyed()) this.viewer.destroy();
   }
 }

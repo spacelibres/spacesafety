@@ -1,13 +1,18 @@
 /**
- * Fetch the country basemap used by the globe.
+ * Fetch the country reference data.
  *
- * Natural Earth 1:110m admin-0, public domain. The 110m scale (~800 KB) is the
- * right one here: at 1m the borders would be finer than a few pixels at any
- * usable globe zoom, and the file would be 25 MB for no visible gain.
+ * Natural Earth 1:110m admin-0, public domain. Kept as a **reference dataset**, not
+ * as a map layer: the globe no longer draws country names (they cluttered the
+ * constellation and duplicated information the graticule already conveys), so
+ * this no longer lives in `public/` and is not shipped to the browser.
  *
- * The GeoJSON carries country names in ~40 languages, which is why the map needs
- * no hand-written translation table — `src/lib/geo/countries.ts` reads the
- * columns matching our locales.
+ * It is kept because it is the only source in the project for country names in
+ * ~40 languages, sovereign/ISO identifiers and label anchors — all of which are
+ * needed the moment a view wants to mark a ground station, a landing zone or a
+ * launch site. Re-fetching takes one command.
+ *
+ * Output is the untouched upstream file: pruning the columns to the six UI locales
+ * would throw away the rest of the archive for a few hundred KB.
  *
  *   npm run fetch:geo
  */
@@ -19,7 +24,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const URL_SOURCE =
   "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson";
-const OUT = join(ROOT, "public", "geo", "countries-110m.geojson");
+const OUT = join(ROOT, "data", "reference", "countries-110m.geojson");
 
 async function main(): Promise<void> {
   await mkdir(dirname(OUT), { recursive: true });
@@ -50,6 +55,7 @@ async function main(): Promise<void> {
   await writeFile(OUT, body, "utf8");
   const size = (await stat(OUT)).size;
   console.log(`${count} countries, ${(size / 1024).toFixed(0)} KB -> ${OUT}`);
+  console.log("reference data; not served to the browser. See tools/fetch-geo.ts.");
 }
 
 void main();
