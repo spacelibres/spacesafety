@@ -11,17 +11,19 @@
  *
  * ## Measured behaviour (2026-10-29), not vendor claims
  *
- * | source | epoch age vs Space-Track | coverage | fields |
+ * | source | epoch vs Space-Track | coverage | fields |
  * |---|---|---|---|
- * | space-track | reference (newest) | 29 000 tracked | TLE + OMM + SATCAT |
- * | spacebook | **17–77 h older** | 29 668 + 72 310 historical | OMM incl. TLE lines |
- * | starlink-ocm | operator arc, 7-day | 11 162 | + 6x6 covariance + manoeuvres |
+ * | space-track | reference | 30 752 | TLE + OMM + SATCAT |
+ * | spacebook-entity-tle | **same epoch, 99.98%** | 32 809 | TLE |
+ * | spacebook-omm | **same epoch, 99.98%** | 32 809 | OMM incl. TLE lines |
+ * | spacebook-xp-tle | **66 h older** | 29 566 | TLE, no names |
+ * | discos-objects | n/a (no elements) | 71 176 | **mass, shape, cross-section** |
  *
- * The Spacebook lag is systematic, not random: its mean motion differs from
- * Space-Track's in exact proportion to the epoch offset, which is what a stale
- * element set looks like. It is still the better identity source (it carries
- * object type, RCS class and a 72 000-row historical catalogue) — so the two are
- * used for different jobs rather than one replacing the other.
+ * The first measurement of this said Spacebook ran 17–77 h behind. That was true
+ * of `xp-tle` only: the `entity/tle` and `omm` endpoints share Space-Track's epoch
+ * for 30 740 of 30 745 shared objects. See `docs/ANALYSIS.md` — the older figure
+ * generalised one endpoint to the whole provider, and drove the wrong merge policy
+ * (Spacebook was ranked as a stale source when it is a coverage source).
  *
  * ## Merge policy
  *
@@ -113,10 +115,12 @@ export const SOURCES: readonly SourceDefinition[] = [
     format: "tle",
     refreshMinutes: 120,
     viaProxy: true,
-    notes: "COMSPOC catalogue, 29 668 objects. Widest coverage; epochs run 1-3 days behind.",
-    trajectoryPriority: 25,
-    identityPriority: 40,
-    typicalLagHours: 48,
+    notes:
+      "LEGACY. 29 566 objects, epochs 66 h behind on average (measured). " +
+      "Superseded by spacebook-entity-tle; kept only as a second sample.",
+    trajectoryPriority: 27,
+    identityPriority: 42,
+    typicalLagHours: 66,
   },
   {
     id: "spacebook-entity-tle",
@@ -126,10 +130,11 @@ export const SOURCES: readonly SourceDefinition[] = [
     refreshMinutes: 120,
     viaProxy: true,
     notes:
-      "Same shape as XP-TLE but 3 234 more objects (32 809 total). Preferred over XP-TLE.",
-    trajectoryPriority: 24,
+      "32 809 objects. Epochs match Space-Track on 99.98% of shared objects " +
+      "(measured, n=30 745), so it is a coverage source, not a freshness one.",
+    trajectoryPriority: 23,
     identityPriority: 41,
-    typicalLagHours: 48,
+    typicalLagHours: 0,
   },
   {
     id: "spacebook-satcat-supplemental",
@@ -151,10 +156,12 @@ export const SOURCES: readonly SourceDefinition[] = [
     format: "omm",
     refreshMinutes: 120,
     viaProxy: true,
-    notes: "Same orbits as XP-TLE with names and catalogue fields.",
+    notes:
+      "Same element sets as entity/tle, plus names and catalogue fields. " +
+      "Epoch matches Space-Track on 99.98% of shared objects (measured).",
     trajectoryPriority: 26,
     identityPriority: 20,
-    typicalLagHours: 48,
+    typicalLagHours: 0,
   },
   {
     id: "spacebook-satcat",

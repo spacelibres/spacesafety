@@ -34,6 +34,7 @@ const SUITES = [
   "tests/spacebook-auth.test.ts",
   "tests/discos.test.ts",
   "tests/paged-crawl.test.ts",
+  "tests/analysis.test.ts",
 ];
 
 let failed = 0;
