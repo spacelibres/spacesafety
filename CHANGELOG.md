@@ -12,6 +12,27 @@
 
 ---
 
+## [0.1.3] - 2026-10-29
+
+修复 **v0.1.1 与 v0.1.2 的仓库缺少计算内核**。
+
+### 修复
+
+- `.gitignore` 中为忽略崩溃转储而写的裸 `core` 规则，把 `src/lib/core/`
+  整个目录一并忽略——`screening.ts`、`alfano.ts`、`propagator.ts`、
+  `time-windows.ts` 等 10 个文件从未进入版本库。克隆该仓库无法编译，
+  且 `git status` 不会提示，因为文件被当作「有意忽略」。
+  改为带锚点的 `/core`、`/core.*`、`/core.[0-9]*`。
+- 移除误入库的 `tools/__pycache__/*.pyc`，并在 `.gitignore` 补充 Python 字节码规则。
+
+### 验证
+
+- `git ls-files src/lib/core` 现在列出全部 10 个内核文件。
+- 本地源码 135 个文件与入库文件逐一比对，无遗漏。
+- `tsc --noEmit` 无错误；23 个测试套件全过。
+
+---
+
 ## [0.1.2] - 2026-10-29
 
 统一命名：项目所有层面只使用 **spacesafety**，不再出现旧名 `spaceeyes`。

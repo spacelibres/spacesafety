@@ -28,11 +28,19 @@ data/*
 *.log
 *.tsbuildinfo
 /tmp/
-core
-core.*
+
+# 崩溃转储。必须带锚点：裸写 `core` 会连同 `src/lib/core/`（计算内核）
+# 一起忽略，仓库里就会缺掉整个筛查内核而看似正常。
+/core
+/core.*
+/core.[0-9]*
 
 # 编辑器与系统
 .DS_Store
 .idea/
 .vscode/
 *.swp
+
+# Python 字节码
+__pycache__/
+*.pyc
