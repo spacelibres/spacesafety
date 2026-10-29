@@ -1,6 +1,6 @@
 {
   "name": "spacesafety",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
@@ -48,7 +48,15 @@
     "catalog:rebuild": "node --conditions=react-server --import tsx scripts/catalog-rebuild.ts",
     "screen:catalog": "node --conditions=react-server --import tsx scripts/screen-catalog.ts",
     "screen:parallel": "node --conditions=react-server --import tsx scripts/screen-parallel.ts",
-    "screen:sharded": "node --conditions=react-server --import tsx scripts/screen-sharded.ts"
+    "screen:sharded": "node --conditions=react-server --import tsx scripts/screen-sharded.ts",
+    "check": "node --conditions=react-server --import tsx tools/check.ts",
+    "serve": "node --conditions=react-server --import tsx tools/serve.ts",
+    "fetch:ephemeris": "node --conditions=react-server --import tsx tools/fetch-ephemeris.ts",
+    "fetch:docs": "node --conditions=react-server --import tsx tools/fetch-docs.ts",
+    "fetch:screenshots": "node --conditions=react-server --import tsx tools/fetch-screenshots.ts",
+    "ingest:all": "node --conditions=react-server --import tsx tools/ingest-all.ts",
+    "probe:manifest": "node --conditions=react-server --import tsx tools/probe-manifest.ts",
+    "probe:screen": "node --conditions=react-server --import tsx tools/probe-screen.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
@@ -60,6 +68,7 @@
     "react-dom": "^19.0.0",
     "satellite.js": "^7.1.0",
     "server-only": "^0.0.1",
+    "socks": "^2.8.10",
     "three": "^0.171.0",
     "undici": "^7.2.0",
     "zod": "^3.24.1"

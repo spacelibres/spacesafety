@@ -1,52 +1,64 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
+import { getTranslator } from "@/lib/i18n/registry";
 import { listObjects } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default function ObjectsPage() {
+export default async function ObjectsPage() {
   const rows = listObjects(200);
+  const t = await getTranslator();
 
   return (
     <>
-      <Topbar section="Objects" />
+      <Topbar section={t.t("nav.objects")} />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">Objects</h1>
-          <span className="count">showing {rows.length} objects</span>
+          <h1 className="page-title">{t.t("objectsPage.title")}</h1>
+          <span className="count">
+            {t.t("objectsPage.showingCount", { count: rows.length })}
+          </span>
         </div>
 
         <div className="filters">
-          <button className="filter-btn" title="Filters" aria-label="Filters">
+          <button
+            className="filter-btn"
+            title={t.t("filter.title")}
+            aria-label={t.t("filter.title")}
+          >
             <FilterIcon />
           </button>
           <div className="filter-group">
-            <span>Alive</span>
+            <span>{t.t("column.alive")}</span>
             <select defaultValue="true">
-              <option value="true">equals</option>
+              <option value="true">{t.t("filter.equals")}</option>
             </select>
             <select defaultValue="true">
-              <option value="true">true</option>
-              <option value="false">false</option>
+              <option value="true">{t.t("filter.true")}</option>
+              <option value="false">{t.t("filter.false")}</option>
             </select>
           </div>
           <div className="filter-group">
-            <span>Name</span>
+            <span>{t.t("column.name")}</span>
             <select defaultValue="contains">
-              <option value="contains">contains</option>
+              <option value="contains">{t.t("filter.contains")}</option>
             </select>
-            <input placeholder="" aria-label="Name filter" />
+            <input aria-label={t.t("objectsPage.nameFilter")} />
           </div>
           <div className="filter-group">
-            <span>NORAD Id</span>
+            <span>{t.t("column.noradId")}</span>
             <select defaultValue="equals">
-              <option value="equals">equals</option>
+              <option value="equals">{t.t("filter.equals")}</option>
             </select>
-            <input placeholder="" aria-label="NORAD filter" />
+            <input aria-label={t.t("objectsPage.noradFilter")} />
           </div>
           <div className="filters-spacer" />
-          <button className="filter-btn" title="Columns" aria-label="Columns">
+          <button
+            className="filter-btn"
+            title={t.t("objectsPage.columns")}
+            aria-label={t.t("objectsPage.columns")}
+          >
             <GearIcon />
           </button>
         </div>
@@ -56,12 +68,12 @@ export default function ObjectsPage() {
             <table className="data">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>NORAD Id</th>
-                  <th className="num">Hard body radius (m)</th>
-                  <th>Operator</th>
-                  <th>Alive</th>
-                  <th>Maneuverable</th>
+                  <th>{t.t("column.name")}</th>
+                  <th>{t.t("column.noradId")}</th>
+                  <th className="num">{t.t("column.hardBodyRadius")}</th>
+                  <th>{t.t("column.operator")}</th>
+                  <th>{t.t("column.alive")}</th>
+                  <th>{t.t("column.maneuverable")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -70,8 +82,11 @@ export default function ObjectsPage() {
                     <td>
                       <Link href={`/objects/${o.id}`}>{o.objectName}</Link>
                     </td>
-                    <td className="mono-sm muted">{o.noradId ?? "—"}</td>
-                    <td className="num">{o.hardBodyRadius.toFixed(2)}</td>
+                    <td className="mono-sm muted">{o.noradId ?? t.t("common.none")}</td>
+                    <td className="num">{t.number(o.hardBodyRadius, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}</td>
                     <td className="muted">{o.operatorName}</td>
                     <td>
                       <span className={`chip ${o.alive}`}>{String(o.alive)}</span>
@@ -86,8 +101,8 @@ export default function ObjectsPage() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="empty">
-                      No objects yet. Create one via{" "}
-                      <code className="mono">POST /api/v1/object</code>.
+                      {t.t("objectsPage.empty")}{" "}
+                      <code className="mono">{"POST /api/v1/object"}</code>
                     </td>
                   </tr>
                 )}

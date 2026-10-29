@@ -1,12 +1,14 @@
 import { Topbar } from "@/components/Shell";
 import { getDb } from "@/db";
 import { credentials, operators } from "@/db/schema";
+import { getTranslator } from "@/lib/i18n/registry";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-export default function KeysPage() {
+export default async function KeysPage() {
   const { db } = getDb();
+  const t = await getTranslator();
   const rows = db
     .select({ c: credentials, opName: operators.name })
     .from(credentials)
@@ -15,38 +17,38 @@ export default function KeysPage() {
 
   return (
     <>
-      <Topbar section="Keys" />
+      <Topbar section={t.t("nav.keys")} />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">API Keys</h1>
-          <span className="count">{rows.length} credentials</span>
+          <h1 className="page-title">{t.t("keys.title")}</h1>
+          <span className="count">{t.t("keys.count", { count: rows.length })}</span>
         </div>
 
         <div className="banner info">
-          This deployment authenticates with <strong>mutual TLS</strong>, not bearer
-          tokens. Generate a key pair and CSR with{" "}
+          {t.t("keys.mtlsLead")} <strong>{t.t("keys.mtlsMutualTls")}</strong>
+          {t.t("keys.mtlsNotTokens")}{" "}
           <code className="mono">
             npm run cert:request -- --cn your-org --org &quot;Your Org&quot;
           </code>
-          , then sign it with <code className="mono">npm run cert:sign</code>. The
-          resulting certificate is the credential.
+          {t.t("keys.mtlsThen")} <code className="mono">npm run cert:sign</code>
+          {t.t("keys.mtlsResult")}
         </div>
 
         <section className="card">
           <div className="card-head">
-            <span>Issued certificates</span>
-            <span className="count">SHA-256 fingerprints</span>
+            <span>{t.t("keys.issuedCertificates")}</span>
+            <span className="count">{t.t("keys.fingerprints")}</span>
           </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
-                  <th>Common name</th>
-                  <th>Operator</th>
-                  <th>Fingerprint</th>
-                  <th>Issued</th>
-                  <th>Last used</th>
-                  <th>Status</th>
+                  <th>{t.t("keys.commonName")}</th>
+                  <th>{t.t("column.operator")}</th>
+                  <th>{t.t("keys.fingerprint")}</th>
+                  <th>{t.t("keys.created")}</th>
+                  <th>{t.t("keys.lastUsed")}</th>
+                  <th>{t.t("column.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -61,11 +63,11 @@ export default function KeysPage() {
                     <td className="mono-sm">
                       {c.lastSeenAt
                         ? c.lastSeenAt.replace("T", " ").replace(/\.\d+Z$/, "")
-                        : "never"}
+                        : t.t("keys.never")}
                     </td>
                     <td>
                       <span className={`chip ${c.revokedAt ? "false" : "true"}`}>
-                        {c.revokedAt ? "revoked" : "active"}
+                        {c.revokedAt ? t.t("keys.revoked") : t.t("keys.active")}
                       </span>
                     </td>
                   </tr>
@@ -73,7 +75,7 @@ export default function KeysPage() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="empty">
-                      No certificates issued yet.
+                      {t.t("keys.noCertificates")}
                     </td>
                   </tr>
                 )}

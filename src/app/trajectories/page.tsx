@@ -1,47 +1,55 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
+import { getTranslator } from "@/lib/i18n/registry";
 import { listTrajectories } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default function TrajectoriesPage() {
+export default async function TrajectoriesPage() {
+  const t = await getTranslator();
   const rows = listTrajectories(200);
 
   return (
     <>
-      <Topbar section="Trajectories" />
+      <Topbar section={t.t("nav.trajectories")} />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">Trajectories</h1>
-          <span className="count">showing {rows.length} trajectories</span>
+          <h1 className="page-title">{t.t("trajectoriesPage.title")}</h1>
+          <span className="count">
+            {t.t("trajectoriesPage.summary", { count: t.number(rows.length) })}
+          </span>
         </div>
 
         <div className="filters">
-          <button className="filter-btn" title="Filters" aria-label="Filters">
+          <button
+            className="filter-btn"
+            title={t.t("filter.title")}
+            aria-label={t.t("filter.title")}
+          >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M3 4h18l-7 8v6l-4 2v-8z" />
             </svg>
           </button>
           <div className="filter-group">
-            <span>Type</span>
+            <span>{t.t("column.type")}</span>
             <select defaultValue="">
-              <option value="equals">equals</option>
+              <option value="equals">{t.t("filter.equals")}</option>
             </select>
             <select defaultValue="">
-              <option value="">any</option>
-              <option value="definitive">definitive</option>
-              <option value="hypothetical">hypothetical</option>
-              <option value="candidate">candidate</option>
+              <option value="">{t.t("filter.any")}</option>
+              <option value="definitive">{t.t("filter.type.definitive")}</option>
+              <option value="hypothetical">{t.t("filter.type.hypothetical")}</option>
+              <option value="candidate">{t.t("filter.type.candidate")}</option>
             </select>
           </div>
           <div className="filter-group">
-            <span>Status</span>
+            <span>{t.t("column.status")}</span>
             <select defaultValue="">
-              <option value="">any</option>
-              <option value="screened">screened</option>
-              <option value="not_screened">not_screened</option>
-              <option value="superseded">superseded</option>
+              <option value="">{t.t("filter.any")}</option>
+              <option value="screened">{t.t("filter.status.screened")}</option>
+              <option value="not_screened">{t.t("filter.status.notScreened")}</option>
+              <option value="superseded">{t.t("filter.status.superseded")}</option>
             </select>
           </div>
         </div>
@@ -51,48 +59,53 @@ export default function TrajectoriesPage() {
             <table className="data">
               <thead>
                 <tr>
-                  <th>Id</th>
-                  <th>Object</th>
-                  <th>Operator</th>
-                  <th>Type</th>
-                  <th>State source</th>
-                  <th>Screened status</th>
-                  <th>Format</th>
-                  <th className="num">Points</th>
-                  <th>Uploaded at (UTC)</th>
+                  <th>{t.t("column.id")}</th>
+                  <th>{t.t("column.object")}</th>
+                  <th>{t.t("column.operator")}</th>
+                  <th>{t.t("column.type")}</th>
+                  <th>{t.t("column.stateSource")}</th>
+                  <th>{t.t("column.screenedStatus")}</th>
+                  <th>{t.t("trajectory.format")}</th>
+                  <th className="num">{t.t("column.points")}</th>
+                  <th>{t.t("column.uploadedAt")}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((t) => (
-                  <tr key={t.id}>
+                {rows.map((row) => (
+                  <tr key={row.id}>
                     <td>
-                      <Link href={`/trajectories/${t.id}`}>
-                        {t.id.slice(0, 8)}
+                      <Link href={`/trajectories/${row.id}`}>
+                        {row.id.slice(0, 8)}
                       </Link>
                     </td>
-                    <td>{t.objectName}</td>
-                    <td className="muted">{t.operatorName}</td>
+                    <td>{row.objectName}</td>
+                    <td className="muted">{row.operatorName}</td>
                     <td>
-                      <span className="chip neutral">{t.uploadType}</span>
-                    </td>
-                    <td>
-                      <span className={`chip ${t.stateSource}`}>{t.stateSource}</span>
-                    </td>
-                    <td>
-                      <span className={`chip ${statusClass(t.screenedStatus)}`}>
-                        {t.screenedStatus}
+                      <span className="chip neutral">
+                        {t.t(`common.uploadType.${row.uploadType}`)}
                       </span>
                     </td>
-                    <td className="mono-sm faint">{t.format}</td>
-                    <td className="num">{t.pointCount}</td>
-                    <td className="mono-sm">{fmt(t.uploadedAt)}</td>
+                    <td>
+                      <span className={`chip ${row.stateSource}`}>{row.stateSource}</span>
+                    </td>
+                    <td>
+                      <span className={`chip ${statusClass(row.screenedStatus)}`}>
+                        {t.t(`common.screenedStatus.${row.screenedStatus}`)}
+                      </span>
+                    </td>
+                    <td className="mono-sm faint">{row.format}</td>
+                    <td className="num">{t.number(row.pointCount)}</td>
+                    <td className="mono-sm">{fmt(row.uploadedAt)}</td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={9} className="empty">
-                      No trajectories yet. Upload one via{" "}
-                      <code className="mono">POST /api/v1/trajectory</code>.
+                      <code className="mono">
+                        {t.t("trajectoriesPage.emptyBefore", {
+                          api: "POST /api/v1/trajectory",
+                        })}
+                      </code>
                     </td>
                   </tr>
                 )}

@@ -8,6 +8,9 @@
  * zero client-side dependencies, so they are drawn by hand.
  */
 
+import type { Translator } from "@/lib/i18n";
+import { useTranslator } from "@/lib/i18n/client";
+
 import { logDomain, logTicks, logToY } from "./chart-axes";
 
 export interface PcPoint {
@@ -25,7 +28,20 @@ export interface PcPoint {
  * Plotted on a log axis because collision probabilities span many decades; a
  * linear axis would flatten everything except the last point.
  */
-export function PcHistoryChart({ points }: { points: PcPoint[] }) {
+export function PcHistoryChart({
+  points,
+  translator,
+}: {
+  points: PcPoint[];
+  /**
+   * Optional translator. Without a provider the chart is still renderable — the
+   * axis test renders it standalone — so the labels come from a default table
+   * rather than throwing. Pages in the app always pass the request's translator
+   * through the provider, so readers never see the fallback language.
+   */
+  translator?: Translator;
+}) {
+  const t = useTranslator(translator);
   const W = 760;
   const H = 240;
   const PAD = { l: 56, r: 16, t: 16, b: 34 };
@@ -34,9 +50,9 @@ export function PcHistoryChart({ points }: { points: PcPoint[] }) {
   if (usable.length === 0) {
     return (
       <div className="empty">
-        No probability values recorded yet.
+        {t.t("chart.noPc")}
         <br />
-        Pc is NULL when either trajectory carried no covariance.
+        {t.t("chart.noPcReason")}
       </div>
     );
   }
@@ -66,7 +82,7 @@ export function PcHistoryChart({ points }: { points: PcPoint[] }) {
       className="sparkline"
       viewBox={`0 0 ${W} ${H}`}
       role="img"
-      aria-label="Collision probability history"
+      aria-label={t.t("chart.pcHistoryLabel")}
     >
       {yTicks.map((v) => {
         const yy = logToY(v, domain, PAD.t, innerH);
@@ -117,10 +133,10 @@ export function PcHistoryChart({ points }: { points: PcPoint[] }) {
         fill="#6b6b6b"
         fontSize="10"
       >
-        CDM sequence ({points.length})
+        {t.t("chart.cdmSequence", { count: points.length })}
       </text>
       <text x={PAD.l - 44} y={PAD.t + innerH / 2} fill="#6b6b6b" fontSize="10" transform={`rotate(-90 ${PAD.l - 44} ${PAD.t + innerH / 2})`} textAnchor="middle">
-        Collision probability
+        {t.t("conjunction.pc")}
       </text>
     </svg>
   );

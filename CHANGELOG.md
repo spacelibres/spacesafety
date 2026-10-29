@@ -12,6 +12,53 @@
 
 ---
 
+## [0.1.4] - 2026-10-29
+
+新增项目规则、六语种界面，并把全部工具从 Python 迁到 TypeScript。
+
+### 新增
+
+- **`CONTRIBUTING.md`**：约束性项目规则——技术栈（TS + Next.js + Three.js）、
+  面向对象开发标准、脚本必须用 TS、多语言要求、版本与提交规则、仓库内容规则、
+  提交前必跑的三项检查。规则的修改也要走版本流程。
+- **多语言（zh-CN / en / es / fr / de / ja）**：
+  - `src/lib/i18n/` 提供 `Translator` 类（`t`/`number`/`dateTime`/`probability`），
+    274 个键 × 6 个语种；缺失键在提交前由检查器拦下，而不是运行时静默回退。
+  - 语言由 `locale` cookie 决定，服务端渲染 `<html lang>` 与文案，侧栏有切换器。
+  - 技术标识（对象名、CCSDS 字段名、单位、API 路径）按规范不翻译。
+- **`tools/check.ts`**：提交前自检 8 项——无 Python 残留、`.gitignore` 无危险规则、
+  计算内核已入库、无凭据/数据入库、六语种键一致、页面引用的键都存在、
+  版本四处一致、无硬编码界面文案。
+
+### 变更
+
+- `tools/*.py`（8 个文件、1 341 行）全部重写为 TypeScript 并接入 `npm run`：
+  `serve`、`fetch:ephemeris`、`fetch:docs`、`fetch:screenshots`、`ingest:all`、
+  `probe:manifest`、`probe:screen`、`check`。新增 `tools/lib/downloader.ts`（SOCKS5
+  下载、整文件完整性校验）与 `tools/lib/chrome.ts`（无头 Chrome 渲染）。
+- `probe:screen` 补上了原先只有 Python 版才有的采样点统计与耗时分布。
+
+### 修复
+
+- 下载工具读的是裸 `PROXY` 且默认硬编码本地端口，`.env.local` 的
+  `SPACE_SAFETY_PROXY` 被静默忽略；现改为读文档化变量名，默认直连。
+- `client.tsx` 曾从 `registry.ts` 导入，而后者用了 `next/headers`，
+  导致所有页面编译失败（500）。已把字典与工厂函数拆到 `tables.ts`。
+- 并行编辑曾把 39 个字典键从**所有**语种同时删掉，`i18n` 检查因六语种仍然互相
+  一致而未能发现，页面直接把键名渲染成标题。已补回，并新增 `i18n-missing-key`
+  检查专门覆盖这一类。
+- `PcHistoryChart` 改为必须在 Provider 内才能渲染，导致图表轴测试失败；
+  现在缺少上下文时回退到默认语言而不是抛错。
+
+### 验证
+
+- `npx tsc --noEmit`：0 错误。
+- `npm test`：23 个套件、43 条断言全部通过。
+- `npm run check`：8 项规则检查全部通过（274 键 × 6 语种）。
+- 实测 7 个页面在 zh-CN / en / ja 下均返回 200，标题与表头正确本地化。
+
+---
+
 ## [0.1.3] - 2026-10-29
 
 修复 **v0.1.1 与 v0.1.2 的仓库缺少计算内核**。

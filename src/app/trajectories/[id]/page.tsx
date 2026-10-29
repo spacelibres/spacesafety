@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Topbar } from "@/components/Shell";
+import { getTranslator } from "@/lib/i18n/registry";
 import {
   getTrajectory,
   getTrajectoryFile,
@@ -21,6 +22,7 @@ export default async function TrajectoryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslator();
   const traj = getTrajectory(id);
   if (!traj) notFound();
 
@@ -30,43 +32,45 @@ export default async function TrajectoryPage({
 
   return (
     <>
-      <Topbar section="Trajectories" entityId={traj.id} />
+      <Topbar section={t.t("nav.trajectories")} entityId={traj.id} />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">Trajectory {traj.id.slice(0, 8)}</h1>
+          <h1 className="page-title">
+            {t.t("trajectory.titleWithId", { id: traj.id.slice(0, 8) })}
+          </h1>
           <div className="btn-group">
             <a className="btn" href={`/api/v1/trajectory/${traj.id}`}>
-              Download
+              {t.t("trajectory.download")}
             </a>
             <a className="btn" href={`/api/v1/trajectory/${traj.id}/metadata`}>
-              Metadata
+              {t.t("trajectory.metadata")}
             </a>
           </div>
         </div>
 
         <div className="meta-strip">
           <div className="meta-cell">
-            <div className="meta-label">Screened status</div>
+            <div className="meta-label">{t.t("column.screenedStatus")}</div>
             <div className="meta-value">
               <span
                 className={`chip ${
                   traj.screenedStatus === "screened" ? "true" : "neutral"
                 }`}
               >
-                {traj.screenedStatus}
+                {t.t(`common.screenedStatus.${traj.screenedStatus}`)}
               </span>
             </div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Uploaded at (UTC)</div>
+            <div className="meta-label">{t.t("column.uploadedAt")}</div>
             <div className="meta-value">{fmt(traj.uploadedAt)}</div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Start at (UTC)</div>
+            <div className="meta-label">{t.t("trajectory.startAt")}</div>
             <div className="meta-value">{fmt(traj.startAt)}</div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">End at (UTC)</div>
+            <div className="meta-label">{t.t("trajectory.endAt")}</div>
             <div className="meta-value">{fmt(traj.endAt)}</div>
           </div>
         </div>
@@ -76,15 +80,15 @@ export default async function TrajectoryPage({
             <table className="kv">
               <tbody>
                 <tr>
-                  <td className="k">Operator</td>
+                  <td className="k">{t.t("column.operator")}</td>
                   <td>{traj.operatorName}</td>
                 </tr>
                 <tr>
-                  <td className="k">Object</td>
+                  <td className="k">{t.t("column.object")}</td>
                   <td>{traj.objectName}</td>
                 </tr>
                 <tr>
-                  <td className="k">State source</td>
+                  <td className="k">{t.t("column.stateSource")}</td>
                   <td>
                     <span className={`chip ${traj.stateSource}`}>
                       {traj.stateSource}
@@ -92,18 +96,20 @@ export default async function TrajectoryPage({
                   </td>
                 </tr>
                 <tr>
-                  <td className="k">Type</td>
+                  <td className="k">{t.t("column.type")}</td>
                   <td>
-                    <span className="chip neutral">{traj.uploadType}</span>
+                    <span className="chip neutral">
+                      {t.t(`common.uploadType.${traj.uploadType}`)}
+                    </span>
                   </td>
                 </tr>
                 <tr>
-                  <td className="k">Format</td>
+                  <td className="k">{t.t("trajectory.format")}</td>
                   <td className="v-mono">{traj.fileFormat}</td>
                 </tr>
                 <tr>
-                  <td className="k">State vectors</td>
-                  <td className="v-mono">{traj.pointCount}</td>
+                  <td className="k">{t.t("trajectory.states")}</td>
+                  <td className="v-mono">{t.number(traj.pointCount)}</td>
                 </tr>
               </tbody>
             </table>
@@ -111,8 +117,8 @@ export default async function TrajectoryPage({
 
           <section className="card">
             <div className="card-head">
-              <span>Orbital elements</span>
-              <span className="count">semi-major axis altitude over the arc</span>
+              <span>{t.t("trajectory.orbitalElements")}</span>
+              <span className="count">{t.t("trajectory.orbitalElementsCaption")}</span>
             </div>
             <div className="card-body">
               <ElementsChart series={series} />
@@ -122,22 +128,22 @@ export default async function TrajectoryPage({
 
         <section className="card" style={{ marginTop: 16 }}>
           <div className="card-head">
-            <span>Conjunction Data Messages</span>
-            <span className="count">{cdms.length} CDMs</span>
+            <span>{t.t("conjunction.cdmList")}</span>
+            <span className="count">{t.t("conjunction.cdmCount", { count: cdms.length })}</span>
           </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
-                  <th>Id</th>
-                  <th>Conjunction</th>
-                  <th>Is active</th>
-                  <th className="num">Collision probability</th>
-                  <th>Object 1</th>
-                  <th>Object 2</th>
-                  <th>T1 source</th>
-                  <th>T2 source</th>
-                  <th>File</th>
+                  <th>{t.t("column.id")}</th>
+                  <th>{t.t("column.conjunction")}</th>
+                  <th>{t.t("filter.isActive")}</th>
+                  <th className="num">{t.t("conjunction.pc")}</th>
+                  <th>{t.t("column.object1")}</th>
+                  <th>{t.t("column.object2")}</th>
+                  <th>{t.t("column.trajectory1Source")}</th>
+                  <th>{t.t("column.trajectory2Source")}</th>
+                  <th>{t.t("column.file")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,7 +156,7 @@ export default async function TrajectoryPage({
                           {c.eventId.slice(0, 8)}
                         </Link>
                       ) : (
-                        <span className="faint">—</span>
+                        <span className="faint">{t.t("common.none")}</span>
                       )}
                     </td>
                     <td>
@@ -161,7 +167,7 @@ export default async function TrajectoryPage({
                     <td className="num pc">
                       {c.probabilityOfCollision != null
                         ? c.probabilityOfCollision.toExponential(2)
-                        : "NULL"}
+                        : t.t("common.null")}
                     </td>
                     <td>{c.object1Name}</td>
                     <td className="muted">{c.object2Name}</td>
@@ -188,7 +194,7 @@ export default async function TrajectoryPage({
                 {cdms.length === 0 && (
                   <tr>
                     <td colSpan={9} className="empty">
-                      No CDMs against this trajectory yet.
+                      {t.t("trajectory.noCdmsAgainst")}
                     </td>
                   </tr>
                 )}

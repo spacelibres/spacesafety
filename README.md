@@ -3,11 +3,26 @@
 仿制 `space-safety.starlink.com` 的卫星轨道安全与交会筛查平台。
 API 名称、数据结构与服务行为与原站一致；实现与部署方式是我们自己的。
 
-当前版本 **0.1.3** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本 **0.1.4** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-> **版本规则**：每次迭代只递增补丁号（`0.1.3` → `0.1.4` → …），
+> **版本规则**：每次迭代只递增补丁号（`0.1.4` → `0.1.5` → …），
 > 并同步更新 `package.json`、`package-lock.json`、git tag 与 `CHANGELOG.md`。
 > 提交前请确认这四处一致。
+
+## 项目规则
+
+技术栈、面向对象标准、版本规则与提交前检查写在 [`CONTRIBUTING.md`](CONTRIBUTING.md)，
+是约束性文件。提交前请跑：
+
+```bash
+npx tsc --noEmit && npm test && npm run check
+```
+
+## 多语言
+
+界面支持 6 种语言：简体中文、English、Español、Français、Deutsch、日本語。
+语言由 `locale` cookie 决定，侧栏可切换；文案全部来自
+`src/lib/i18n/messages/`，`npm run check` 会拦截缺失、多余或空白的键。
 
 ## 命名约定
 

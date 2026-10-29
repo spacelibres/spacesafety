@@ -4,15 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-/** Navigation items, matching the official sidebar (docs/UI-SPEC.md). */
+import { LanguageSwitcher, useTranslator } from "@/lib/i18n/client";
+
+/**
+ * Navigation items, matching the official sidebar (docs/UI-SPEC.md).
+ *
+ * `labelKey` rather than a label: the sidebar is rendered on every page, so it
+ * must not carry its own copy of the strings.
+ */
 const NAV = [
-  { href: "/", label: "Home", icon: "home" },
-  { href: "/docs", label: "Docs", icon: "docs" },
-  { href: "/operators", label: "Operators", icon: "people" },
-  { href: "/objects", label: "Objects", icon: "satellite" },
-  { href: "/trajectories", label: "Trajectories", icon: "orbit" },
-  { href: "/conjunctions", label: "Conjunctions", icon: "alert" },
-  { href: "/keys", label: "Keys", icon: "key" },
+  { href: "/", labelKey: "nav.home", icon: "home" },
+  { href: "/docs", labelKey: "nav.docs", icon: "docs" },
+  { href: "/operators", labelKey: "nav.operators", icon: "people" },
+  { href: "/objects", labelKey: "nav.objects", icon: "satellite" },
+  { href: "/trajectories", labelKey: "nav.trajectories", icon: "orbit" },
+  { href: "/conjunctions", labelKey: "nav.conjunctions", icon: "alert" },
+  { href: "/keys", labelKey: "nav.keys", icon: "key" },
 ] as const;
 
 const ICONS: Record<string, string> = {
@@ -47,6 +54,7 @@ export function Icon({ name }: { name: string }) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const t = useTranslator();
   const [clock, setClock] = useState("");
 
   useEffect(() => {
@@ -63,15 +71,20 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">Space Safety</div>
+      <div className="sidebar-brand">{t.t("app.name")}</div>
       {showBanner && <div className="sidebar-env">{env}</div>}
       <div className="sidebar-clock">{clock}</div>
 
       <div className="sidebar-search">
-        <input placeholder="Search (/)" aria-label="Search" />
+        <input
+          placeholder={t.t("nav.search")}
+          aria-label={t.t("nav.searchLabel")}
+        />
       </div>
 
-      <nav className="sidebar-nav">
+      <LanguageSwitcher />
+
+      <nav className="sidebar-nav" aria-label={t.t("a11y.sidebar")}>
         {NAV.map((item) => {
           const active =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -82,7 +95,7 @@ export function Sidebar() {
               className={`nav-item${active ? " active" : ""}`}
             >
               <Icon name={item.icon} />
-              <span>{item.label}</span>
+              <span>{t.t(item.labelKey)}</span>
             </Link>
           );
         })}

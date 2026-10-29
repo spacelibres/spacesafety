@@ -1,20 +1,24 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
+import { getTranslator } from "@/lib/i18n/registry";
 import { listOperators } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default function OperatorsPage() {
+export default async function OperatorsPage() {
   const rows = listOperators();
+  const t = await getTranslator();
 
   return (
     <>
-      <Topbar section="Operators" />
+      <Topbar section={t.t("nav.operators")} />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">Operators</h1>
-          <span className="count">{rows.length} operators</span>
+          <h1 className="page-title">{t.t("operator.title")}</h1>
+          <span className="count">
+            {t.t("operator.count", { count: rows.length })}
+          </span>
         </div>
 
         <div className="card">
@@ -22,10 +26,10 @@ export default function OperatorsPage() {
             <table className="data">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th className="num">Max objects</th>
+                  <th>{t.t("column.name")}</th>
+                  <th>{t.t("operator.emailColumn")}</th>
+                  <th>{t.t("operator.phone")}</th>
+                  <th className="num">{t.t("operator.maxObjects")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -34,15 +38,15 @@ export default function OperatorsPage() {
                     <td>
                       <Link href={`/operators/${o.id}`}>{o.name}</Link>
                     </td>
-                    <td className="mono-sm muted">{o.email || "—"}</td>
-                    <td className="mono-sm muted">{o.phone || "—"}</td>
+                    <td className="mono-sm muted">{o.email || t.t("common.none")}</td>
+                    <td className="mono-sm muted">{o.phone || t.t("common.none")}</td>
                     <td className="num">{o.maxObjects}</td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={4} className="empty">
-                      No operators yet.
+                      {t.t("operator.empty")}
                     </td>
                   </tr>
                 )}

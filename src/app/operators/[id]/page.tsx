@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Topbar } from "@/components/Shell";
+import { getTranslator } from "@/lib/i18n/registry";
 import { listObjects, listOperators } from "@/lib/queries";
 import { getDb } from "@/db";
 import { trajectories } from "@/db/schema";
@@ -15,6 +16,7 @@ export default async function OperatorPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslator();
   const operator = listOperators().find((o) => o.id === id);
   if (!operator) notFound();
 
@@ -28,12 +30,12 @@ export default async function OperatorPage({
 
   return (
     <>
-      <Topbar section="Operators" entityId={operator.id} />
+      <Topbar section={t.t("nav.operators")} entityId={operator.id} />
       <div className="content">
         <div className="page-head">
           <h1 className="page-title">{operator.name}</h1>
           <Link className="btn" href="/operators">
-            ← back
+            {t.t("common.backArrow")}
           </Link>
         </div>
 
@@ -41,23 +43,23 @@ export default async function OperatorPage({
           <table className="kv">
             <tbody>
               <tr>
-                <td className="k">Email</td>
-                <td className="v-mono">{operator.email || "—"}</td>
+                <td className="k">{t.t("operator.emailColumn")}</td>
+                <td className="v-mono">{operator.email || t.t("common.none")}</td>
               </tr>
               <tr>
-                <td className="k">Phone</td>
-                <td className="v-mono">{operator.phone || "—"}</td>
+                <td className="k">{t.t("operator.phone")}</td>
+                <td className="v-mono">{operator.phone || t.t("common.none")}</td>
               </tr>
               <tr>
-                <td className="k">Max objects</td>
+                <td className="k">{t.t("operator.maxObjects")}</td>
                 <td className="v-mono">{operator.maxObjects}</td>
               </tr>
               <tr>
-                <td className="k">Objects registered</td>
+                <td className="k">{t.t("operator.objectsRegistered")}</td>
                 <td className="v-mono">{objects.length}</td>
               </tr>
               <tr>
-                <td className="k">Trajectories uploaded</td>
+                <td className="k">{t.t("operator.trajectoriesUploaded")}</td>
                 <td className="v-mono">{uploads.length}</td>
               </tr>
             </tbody>
@@ -66,20 +68,23 @@ export default async function OperatorPage({
 
         <div className="card">
           <div className="card-head">
-            <span>Objects</span>
+            <span>{t.t("operator.objects")}</span>
             <span className="count">
-              showing {objects.length} of {operator.maxObjects} allowed
+              {t.t("operator.objectsShowing", {
+                shown: objects.length,
+                allowed: operator.maxObjects,
+              })}
             </span>
           </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>NORAD Id</th>
-                  <th className="num">Hard body radius (m)</th>
-                  <th>Alive</th>
-                  <th>Maneuverable</th>
+                  <th>{t.t("column.name")}</th>
+                  <th>{t.t("column.noradId")}</th>
+                  <th className="num">{t.t("column.hardBodyRadius")}</th>
+                  <th>{t.t("column.alive")}</th>
+                  <th>{t.t("column.maneuverable")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -88,7 +93,7 @@ export default async function OperatorPage({
                     <td>
                       <Link href={`/objects/${o.id}`}>{o.objectName}</Link>
                     </td>
-                    <td className="mono-sm muted">{o.noradId ?? "—"}</td>
+                    <td className="mono-sm muted">{o.noradId ?? t.t("common.none")}</td>
                     <td className="num">{o.hardBodyRadius.toFixed(2)}</td>
                     <td>
                       <span className={`chip ${o.alive}`}>{String(o.alive)}</span>
@@ -103,7 +108,7 @@ export default async function OperatorPage({
                 {objects.length === 0 && (
                   <tr>
                     <td colSpan={5} className="empty">
-                      This operator has no objects.
+                      {t.t("operator.noObjectsHere")}
                     </td>
                   </tr>
                 )}

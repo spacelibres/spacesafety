@@ -7,6 +7,7 @@ import { Topbar } from "@/components/Shell";
 import { buildAccuracyReport } from "@/lib/core/accuracy-report";
 import { getDb } from "@/db";
 import { cdms, trajectoryFiles, trajectories } from "@/db/schema";
+import { getTranslator } from "@/lib/i18n/registry";
 import { listObjects } from "@/lib/queries";
 import { eq, or } from "drizzle-orm";
 
@@ -18,6 +19,7 @@ export default async function ObjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslator();
   const object = listObjects(1000).find((o) => o.id === id);
   if (!object) notFound();
 
@@ -47,70 +49,75 @@ export default async function ObjectPage({
 
   // Prediction accuracy needs at least two uploads: the newest is truth.
   const accuracy = buildAccuracyReport(
-    objectTrajectories.map((t) => ({
-      text: t.fileText,
-      format: t.fileFormat,
-      uploadedAt: t.uploadedAt,
+    objectTrajectories.map((traj) => ({
+      text: traj.fileText,
+      format: traj.fileFormat,
+      uploadedAt: traj.uploadedAt,
     })),
     { axis: "R", horizonHours: 3 },
   );
 
   return (
     <>
-      <Topbar section="Objects" entityId={object.id} />
+      <Topbar section={t.t("nav.objects")} entityId={object.id} />
       <div className="content">
         <div className="page-head">
           <h1 className="page-title">{object.objectName}</h1>
           <Link className="btn" href="/objects">
-            ← back
+            {t.t("common.backArrow")}
           </Link>
         </div>
 
         <div className="meta-strip">
           <div className="meta-cell">
-            <div className="meta-label">NORAD Id</div>
-            <div className="meta-value">{object.noradId ?? "—"}</div>
+            <div className="meta-label">{t.t("column.noradId")}</div>
+            <div className="meta-value">{object.noradId ?? t.t("common.none")}</div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Hard body radius (m)</div>
-            <div className="meta-value">{object.hardBodyRadius.toFixed(2)}</div>
+            <div className="meta-label">{t.t("column.hardBodyRadius")}</div>
+            <div className="meta-value">
+              {t.number(object.hardBodyRadius, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Trajectories</div>
-            <div className="meta-value">{objectTrajectories.length}</div>
+            <div className="meta-label">{t.t("object.trajectories")}</div>
+            <div className="meta-value">{t.number(objectTrajectories.length)}</div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Active conjunctions</div>
-            <div className="meta-value">{conjunctions.length}</div>
+            <div className="meta-label">{t.t("object.activeConjunctions")}</div>
+            <div className="meta-value">{t.number(conjunctions.length)}</div>
           </div>
         </div>
 
         <div className="grid-2" style={{ marginBottom: 16 }}>
           <CataloguePanel noradId={object.noradId ?? null} objectId={object.id} />
           <section className="card">
-            <div className="card-head">Object details</div>
+            <div className="card-head">{t.t("object.details")}</div>
             <table className="kv">
               <tbody>
                 <tr>
-                  <td className="k">Operator</td>
+                  <td className="k">{t.t("column.operator")}</td>
                   <td>{object.operatorName}</td>
                 </tr>
                 <tr>
-                  <td className="k">Object name</td>
+                  <td className="k">{t.t("column.objectName")}</td>
                   <td>{object.objectName}</td>
                 </tr>
                 <tr>
-                  <td className="k">NORAD Id</td>
-                  <td className="v-mono">{object.noradId ?? "—"}</td>
+                  <td className="k">{t.t("column.noradId")}</td>
+                  <td className="v-mono">{object.noradId ?? t.t("common.none")}</td>
                 </tr>
                 <tr>
-                  <td className="k">Alive</td>
+                  <td className="k">{t.t("column.alive")}</td>
                   <td>
                     <span className={`chip ${object.alive}`}>{String(object.alive)}</span>
                   </td>
                 </tr>
                 <tr>
-                  <td className="k">Maneuverable</td>
+                  <td className="k">{t.t("column.maneuverable")}</td>
                   <td>
                     <span className={`chip ${object.maneuverability}`}>
                       {String(object.maneuverability)}
@@ -118,8 +125,13 @@ export default async function ObjectPage({
                   </td>
                 </tr>
                 <tr>
-                  <td className="k">Hard body radius (m)</td>
-                  <td className="v-mono">{object.hardBodyRadius.toFixed(2)}</td>
+                  <td className="k">{t.t("column.hardBodyRadius")}</td>
+                  <td className="v-mono">
+                    {t.number(object.hardBodyRadius, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -127,19 +139,21 @@ export default async function ObjectPage({
 
           <section className="card">
             <div className="card-head">
-              <span>Upcoming conjunctions</span>
-              <span className="count">{conjunctions.length} active</span>
+              <span>{t.t("object.upcomingConjunctions")}</span>
+              <span className="count">
+                {t.t("object.activeCount", { count: t.number(conjunctions.length) })}
+              </span>
             </div>
             <div className="table-wrap" style={{ borderTop: "none" }}>
               {conjunctions.length === 0 ? (
-                <div className="empty">No active conjunctions.</div>
+                <div className="empty">{t.t("object.noActiveConjunctions")}</div>
               ) : (
                 <table className="data">
                   <thead>
                     <tr>
-                      <th>Other object</th>
-                      <th className="num">Pc</th>
-                      <th>Event</th>
+                      <th>{t.t("object.otherObject")}</th>
+                      <th className="num">{t.t("column.pc")}</th>
+                      <th>{t.t("column.event")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -151,7 +165,7 @@ export default async function ObjectPage({
                           <td>{other}</td>
                           <td className="num pc">
                             {c.probabilityOfCollision != null
-                              ? c.probabilityOfCollision.toExponential(2)
+                              ? t.probability(c.probabilityOfCollision)
                               : "NULL"}
                           </td>
                           <td>
@@ -163,7 +177,7 @@ export default async function ObjectPage({
                                 {c.eventId.slice(0, 8)}
                               </Link>
                             ) : (
-                              <span className="faint">—</span>
+                              <span className="faint">{t.t("common.none")}</span>
                             )}
                           </td>
                         </tr>
@@ -178,54 +192,56 @@ export default async function ObjectPage({
 
         <section className="card">
           <div className="card-head">
-            <span>Trajectories</span>
-            <span className="count">{objectTrajectories.length} uploads</span>
+            <span>{t.t("object.trajectories")}</span>
+            <span className="count">
+              {t.t("object.uploadCount", { count: t.number(objectTrajectories.length) })}
+            </span>
           </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
-                  <th>Id</th>
-                  <th>Type</th>
-                  <th>State source</th>
-                  <th>Screened status</th>
-                  <th className="num">Points</th>
-                  <th>Uploaded at (UTC)</th>
+                  <th>{t.t("column.id")}</th>
+                  <th>{t.t("column.type")}</th>
+                  <th>{t.t("column.stateSource")}</th>
+                  <th>{t.t("column.screenedStatus")}</th>
+                  <th className="num">{t.t("column.points")}</th>
+                  <th>{t.t("column.uploadedAt")}</th>
                 </tr>
               </thead>
               <tbody>
-                {objectTrajectories.map((t) => (
-                  <tr key={t.id}>
+                {objectTrajectories.map((traj) => (
+                  <tr key={traj.id}>
                     <td>
-                      <Link href={`/trajectories/${t.id}`} className="mono-sm">
-                        {t.id.slice(0, 8)}
+                      <Link href={`/trajectories/${traj.id}`} className="mono-sm">
+                        {traj.id.slice(0, 8)}
                       </Link>
                     </td>
                     <td>
-                      <span className="chip neutral">{t.uploadType}</span>
+                      <span className="chip neutral">{traj.uploadType}</span>
                     </td>
                     <td>
-                      <span className={`chip ${t.stateSource}`}>{t.stateSource}</span>
+                      <span className={`chip ${traj.stateSource}`}>{traj.stateSource}</span>
                     </td>
                     <td>
                       <span
                         className={`chip ${
-                          t.screenedStatus === "screened" ? "true" : "neutral"
+                          traj.screenedStatus === "screened" ? "true" : "neutral"
                         }`}
                       >
-                        {t.screenedStatus}
+                        {traj.screenedStatus}
                       </span>
                     </td>
-                    <td className="num">{t.pointCount}</td>
+                    <td className="num">{t.number(traj.pointCount)}</td>
                     <td className="mono-sm">
-                      {t.uploadedAt.replace("T", " ").replace(/\.\d+Z$/, "")}
+                      {traj.uploadedAt.replace("T", " ").replace(/\.\d+Z$/, "")}
                     </td>
                   </tr>
                 ))}
                 {objectTrajectories.length === 0 && (
                   <tr>
                     <td colSpan={6} className="empty">
-                      No trajectories uploaded for this object.
+                      {t.t("object.noObjectTrajectories")}
                     </td>
                   </tr>
                 )}
@@ -237,11 +253,9 @@ export default async function ObjectPage({
         <div className="page-head" style={{ marginTop: 28 }}>
           <div>
             <h2 className="page-title" style={{ fontSize: 20 }}>
-              Prediction Accuracy
+              {t.t("object.predictionAccuracy")}
             </h2>
-            <span className="page-sub">
-              newest upload as reference · radial axis · 3 h horizon
-            </span>
+            <span className="page-sub">{t.t("object.accuracyCaption")}</span>
           </div>
         </div>
 

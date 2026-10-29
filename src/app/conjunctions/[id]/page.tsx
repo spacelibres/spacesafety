@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PcHistoryChart } from "@/components/Charts";
 import { Topbar } from "@/components/Shell";
+import { getTranslator } from "@/lib/i18n/registry";
 import { getEventDetail, riskBand } from "@/lib/queries";
 import { countdownTo, formatGps } from "@/lib/space-safety/gps";
 
@@ -16,54 +17,58 @@ export default async function EventPage({
   const { id } = await params;
   const { event, history, latest } = getEventDetail(id);
   if (!event) notFound();
+  const t = await getTranslator();
 
   const band = riskBand(latest?.probabilityOfCollision ?? null);
 
   return (
     <>
-      <Topbar section="Conjunctions" entityId={event.id} />
+      <Topbar section={t.t("nav.conjunctions")} entityId={event.id} />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">Conjunction {event.id.slice(0, 8)}</h1>
+          <h1 className="page-title">
+            {t.t("conjunction.titleWithId", { id: event.id.slice(0, 8) })}
+          </h1>
           <Link className="btn" href="/conjunctions">
-            ← back
+            {t.t("common.backArrow")}
           </Link>
         </div>
 
         <div className="meta-strip">
           <div className="meta-cell">
-            <div className="meta-label">Collision probability</div>
+            <div className="meta-label">{t.t("conjunction.pc")}</div>
             <div className={`meta-value pc ${band}`}>
               {latest?.probabilityOfCollision != null
                 ? latest.probabilityOfCollision.toExponential(3)
-                : "NULL"}
+                : t.t("common.null")}
             </div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">TCA (UTC)</div>
+            <div className="meta-label">{t.t("conjunction.tcaUtc")}</div>
             <div className="meta-value">
-              {latest ? safeGps(latest.tcaGpsNanos) : "—"}
+              {latest ? safeGps(latest.tcaGpsNanos, t.t("common.none")) : t.t("common.none")}
             </div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Countdown</div>
+            <div className="meta-label">{t.t("column.countdown")}</div>
             <div className="meta-value">
-              {latest ? (countdownTo(latest.tcaGpsNanos) ?? "—") : "—"}
+              {latest ? (countdownTo(latest.tcaGpsNanos) ?? t.t("common.none")) : t.t("common.none")}
             </div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Created at (UTC)</div>
+            <div className="meta-label">{t.t("conjunction.createdAt")}</div>
             <div className="meta-value">{fmt(event.creationTime)}</div>
           </div>
           <div className="meta-cell">
-            <div className="meta-label">Updated at (UTC)</div>
+            <div className="meta-label">{t.t("conjunction.updatedAt")}</div>
             <div className="meta-value">{fmt(event.updatedTime)}</div>
           </div>
         </div>
 
         <div className="grid-2" style={{ marginBottom: 16 }}>
           <ObjectCard
-            title="Object 1"
+            t={t}
+            title={t.t("column.object1")}
             operatorName={event.operator1Name}
             objectName={event.object1Name}
             maneuverable={event.object1Maneuverable}
@@ -74,7 +79,8 @@ export default async function EventPage({
             }
           />
           <ObjectCard
-            title="Object 2"
+            t={t}
+            title={t.t("column.object2")}
             operatorName={event.operator2Name}
             objectName={event.object2Name}
             maneuverable={event.object2Maneuverable}
@@ -86,8 +92,8 @@ export default async function EventPage({
 
         <section className="card" style={{ marginBottom: 16 }}>
           <div className="card-head">
-            <span>Prediction consistency</span>
-            <span className="count">Pc over successive CDMs (log scale)</span>
+            <span>{t.t("conjunction.pcConsistency")}</span>
+            <span className="count">{t.t("conjunction.pcConsistencyCaption")}</span>
           </div>
           <div className="card-body">
             <PcHistoryChart points={history} />
@@ -96,20 +102,20 @@ export default async function EventPage({
 
         <section className="card">
           <div className="card-head">
-            <span>Conjunction Data Messages</span>
-            <span className="count">{history.length} CDMs</span>
+            <span>{t.t("conjunction.cdmList")}</span>
+            <span className="count">{t.t("conjunction.cdmCount", { count: history.length })}</span>
           </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
-                  <th>Id</th>
-                  <th>Is active</th>
-                  <th className="num">Collision probability</th>
-                  <th>Trajectory 1 source</th>
-                  <th>Trajectory 2 source</th>
-                  <th>Created at (UTC)</th>
-                  <th>File</th>
+                  <th>{t.t("column.id")}</th>
+                  <th>{t.t("filter.isActive")}</th>
+                  <th className="num">{t.t("conjunction.pc")}</th>
+                  <th>{t.t("conjunction.trajectory1Source")}</th>
+                  <th>{t.t("conjunction.trajectory2Source")}</th>
+                  <th>{t.t("conjunction.createdAt")}</th>
+                  <th>{t.t("conjunction.file")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,7 +131,7 @@ export default async function EventPage({
                         </span>
                       </td>
                       <td className="num pc">
-                        {h.pc != null ? h.pc.toExponential(2) : "NULL"}
+                        {t.probability(h.pc ?? NaN)}
                       </td>
                       <td>
                         <span className={`chip ${h.source1}`}>{h.source1}</span>
@@ -160,6 +166,7 @@ export default async function EventPage({
 }
 
 function ObjectCard({
+  t,
   title,
   operatorName,
   objectName,
@@ -168,6 +175,7 @@ function ObjectCard({
   source,
   rtn,
 }: {
+  t: import("@/lib/i18n").Translator;
   title: string;
   operatorName: string;
   objectName: string;
@@ -185,28 +193,28 @@ function ObjectCard({
       <table className="kv">
         <tbody>
           <tr>
-            <td className="k">Operator name</td>
+            <td className="k">{t.t("column.operatorName")}</td>
             <td>{operatorName}</td>
           </tr>
           <tr>
-            <td className="k">Object name</td>
+            <td className="k">{t.t("column.objectName")}</td>
             <td>{objectName}</td>
           </tr>
           <tr>
-            <td className="k">Maneuverable</td>
+            <td className="k">{t.t("conjunction.maneuverable")}</td>
             <td>
               <span className={`chip ${maneuverable}`}>{String(maneuverable)}</span>
             </td>
           </tr>
           <tr>
-            <td className="k">Claim status</td>
+            <td className="k">{t.t("column.claimStatus")}</td>
             <td>
               <span className="chip neutral">{claimStatus}</span>
             </td>
           </tr>
           {rtn && (
             <tr>
-              <td className="k">Miss vector R / T / N (km)</td>
+              <td className="k">{t.t("conjunction.missVectorRtn")}</td>
               <td className="v-mono">{rtn.map((v) => v.toFixed(3)).join(" / ")}</td>
             </tr>
           )}
@@ -220,10 +228,10 @@ function fmt(iso: string): string {
   return iso.replace("T", " ").replace(/\.\d+Z$/, "");
 }
 
-function safeGps(gps: string): string {
+function safeGps(gps: string, dash: string): string {
   try {
     return formatGps(gps);
   } catch {
-    return "—";
+    return dash;
   }
 }
