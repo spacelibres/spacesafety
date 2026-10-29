@@ -958,3 +958,83 @@ button.btn.primary:hover {
 .constellation-canvas .cesium-credit-logoContainer {
   color: var(--text-dim);
 }
+
+/* Satellite info card. Sits top-right, opposite the shell legend, so both are
+   readable without overlapping the data in the middle of the globe. */
+.satellite-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 208px;
+  padding: 10px 12px 12px;
+  background: var(--overlay);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 11px;
+  backdrop-filter: blur(3px);
+}
+
+.satellite-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+}
+
+.satellite-card-title {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+/* The close control has to stay a comfortable target without shouting. */
+.satellite-card-close {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.satellite-card-close:hover {
+  color: var(--color-accent);
+}
+
+.satellite-card-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  margin: 0;
+}
+
+.satellite-card-fields dt {
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+
+.satellite-card-fields dd {
+  margin: 0;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The affordance that picking exists at all. */
+.constellation-hint {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: var(--text-faint);
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  pointer-events: none;
+}

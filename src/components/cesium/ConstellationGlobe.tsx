@@ -24,7 +24,7 @@ import { useTranslator } from "@/lib/i18n/client";
 import { defaultSceneTheme, onThemeChange, sceneTheme, type SceneTheme } from "@/lib/vi/theme-bridge";
 import { ELECTRIC_ORBIT } from "@/lib/vi/palette";
 
-import { CesiumGlobe } from "./CesiumGlobe";
+import { CesiumGlobe, type SatelliteInfo } from "./CesiumGlobe";
 
 interface Props {
   height?: number;
@@ -40,6 +40,7 @@ export function ConstellationGlobe({ height = 620 }: Props) {
   const [theme, setTheme] = useState<SceneTheme>(() => defaultSceneTheme());
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [selected, setSelected] = useState<SatelliteInfo | null>(null);
 
   // Follow the document's theme attribute. The switcher, a cookie-driven reload
   // and the OS preference all end up writing it, so one observer covers all three.
@@ -88,6 +89,7 @@ export function ConstellationGlobe({ height = 620 }: Props) {
     void CesiumGlobe.create({
       container,
       theme,
+      onPick: setSelected,
     })
       .then((created) => {
         if (disposed) {
@@ -116,6 +118,8 @@ export function ConstellationGlobe({ height = 620 }: Props) {
     if (!ready || !snapshot || !globeRef.current) return;
     const colours = new Map(legend.map((entry) => [entry.key, entry.colour]));
     globeRef.current.addConstellation(snapshot, colours);
+    // The previous selection refers to a dot that no longer exists.
+    setSelected(null);
   }, [ready, snapshot, legend]);
 
   // Theme.
@@ -145,6 +149,35 @@ export function ConstellationGlobe({ height = 620 }: Props) {
   return (
     <div className="constellation">
       <div className="constellation-canvas" ref={mountRef} style={{ height }} />
+      {selected ? (
+        <div className="satellite-card">
+          <div className="satellite-card-head">
+            <span className="satellite-card-title">{selected.name}</span>
+            <button
+              type="button"
+              className="satellite-card-close"
+              onClick={() => setSelected(null)}
+              aria-label={t.t("constellation.clearSelection")}
+            >
+              ×
+            </button>
+          </div>
+          <dl className="satellite-card-fields">
+            <dt>{t.t("constellation.norad")}</dt>
+            <dd className="mono">{selected.norad}</dd>
+            <dt>{t.t("constellation.shell")}</dt>
+            <dd className="mono">{shellLabel(selected.shell)}</dd>
+            <dt>{t.t("constellation.latitude")}</dt>
+            <dd className="mono">{formatAngle(selected.latitude)}</dd>
+            <dt>{t.t("constellation.longitude")}</dt>
+            <dd className="mono">{formatAngle(selected.longitude)}</dd>
+            <dt>{t.t("constellation.altitude")}</dt>
+            <dd className="mono">{Math.round(selected.altitudeKm).toLocaleString()} km</dd>
+          </dl>
+        </div>
+      ) : (
+        <div className="constellation-hint">{t.t("constellation.pickHint")}</div>
+      )}
       <div className="constellation-legend">
         <div className="constellation-summary">{summary}</div>
         {legend.slice(0, 8).map((entry) => (
@@ -157,4 +190,15 @@ export function ConstellationGlobe({ height = 620 }: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * Latitude or longitude as `12.35°`.
+ *
+ * The hemisphere is carried by a sign rather than a letter: the numeric value is
+ * what a reader compares against other tools, and `-58.20°` cannot be mistaken
+ * for `58.20° E` the way an unlabelled `58.20°` can.
+ */
+function formatAngle(degrees: number): string {
+  return `${degrees.toFixed(2)}°`;
 }

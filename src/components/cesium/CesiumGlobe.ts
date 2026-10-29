@@ -54,6 +54,8 @@ interface Track {
   /** The point primitive drawn for this satellite. */
   point: PointPrimitive;
   shell: string;
+  norad: string;
+  name: string;
 }
 
 /**
@@ -82,9 +84,39 @@ const ION_IMAGERY_ASSET_ID = 2;
  */
 const ORBIT_PERIOD_SECONDS = 120;
 
+/** Dot size in CSS pixels, and the size a selected dot grows to. */
+const POINT_PIXELS = 2;
+const SELECTED_PIXELS = 7;
+
+/**
+ * What the view knows about a satellite at the moment it is picked.
+ *
+ * Deliberately plain data: the React layer renders it and the Cesium layer
+ * produces it, and neither needs the other's types. Positions are derived from
+ * the same buffer the animation reads, so the card and the dot cannot disagree.
+ */
+export interface SatelliteInfo {
+  /** NORAD catalogue number. */
+  norad: string;
+  /** Display name, e.g. `STARLINK-1042`. */
+  name: string;
+  /** Orbit shell key, e.g. `53/550`. */
+  shell: string;
+  /** Sub-satellite point, degrees. */
+  latitude: number;
+  longitude: number;
+  /** Height above the WGS84 ellipsoid, km. */
+  altitudeKm: number;
+}
+
+/** Called when the user picks a satellite; `null` means they clicked empty space. */
+export type SatellitePickHandler = (info: SatelliteInfo | null) => void;
+
 export interface CesiumGlobeOptions {
   container: HTMLElement;
   theme: SceneTheme;
+  /** Invoked on click, after a satellite is resolved. */
+  onPick?: SatellitePickHandler;
 }
 
 export class CesiumGlobe {
@@ -105,8 +137,15 @@ export class CesiumGlobe {
   private grid: PolylineCollection | null = null;
   /** Wall-clock start of the animation, so every satellite shares one phase. */
   private animationStart = 0;
+  /** Click handler, owned by the view layer. */
+  private readonly onPick: SatellitePickHandler | undefined;
+  /** The currently highlighted satellite, or null. */
+  private selected: Track | null = null;
+  /** Its normal size, so deselection can restore rather than guess. */
+  private selectedSize: number;
   /** Shell colours, kept so a theme change can recolour the dots. */
   private shells = new Map<string, string>();
+  private pickHandler: import("cesium").ScreenSpaceEventHandler | null = null;
   private disposed = false;
 
   private constructor(
@@ -118,6 +157,9 @@ export class CesiumGlobe {
     this.viewer = viewer;
     this.theme = options.theme;
     this.scratch = new cesium.Cartesian3();
+    this.onPick = options.onPick;
+    this.selectedSize = POINT_PIXELS;
+    this.installPickHandler();
   }
 
   /**
@@ -350,7 +392,7 @@ export class CesiumGlobe {
           points[1] * 1000,
           points[2] * 1000,
         ),
-        pixelSize: 2,
+        pixelSize: POINT_PIXELS,
         color: colourFor(track.shell),
         // Picking a dot reports which satellite it is.
         id: { norad: track.norad, name: track.name, shell: track.shell },
@@ -360,6 +402,8 @@ export class CesiumGlobe {
         points,
         point,
         shell: track.shell,
+        norad: track.norad,
+        name: track.name,
       });
     }
 
@@ -368,8 +412,81 @@ export class CesiumGlobe {
     this.tick();
   }
 
+  /**
+   * Wire a click on the canvas to a satellite lookup.
+   *
+   * Uses `scene.pick` rather than an entity `onclick`: the points are a single
+   * `PointPrimitiveCollection`, which the entity system does not manage, but it
+   * is still a `scene.pick` target because `id` is set on each member.
+   *
+   * The handler is installed once, at construction, and reads `this.tracks` — so a
+   * snapshot swap needs no re-wiring.
+   */
+  private installPickHandler(): void {
+    const { cesium, viewer } = this;
+    const handler = new cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+    handler.setInputAction((event: { position: import("cesium").Cartesian2 }) => {
+      if (this.disposed) return;
+      const picked = viewer.scene.pick(event.position) as
+        | { id?: { norad?: string } }
+        | undefined;
+      const norad = picked?.id?.norad;
+      if (!norad) {
+        this.select(null);
+        this.onPick?.(null);
+        return;
+      }
+      const track = this.tracks.find((candidate) => candidate.norad === norad) ?? null;
+      if (!track) {
+        this.select(null);
+        this.onPick?.(null);
+        return;
+      }
+      this.select(track);
+      this.onPick?.(this.describe(track));
+    }, cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    this.pickHandler = handler;
+  }
+
+  /** Highlight one satellite, or clear the highlight with `null`. */
+  private select(track: Track | null): void {
+    if (this.selected) {
+      this.selected.point.pixelSize = this.selectedSize;
+      // Restore the shell colour the theme gave it.
+      const shellColour = this.shells.get(this.selected.shell);
+      if (shellColour) {
+        this.selected.point.color = this.cesium.Color.fromCssColorString(shellColour);
+      }
+    }
+
+    this.selected = track;
+    if (!track) return;
+
+    this.selectedSize = track.point.pixelSize ?? POINT_PIXELS;
+    track.point.pixelSize = SELECTED_PIXELS;
+    // The selection accent is the palette's, not a literal, so it re-themes.
+    track.point.color = this.toColor(this.theme.accent);
+  }
+
+  /** Resolve a track's instantaneous geography from the buffer the animation uses. */
+  private describe(track: Track): SatelliteInfo {
+    const { cesium } = this;
+    const cartographic = cesium.Cartographic.fromCartesian(track.point.position);
+    return {
+      norad: track.norad,
+      name: track.name,
+      shell: track.shell,
+      latitude: cesium.Math.toDegrees(cartographic.latitude),
+      longitude: cesium.Math.toDegrees(cartographic.longitude),
+      altitudeKm: cartographic.height / 1000,
+    };
+  }
+
   /** Remove the constellation primitive and forget its members. */
   private clearConstellation(): void {
+    this.selected = null;
     this.tracks.length = 0;
     if (!this.points) return;
     this.viewer.scene.primitives.remove(this.points);
@@ -488,6 +605,11 @@ export class CesiumGlobe {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.pickHandler) {
+      this.pickHandler.destroy();
+      this.pickHandler = null;
+    }
+    this.selected = null;
     this.tracks.length = 0;
     this.points = null;
     this.grid = null;
