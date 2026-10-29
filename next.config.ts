@@ -4,6 +4,14 @@ const nextConfig: NextConfig = {
   // better-sqlite3 is a native module; keep it out of the bundler.
   serverExternalPackages: ["better-sqlite3", "undici"],
 
+  // The Cesium ion token is read in the browser, so it must be exposed as
+  // `NEXT_PUBLIC_*`. Operators set the `SPACE_SAFETY_*` name — the convention
+  // every other setting follows — and it is mirrored here rather than asking
+  // them to remember a second, differently-prefixed variable.
+  env: {
+    NEXT_PUBLIC_SPACE_SAFETY_CESIUM_ION_TOKEN: process.env.SPACE_SAFETY_CESIUM_ION_TOKEN ?? "",
+  },
+
   // The dev overlay's floating badge sits in the bottom-left corner, which is
   // where the language and appearance controls live. It covered them in every
   // screenshot and, worse, on a real screen. Errors still surface in the

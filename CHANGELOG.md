@@ -12,6 +12,44 @@
 
 ---
 
+## [0.1.9] - 2026-10-29
+
+接入 Cesium ion（可选增强），并补上凭据泄漏的检查缺口。
+
+### 新增
+
+- **Cesium ion 作为可选底图**。设置 `SPACE_SAFETY_CESIUM_ION_TOKEN` 后，
+  `configureScene` 改用 `IonImageryProvider.fromAssetId(2)`（Bing Aerial），
+  近距离分辨率明显高于自托管瓦片。
+  **默认仍是自托管 NaturalEarthII**：这是公开仪表盘，把计费凭据放进每个访客的
+  浏览器、并让视图依赖我们不运营的服务，对"通常缩到全星座"的显示来说不划算。
+- token 通过 `next.config.ts` 的 `env` 从 `SPACE_SAFETY_*` 镜像为
+  `NEXT_PUBLIC_*`，运维只需维护一个变量名。
+  未配置时**不落回 Cesium 内置的公共 token**——那个 token 有速率限制，
+  地球会先渲染一阵然后静默停止加载瓦片。
+
+### 修复
+
+- **`no-secrets` 检查只查文件名，不查内容**。此前只能发现 `.env.local` 被提交，
+  却无法发现 token 被粘贴进源码或 README——两者一样会随仓库发布。
+  现在扫描所有已追踪的文本文件，用 JWT 形状（`header.payload.signature`）
+  同时覆盖 Cesium ion token 与 JWT。已用构造样本验证该检查确实会失败。
+
+### 工具
+
+- `tools/check.ts` 在编辑中两次被截断，导致 `checkReferencedKeys` 与 `checkVi`
+  从注册表消失，而 `npm run check` 仍报告 "all checks passed"。
+  已从版本库恢复并逐函数校验存在性。
+  **教训**：校验工具本身失去检查项时不会报错，这是它最危险的失效模式。
+
+### 验证
+
+- `npx tsc --noEmit` 通过；`npm run check` 9 项齐全全过（i18n 6×283 键）。
+- token 仅出现在 `.env.local`（已 gitignore）与 `.next/static` 构建产物中；
+  `git diff --cached` 全文检索 token 前缀为 0 处。
+
+---
+
 ## [0.1.8] - 2026-10-29
 
 地球表面改用 Cesium 自带的分级瓦片底图，删除手塞的 2.5 MB 全幅贴图。

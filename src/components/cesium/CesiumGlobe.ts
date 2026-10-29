@@ -57,6 +57,22 @@ interface Track {
 }
 
 /**
+ * Cesium ion access token, or empty when ion is not configured.
+ *
+ * Read through `NEXT_PUBLIC_` because the token is consumed by the browser: the
+ * imagery request is issued by Cesium in the page, not by our server. That also
+ * means it is visible to every visitor, which is why the self-hosted tiles remain
+ * the default and this is opt-in — see `configureScene`.
+ *
+ * `SPACE_SAFETY_CESIUM_ION_TOKEN` is mirrored into this variable by
+ * `next.config.ts`, so operators only ever set one name.
+ */
+const ION_TOKEN = process.env.NEXT_PUBLIC_SPACE_SAFETY_CESIUM_ION_TOKEN ?? "";
+
+/** Cesium ion asset 2 is Bing Maps Aerial — the default world imagery. */
+const ION_IMAGERY_ASSET_ID = 2;
+
+/**
  * Wall-clock seconds for one synthetic revolution.
  *
  * The real period is ~95 minutes. Animating that would move a dot a few pixels a
@@ -118,6 +134,15 @@ export class CesiumGlobe {
     // on our own origin instead of a CDN, which a self-hosted deployment needs.
     (window as unknown as { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = "/cesium";
 
+    // Without a token Cesium falls back to its built-in default one, which is
+    // shared by everyone and rate-limited: the globe would render for a while and
+    // then stop loading tiles with no visible error. An empty value must therefore
+    // *disable* ion rather than leave the default in place.
+    const token = ION_TOKEN;
+    if (token) {
+      cesium.Ion.defaultAccessToken = token;
+    }
+
     const viewer = new cesium.Viewer(options.container, {
       // The product is a data view, not a GIS workstation: the widget chrome
       // would cover the constellation.
@@ -131,8 +156,8 @@ export class CesiumGlobe {
       fullscreenButton: false,
       infoBox: false,
       selectionIndicator: false,
-      // No default Bing/OSM imagery: the basemap is our own single Earth texture,
-      // and Cesium's default provider needs a token.
+      // No default Bing/OSM imagery: the basemap is chosen in `configureScene`,
+      // and Cesium's default provider needs an ion asset.
       baseLayer: false,
       contextOptions: {
         // The orbit polylines are thin and dense; without this they shimmer.
@@ -143,6 +168,23 @@ export class CesiumGlobe {
     const globe = new CesiumGlobe(cesium, viewer, options);
     globe.configureScene();
     return globe;
+  }
+
+  /**
+   * The self-hosted Natural Earth II tiles.
+   *
+   * Note the URL scheme: this tileset uses TMS rows (origin at the south pole,
+   * `{reverseY}`) rather than the XYZ rows most web maps use. Getting that wrong
+   * renders the southern hemisphere upside down, which looks plausible enough to
+   * survive a casual glance.
+   */
+  private localImagery(): import("cesium").UrlTemplateImageryProvider {
+    return new this.cesium.UrlTemplateImageryProvider({
+      url: "/cesium/Assets/Textures/NaturalEarthII/{z}/{reverseY}/{x}.jpg",
+      maximumLevel: 2,
+      tilingScheme: new this.cesium.GeographicTilingScheme(),
+      rectangle: this.cesium.Rectangle.MAX_VALUE,
+    });
   }
 
   /** Scene, camera and imagery setup that only runs once. */
@@ -165,25 +207,34 @@ export class CesiumGlobe {
     scene.globe.baseColor = this.toColor(this.theme.globe);
     scene.globe.enableLighting = false;
 
-    // Imagery: Cesium's own Natural Earth II tiles, which ship with the package
-    // (608 KB across three zoom levels) and are already served from
-    // `public/cesium` by `tools/copy-cesium.ts`. No provider token, no external
-    // network call, and no big extra asset: the previous single 5400x2700 JPEG
-    // was 2.5 MB loaded in full at every zoom level.
+    // Imagery.
     //
-    // Note the URL scheme: this tileset uses TMS rows (origin at the south pole,
-    // `{reverseY}`) rather than the XYZ rows most web maps use. Getting that
-    // wrong renders the southern hemisphere upside down, which looks plausible
-    // enough to survive a casual glance.
+    // Two providers, chosen by whether a Cesium ion token is configured:
+    //
+    //   without  Cesium's own Natural Earth II tiles, which ship with the package
+    //            (42 tiles, 608 KB) and are served from `public/cesium`. No
+    //            request leaves our origin.
+    //   with     ion World Imagery. Higher resolution at close range, at the cost
+    //            of a third-party request on every page view and a metered token
+    //            in the browser.
+    //
+    // The self-hosted tiles are the default because this is a public-facing
+    // dashboard: putting a billable credential in every visitor's browser, and
+    // making the view depend on a service we do not operate, is the wrong trade
+    // for a display that is usually zoomed out far enough that the difference is
+    // invisible.
     const imagery = scene.imageryLayers;
     imagery.removeAll();
-    const provider = new this.cesium.UrlTemplateImageryProvider({
-      url: "/cesium/Assets/Textures/NaturalEarthII/{z}/{reverseY}/{x}.jpg",
-      maximumLevel: 2,
-      tilingScheme: new this.cesium.GeographicTilingScheme(),
-      rectangle: this.cesium.Rectangle.MAX_VALUE,
-    });
-    const layer = imagery.addImageryProvider(provider);
+    // `IonImageryProvider` cannot be constructed directly: the asset metadata has
+    // to be fetched first, so it is built through `fromProviderAsync`, which hands
+    // back a layer that fills itself in when the request lands.
+    // `imagery.add` returns void, so the layer is built first and added second.
+    const layer: import("cesium").ImageryLayer = ION_TOKEN
+      ? this.cesium.ImageryLayer.fromProviderAsync(
+          this.cesium.IonImageryProvider.fromAssetId(ION_IMAGERY_ASSET_ID),
+        )
+      : new this.cesium.ImageryLayer(this.localImagery());
+    imagery.add(layer);
     // Brightness/saturation are theme-driven: on the dark theme the imagery is
     // toned down so the constellation stays the dominant layer.
     layer.brightness = this.theme.mode === "dark" ? 0.62 : 1.0;

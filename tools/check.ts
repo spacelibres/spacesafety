@@ -139,6 +139,31 @@ function checkNoSecrets(): void {
       if (pattern.test(file)) fail("no-secrets", `${file} (${what}) is tracked`);
     }
   }
+
+  // Checking the *filenames* is not enough: a token pasted into a source file or
+  // a README is tracked and ships with the repository just the same. A Cesium ion
+  // access token and a JWT share the `header.payload.signature` shape, so one
+  // pattern covers both.
+  const token = /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/;
+  for (const file of staged) {
+    if (!SOURCE_FILE.test(file)) continue;
+    const text = safeRead(join(ROOT, file));
+    if (text && token.test(text)) {
+      fail("no-secrets", `${file} contains what looks like a JWT / ion token`);
+    }
+  }
+}
+
+/** Text files worth scanning for credentials; binaries and assets are skipped. */
+const SOURCE_FILE = /\.(ts|tsx|js|jsx|mjs|cjs|json|md|css|sql|proto|yml|yaml|txt)$/;
+
+/** Read a file, returning null when it is unreadable. */
+function safeRead(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
 }
 
 // --- 5. i18n tables -----------------------------------------------------------
