@@ -303,6 +303,50 @@ code,
   color: var(--on-primary);
   font-weight: 500;
 }
+
+/* --------------------------------------------------------- nav grouping */
+
+/* The group header is a label, not a link: the section has no landing page of its
+   own, and linking it to the first child would make the header's active state depend
+   on which child was opened last. */
+.nav-group-title {
+  cursor: default;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 9px 9px 5px;
+}
+.nav-group-title.active {
+  /* No filled background: the children carry the active state. */
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.nav-sub {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0 0 4px 14px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.nav-sub.open {
+  display: flex;
+}
+.nav-sub-item {
+  font-size: 12px;
+  padding: 5px 8px;
+  color: var(--text-dim);
+}
+.nav-sub-item:hover {
+  color: var(--text);
+}
+.nav-sub-item.active {
+  background: var(--color-primary);
+  color: var(--on-primary);
+  font-weight: 500;
+}
 .nav-icon {
   width: 13px;
   height: 13px;

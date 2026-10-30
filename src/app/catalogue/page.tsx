@@ -42,7 +42,7 @@ export default async function CataloguePage({
 
   return (
     <>
-      <Topbar section={t.t("nav.catalogue")} />
+      <Topbar section={`${t.t("nav.catalogueGroup")} · ${t.t("nav.catalogue")}`} />
       <div className="content">
         <div className="page-head">
           <h1 className="page-title">{t.t("nav.catalogue")}</h1>

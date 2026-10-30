@@ -85,7 +85,7 @@ export default async function ModelsPage({
 
   return (
     <>
-      <Topbar section={t.t("nav.models")} />
+      <Topbar section={`${t.t("nav.catalogueGroup")} · ${t.t("nav.models")}`} />
       <div className="content">
         <div className="page-head">
           <h1 className="page-title">{t.t("models.title")}</h1>

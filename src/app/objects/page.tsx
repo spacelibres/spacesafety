@@ -12,7 +12,7 @@ export default async function ObjectsPage() {
 
   return (
     <>
-      <Topbar section={t.t("nav.objects")} />
+      <Topbar section={`${t.t("nav.catalogueGroup")} · ${t.t("nav.objects")}`} />
       <div className="content">
         <div className="page-head">
           <h1 className="page-title">{t.t("objectsPage.title")}</h1>

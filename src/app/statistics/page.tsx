@@ -166,7 +166,7 @@ export default async function StatisticsPage() {
 
   return (
     <>
-      <Topbar section={t.t("nav.statistics")} />
+      <Topbar section={`${t.t("nav.catalogueGroup")} · ${t.t("nav.statistics")}`} />
       <div className="content">
         <div className="page-head">
           <h1 className="page-title">{t.t("statistics.title")}</h1>

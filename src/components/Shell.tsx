@@ -7,25 +7,52 @@ import { useEffect, useState } from "react";
 import { LanguageSwitcher, useTranslator } from "@/lib/i18n/client";
 
 /**
- * Navigation items, matching the official sidebar (docs/UI-SPEC.md).
+ * Navigation items.
  *
- * `labelKey` rather than a label: the sidebar is rendered on every page, so it
- * must not carry its own copy of the strings.
+ * `labelKey` rather than a label: the sidebar is rendered on every page, so it must
+ * not carry its own copy of the strings.
+ *
+ * An entry is either a link or a group. A group exists where several pages are
+ * facets of one thing — the catalogue list, category browser, statistics and the 3D
+ * model library are all "satellite catalogue", and listing them as separate
+ * top-level items made the sidebar read as four unrelated tools.
  */
-const NAV = [
+interface NavLink {
+  href: string;
+  labelKey: string;
+  icon: string;
+}
+
+interface NavGroup {
+  labelKey: string;
+  icon: string;
+  children: NavLink[];
+}
+
+type NavEntry = NavLink | NavGroup;
+
+const isGroup = (e: NavEntry): e is NavGroup => "children" in e;
+
+const NAV: NavEntry[] = [
   { href: "/", labelKey: "nav.home", icon: "home" },
   { href: "/docs", labelKey: "nav.docs", icon: "docs" },
   { href: "/operators", labelKey: "nav.operators", icon: "people" },
-  { href: "/objects", labelKey: "nav.objects", icon: "satellite" },
-  { href: "/catalogue", labelKey: "nav.catalogue", icon: "satellite" },
-  { href: "/browse", labelKey: "nav.browse", icon: "satellite" },
-  { href: "/statistics", labelKey: "nav.statistics", icon: "docs" },
-  { href: "/models", labelKey: "nav.models", icon: "satellite" },
+  {
+    labelKey: "nav.catalogueGroup",
+    icon: "satellite",
+    children: [
+      { href: "/catalogue", labelKey: "nav.catalogue", icon: "satellite" },
+      { href: "/browse", labelKey: "nav.browse", icon: "satellite" },
+      { href: "/statistics", labelKey: "nav.statistics", icon: "docs" },
+      { href: "/models", labelKey: "nav.models", icon: "satellite" },
+      { href: "/objects", labelKey: "nav.objects", icon: "satellite" },
+    ],
+  },
   { href: "/trajectories", labelKey: "nav.trajectories", icon: "orbit" },
   { href: "/conjunctions", labelKey: "nav.conjunctions", icon: "alert" },
   { href: "/screening/socrates", labelKey: "nav.socrates", icon: "alert" },
   { href: "/keys", labelKey: "nav.keys", icon: "key" },
-] as const;
+];
 
 const ICONS: Record<string, string> = {
   home: "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
@@ -91,17 +118,49 @@ export function Sidebar() {
 
       <nav className="sidebar-nav" aria-label={t.t("a11y.sidebar")}>
         {NAV.map((item) => {
-          const active =
-            item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          if (!isGroup(item)) {
+            const active =
+              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item${active ? " active" : ""}`}
+              >
+                <Icon name={item.icon} />
+                <span>{t.t(item.labelKey)}</span>
+              </Link>
+            );
+          }
+
+          // Open when the current route is one of the children. Doing this from the
+          // path rather than from click state means a deep link into the section
+          // shows its siblings without a second navigation.
+          const groupActive = item.children.some((c) => pathname.startsWith(c.href));
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item${active ? " active" : ""}`}
-            >
-              <Icon name={item.icon} />
-              <span>{t.t(item.labelKey)}</span>
-            </Link>
+            <div key={item.labelKey} className="nav-group">
+              <div className={`nav-item nav-group-title${groupActive ? " active" : ""}`}>
+                <Icon name={item.icon} />
+                <span>{t.t(item.labelKey)}</span>
+              </div>
+              <div className={`nav-sub${groupActive ? " open" : ""}`}>
+                {item.children.map((child) => {
+                  const active =
+                    child.href === "/"
+                      ? pathname === "/"
+                      : pathname === child.href || pathname.startsWith(`${child.href}/`);
+                  return (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      className={`nav-item nav-sub-item${active ? " active" : ""}`}
+                    >
+                      <span>{t.t(child.labelKey)}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </nav>

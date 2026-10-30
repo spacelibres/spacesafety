@@ -72,7 +72,7 @@ export default async function BrowsePage({
 
   return (
     <>
-      <Topbar section={t.t("nav.browse")} />
+      <Topbar section={`${t.t("nav.catalogueGroup")} · ${t.t("nav.browse")}`} />
       <div className="content">
         <div className="page-head">
           <h1 className="page-title">{t.t("browse.title")}</h1>
