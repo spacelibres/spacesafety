@@ -61,6 +61,47 @@ function checkNoPython(): void {
   if (offenders.length) {
     fail("no-python", `${offenders.length} Python file(s) remain:\n    ${offenders.join("\n    ")}`);
   }
+
+  // Checking for `.py` files is not enough: the rule is that no tool is written in
+  // Python, and a one-liner (`python3 -c ...`, `python3 - <<EOF`) leaves no file
+  // behind while being exactly the thing the rule forbids. Several patches were
+  // applied that way during the v0.1.38–v0.1.42 range, which is why this scan
+  // exists — it looks at what the tooling *invokes*, not only at what is checked in.
+  const SCRIPTS = /\.(ts|tsx|js|mjs|cjs|json|md|yml|yaml|sh)$/;
+  // An *invocation*, not a mention: an argument must follow the name. That is what
+  // separates a real call from a sentence naming the interpreter.
+  const PY_CALL = /python[0-9.]*\s+(-c|-m|-<<|\S+\.py\b)/;
+  const invokers: string[] = [];
+  const scanInvocations = (dir: string) => {
+    const full = join(ROOT, dir);
+    if (!existsSync(full)) return;
+    for (const name of readdirSync(full)) {
+      const p = join(full, name);
+      if (statSync(p).isDirectory()) {
+        if (name !== "node_modules") scanInvocations(join(dir, name));
+        continue;
+      }
+      if (!SCRIPTS.test(name)) continue;
+      const text = readFileSync(p, "utf8");
+      for (const [n, line] of text.split("\n").entries()) {
+        // The rule's own description mentions the command name, so skip the line
+        // that documents it rather than special-casing the file.
+        const t = line.trimStart();
+        if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) continue;
+        if (PY_CALL.test(line)) {
+          invokers.push(`${join(dir, name)}:${n + 1}  ${line.trim().slice(0, 90)}`);
+          break;
+        }
+      }
+    }
+  };
+  for (const dir of ["src", "tools", "scripts", "tests"]) scanInvocations(dir);
+  if (invokers.length) {
+    fail(
+      "no-python",
+      `${invokers.length} file(s) invoke python. Every tool in this project is TypeScript:\n    ${invokers.join("\n    ")}`,
+    );
+  }
 }
 
 // --- 2. .gitignore has no unanchored dangerous rule ---------------------------
