@@ -73,6 +73,20 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
+/**
+ * KeepTrack returns ISO timestamps (`1958-03-17T12:15:41.000Z`); the three catalogues
+ * use plain dates. Left as-is, one row showed `1958-03-17T12:15:41.000Z` beside
+ * `1958-03-17` and the comparison column became unreadable at four sources. The time
+ * of day is not used anywhere, so it is dropped.
+ */
+function dateOnly(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  if (t === "") return null;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(t);
+  return m ? m[1]! : t;
+}
+
 function num(v: string | null | undefined): number | null {
   if (v === null || v === undefined) return null;
   const t = String(v).trim();
@@ -206,17 +220,22 @@ function loadDiscos(): SourceLoad {
  */
 function loadKeepTrack(): SourceLoad {
   const out = new Map<number, Row>();
-  if (!existsSync("data/catalogue.sqlite")) {
-    console.log(`    （未找到 data/catalogue.sqlite，跳过 KeepTrack）`);
+  // Resolved from the project root, not the process cwd: this script is run both by
+  // `npm run` (cwd = project root) and directly, and a relative path silently read an
+  // empty file in the second case — producing a wide table with 24 039 KeepTrack
+  // values in the report and none in the rows.
+  const path = process.env.SPACE_SAFETY_DB ?? "data/catalogue.sqlite";
+  if (!existsSync(path)) {
+    console.log(`    （未找到 ${path}，跳过 KeepTrack）`);
     return { id: "keeptrack", label: "KeepTrack", rows: out };
   }
-  const db = new Database("data/catalogue.sqlite", { readonly: true });
+  const db = new Database(path, { readonly: true });
   const exists = db
     .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='keeptrack_object'")
     .get() as { n: number };
   if (!exists.n) {
     db.close();
-    console.log(`    （keeptrack_object 不存在，先运行 npm run keeptrack:sync）`);
+    console.log(`    （${path} 中没有 keeptrack_object，先运行 npm run keeptrack:sync）`);
     return { id: "keeptrack", label: "KeepTrack", rows: out };
   }
 
@@ -231,12 +250,16 @@ function loadKeepTrack(): SourceLoad {
     .all() as Array<Record<string, unknown>>;
   db.close();
 
+  if (rows.length === 0) {
+    console.log(`    （keeptrack_object 为 0 行，先运行 npm run keeptrack:sync）`);
+    return { id: "keeptrack", label: "KeepTrack", rows: out };
+  }
+
   for (const r of rows) {
     out.set(Number(r.noradId), new Map<string, string | number | null>([
       ["name", txt(r.name as string)],
-      ["object_class", null],
       ["country", txt(r.country as string)],
-      ["launch_date", txt(r.launchDate as string)],
+      ["launch_date", dateOnly(r.launchDate)],
       ["mass_kg", num(String(r.mass ?? ""))],
       ["dry_mass_kg", num(String(r.dryMass ?? ""))],
       ["length_m", num(String(r.length ?? ""))],
@@ -247,6 +270,8 @@ function loadKeepTrack(): SourceLoad {
       ["shape", txt(r.shape as string)],
     ]));
   }
+  const withMfr = [...out.values()].filter((m) => m.get("manufacturer") !== null).length;
+  console.log(`    KeepTrack 载入 ${out.size} 行，其中 ${withMfr} 行有制造商`);
   return { id: "keeptrack", label: "KeepTrack（keeptrack.space）", rows: out };
 }
 
@@ -360,7 +385,8 @@ function main(): void {
   const st = loadSpaceTrack();
   const sb = loadSpacebook();
   const ds = loadDiscos();
-  const all = [st, sb, ds];
+  const kt = loadKeepTrack();
+  const all = [st, sb, ds, kt];
 
   console.log("\n读取原始数据\n");
   for (const s of all) console.log(`  ${s.label.padEnd(30)} ${s.rows.size} 条`);

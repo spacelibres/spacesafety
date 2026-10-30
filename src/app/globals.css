@@ -718,7 +718,15 @@ table.data.wide td:first-child {
 }
 table.data.wide th:last-child,
 table.data.wide td:last-child {
-  width: 110px;
+  width: 118px;
+}
+/* The chosen-source cell holds a chip with a source name; it must not be the column
+   that gets clipped when the value columns are competing for space. */
+table.data.wide th:last-child,
+table.data.wide td:last-child {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 /* Long object names in one source column must not push the row wider than the card. */
 table.data.wide td {
