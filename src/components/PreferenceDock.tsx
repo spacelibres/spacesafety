@@ -87,6 +87,10 @@ export function useSystemTheme(): void {
 }
 
 export function PreferenceDock() {
+  // Correct the server-rendered theme to the OS preference when the reader has
+  // not chosen one explicitly. Nothing called this while the dock was unmounted,
+  // so `theme=system` simply meant "dark" in practice.
+  useSystemTheme();
   const t = useTranslator();
   const locale = useLocale();
   const [theme, setTheme] = useState<ThemePreference>("system");

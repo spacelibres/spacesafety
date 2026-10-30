@@ -12,13 +12,7 @@
 
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
-import {
-  DEFAULT_LOCALE,
-  LOCALE_LABELS,
-  LOCALES,
-  type Locale,
-  type Translator,
-} from "./index";
+import { DEFAULT_LOCALE, type Locale, type Translator } from "./index";
 // From `tables`, never `registry`: the latter imports `next/headers`, which a
 // client component cannot ship.
 import { LOCALE_COOKIE, translator } from "./tables";
@@ -72,26 +66,4 @@ export function useLocale(): Locale {
   const ctx = useContext(I18nContext);
   if (!ctx) throw new Error("useLocale must be used inside <I18nProvider>");
   return ctx.locale;
-}
-
-/** Compact language switcher for the sidebar. */
-export function LanguageSwitcher() {
-  const ctx = useContext(I18nContext);
-  if (!ctx) return null;
-  return (
-    <label className="sidebar-language">
-      <span className="sr-only">{ctx.t.t("nav.language")}</span>
-      <select
-        value={ctx.locale}
-        onChange={(event) => ctx.setLocale(event.target.value as Locale)}
-        aria-label={ctx.t.t("nav.language")}
-      >
-        {LOCALES.map((locale) => (
-          <option key={locale} value={locale}>
-            {LOCALE_LABELS[locale]}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
 }

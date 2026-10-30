@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { LanguageSwitcher, useTranslator } from "@/lib/i18n/client";
+import { useTranslator } from "@/lib/i18n/client";
+
+import { PreferenceDock } from "./PreferenceDock";
 
 /**
  * Navigation items.
@@ -129,8 +131,6 @@ export function Sidebar() {
         />
       </div>
 
-      <LanguageSwitcher />
-
       <nav className="sidebar-nav" aria-label={t.t("a11y.sidebar")}>
         {NAV.map((item) => {
           if (!isGroup(item)) {
@@ -201,6 +201,8 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <PreferenceDock />
     </aside>
   );
 }

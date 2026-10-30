@@ -12,6 +12,43 @@
 
 ---
 
+## [0.1.49] - 2026-10-30
+
+挂上早就写好、却从未挂载的外观/语言面板 —— 在此之前**界面上没有任何主题切换入口**。
+
+### 死代码背后是一个缺失的功能
+
+`src/components/PreferenceDock.tsx`（154 行，含 `PreferenceStore` 类、语言与外观两个控件、
+`useSystemTheme()`）**零引用**。后果不只是文件占地方：
+
+- `theme` cookie 没有任何代码写入 —— 服务端读它、却没有控件产生它；
+- `useSystemTheme()` 从不执行，而它正是把 `theme=system` 落到 `prefers-color-scheme` 的
+  唯一实现。于是 `system` 实际上永远等于「深色」，与 `theme.ts` 里写的设计意图相反；
+- 六语种里 `theme.dark/light/system/label` 四个键无人使用；
+- `globals.css` 的 `.pref-dock` 整块样式没有主人。
+
+VI §9.5 要求「切换必须覆盖整页」—— 而项目里根本没有切换。
+
+### 改法
+
+- 把 `PreferenceDock` 挂到侧栏底部，接替原来只切语言的 `LanguageSwitcher`
+  （一个面板管两个偏好，避免侧栏出现两个语言选择器）。
+- 面板内启用 `useSystemTheme()`：未显式选择时跟随操作系统，显式选择后保持不变。
+- 删除随之成为死代码的 `LanguageSwitcher`、`.sidebar-language` 与 `.sidebar-theme` 样式
+  （后者对应的按钮类从未被任何组件渲染）。
+
+### 验证（生产构建，真实浏览器）
+
+| 动作 | 结果 |
+|---|---|
+| 首次加载（无 cookie） | 服务端渲染 `data-theme=dark`，客户端按 OS 偏好纠正为 `light` —— `useSystemTheme` 真的在跑 |
+| 外观 → light | cookie `theme=light`，`data-theme=light` |
+| 语言 → en | cookie `locale=en`，`<html lang="en">`，标题 "Object list" |
+| 外观 → dark | `data-theme=dark`，`--bg=#0D1721`，`document.body` 背景随之变化（整页生效）|
+| 布局 | 侧栏仍 208px、9 个图标、面板 2 个选择器；英文页零中文字符；控制台 0 错误 |
+
+- `npx tsc --noEmit`、`npm test`（38 套件）、`npm run check`、`npm run check:css` 全过。
+
 ## [0.1.48] - 2026-10-30
 
 版本号「四处一致」从只校验最新一条，改为校验全部历史。
