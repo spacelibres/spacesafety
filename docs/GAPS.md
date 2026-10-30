@@ -53,6 +53,9 @@
 | G11 | 整页有滚动条 | 应用外壳：文档不滚，内容区滚动且隐藏滚动条 | `npm run audit:viewport`（14 页 × 7 视口）|
 | G12 | 无法安装到桌面 | manifest + SW + VI 图标 | `Page.getInstallabilityErrors` 返回空 |
 | G13 | 两个测试套件没接进 `npm test` | 自动发现 `tests/*.test.ts` | 35 → 40 套件 |
+| G14 | 没有更新的数据也照下不误（"到期"就等于"重传整份"）| 四层判断：节奏 → 条件请求（304）→ gzip → 归档同哈希；无新字节不重建 | `tests/http-conditional.test.ts`（304 且 socket 主体 0 字节）；实测 omm/json 30.37 MB → 7.23 MB |
+| G15 | `data:daily` / `data:schedule` 跑过下载就重建 | 按台账判定：本轮有 `status='ok'` 的行才跑 load → wide → classify → events | 全 304 时打印"跳过重建"并返回 0 |
+| G16 | 测试 fixture 手抄表结构，加列后与真实库漂移 | 真实 DDL 抽成 `src/db/ddl.ts` 的 `SCHEMA_DDL`，fixture 直接用它 | `tests/sources.test.ts` 43 条全过 |
 
 ---
 
@@ -67,6 +70,7 @@
 | P5 | 弃用 v1 列表端点的响应字段是我们定的 | 官方快照未规定该形状，已按 v1 字段名（`created_at`/`tca`）实现并注明 | 无（已声明选择）|
 | P6 | `spacebook-satcat` 账本与归档可能不一致 | 一次 `--force` 写了归档未留账本行；调度器会自重抓并记账 | 已自愈；建议把"归档日"与"账本"交叉校验成检查项 |
 | P7 | 开发期无自动调度 | systemd 用户级 timer 曾安装并验证，后按开发需要**已停用**；`deploy/systemd/` 保留文件 | 上线时：`systemctl --user enable --now spacesafety-data.timer` |
+| P8 | 条件请求目前省 0 字节 | 实测 Spacebook / Space-Track / DISCOS **都不发** `ETag` / `Last-Modified`，多数还带 `cache-control: no-store`。机制已就绪且无副作用，去掉反而会丢掉将来 CDN 支持时的收益 | 无客户端解法：没有 validator，就无法在传输前判断内容是否变化。当前的省法是 gzip + 节奏 + 同哈希不重建、不重算 |
 
 ---
 
