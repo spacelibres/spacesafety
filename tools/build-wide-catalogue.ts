@@ -316,7 +316,7 @@ const DEFAULT_PREFERENCE: Record<string, string[]> = {
   // If you would rather have one model applied uniformly to all 71 074 objects
   // instead of a measured value on half of them, swap these two — the columns are
   // unchanged either way and nothing needs re-downloading.
-  mass_kg: ["discos", "spacebook"],
+  mass_kg: ["discos", "spacebook", "keeptrack"],
   hard_body_radius_m: ["spacebook"],
   cross_section_avg_m2: ["spacebook", "discos"],
   cross_section_max_m2: ["discos"],
@@ -328,7 +328,7 @@ const DEFAULT_PREFERENCE: Record<string, string[]> = {
   // field from anything else leaves half the catalogue without a diameter.
   diameter_m: ["keeptrack", "spacebook", "discos"],
   ballistic_coefficient: ["spacebook"],
-  shape: ["discos"],
+  shape: ["discos", "keeptrack"],
   manufacturer: ["spacebook"],
   bus: ["spacebook"],
   orbit_type: ["spacebook"],
@@ -385,6 +385,24 @@ const PLACEHOLDER_FIELDS = new Set([
   "ballistic_coefficient",
 ]);
 
+/**
+ * Is this a round number that stands in for "unknown"?
+ *
+ * Both Spacebook and KeepTrack fill physical quantities on debris with small
+ * integers: measured on the KeepTrack-only values, mass is 1.0 (66 objects), 10.0,
+ * 2.0, 5.0, 100.0; span is 1.0 (60), 0.1, 1.5; dry mass is 1.0 (70). No object is
+ * exactly 1.0 m long and 1.0 kg heavy by measurement — these are defaults.
+ *
+ * A real measurement is essentially never a single significant digit, so values that
+ * are 1, 2, 5, 10, 100 and similar are treated as absent **for debris only**. For a
+ * payload a round mass is plausible (a 100 kg microsat), and clearing it would throw
+ * away real data.
+ */
+function isRoundPlaceholder(v: number | null, isDebris: boolean): boolean {
+  if (v === null || !isDebris) return false;
+  return v === 1 || v === 2 || v === 5 || v === 10 || v === 20 || v === 100;
+}
+
 function main(): void {
   const st = loadSpaceTrack();
   const sb = loadSpacebook();
@@ -430,15 +448,30 @@ function main(): void {
       sbValues.get("mass_kg") === 5 &&
       sbValues.get("hard_body_radius_m") === 5;
 
+    // KeepTrack fills debris physical quantities with round defaults too; see
+    // isRoundPlaceholder. Applies only to debris so a genuinely round payload mass
+    // (a 100 kg microsat) survives.
+    const isDebris = st.rows.get(norad)?.get("object_class") === "DEBRIS";
+    const ktValues = kt.rows.get(norad);
+
     for (const { key } of FIELDS) {
       values[key] = {};
       const present: string[] = [];
       for (const s of all) {
         let v = s.rows.get(norad)?.get(key) ?? null;
         if (spacebookPlaceholder && s.id === "spacebook" && PLACEHOLDER_FIELDS.has(key)) v = null;
+        if (
+          s.id === "keeptrack" &&
+          typeof v === "number" &&
+          isRoundPlaceholder(v, isDebris) &&
+          (key === "mass_kg" || key === "dry_mass_kg" || key === "span_m" || key === "length_m")
+        ) {
+          v = null;
+        }
         values[key][s.id] = v;
         if (v !== null && v !== "") present.push(s.id);
       }
+      void ktValues;
 
       // Default choice: the first source in the preference list that actually has
       // a value. Left null when no source has one — the cell is genuinely unknown,
