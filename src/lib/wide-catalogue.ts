@@ -138,7 +138,7 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
   const where: string[] = [];
   const params: unknown[] = [];
   if (options.noradId !== undefined) {
-    where.push("norad_id = ?");
+    where.push("catalogue_wide.norad_id = ?");
     params.push(options.noradId);
   }
   if (options.nameContains) {
@@ -148,7 +148,7 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
 
   const rows = sqlite
     .prepare(
-      `SELECT norad_id AS noradId,
+      `SELECT catalogue_wide.norad_id AS noradId,
               COALESCE(
                 name__spacetrack,
                 name__spacebook,
@@ -177,9 +177,9 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
                    AND decay_date__spacetrack <> decay_date__discos)
               ) AS disagreementCount
          FROM wide.catalogue_wide
-         LEFT JOIN cls.object_classification cls ON cls.norad_id = catalogue_wide.norad_id
+         LEFT JOIN object_classification cls ON cls.norad_id = catalogue_wide.norad_id
         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-        ORDER BY norad_id
+        ORDER BY catalogue_wide.norad_id
         LIMIT ? OFFSET ?`,
     )
     .all(...params, limit, offset) as Array<WideListRow & { disagreementCount: number }>;

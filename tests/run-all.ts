@@ -40,6 +40,7 @@ const SUITES = [
   "tests/physics.test.ts",
   "tests/catalogue.test.ts",
   "tests/supplement.test.ts",
+  "tests/wide-query.test.ts",
 ];
 
 let failed = 0;

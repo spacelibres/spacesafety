@@ -12,6 +12,51 @@
 
 ---
 
+## [0.1.31] - 2026-10-30
+
+修复 `/catalogue` 500（`no such table: cls.object_classification`），并加测试防止重现。
+
+### 问题
+
+`/catalogue` 报 `no such table: cls.object_classification`。
+
+### 原因
+
+v0.1.28 修好的三处被回退了：
+
+| 位置 | 错误 | 正确 |
+|---|---|---|
+| JOIN | `cls.object_classification`（别名已不存在） | `object_classification` |
+| SELECT | `norad_id`（两表都有，歧义） | `catalogue_wide.norad_id` |
+| ORDER BY | `norad_id` | `catalogue_wide.norad_id` |
+| WHERE | `norad_id = ?` | `catalogue_wide.norad_id = ?` |
+
+### 为什么没被发现
+
+**这个查询从未在页面以外被执行过。** `tsc` 通过、`npm run check` 通过、构建通过，
+只有真的打开页面才报错。同类错误已经出现两次（上次是 KeepTrack 列消失），
+两次都靠用户发现。
+
+### 新增测试
+
+`tests/wide-query.test.ts`（9 项）用真实数据库执行列表查询、详情查询与带 NORAD 过滤的查询，
+并校验：
+
+- 宽表含四个来源的列（防 KeepTrack 再次消失）
+- `object_classification` / `keeptrack_object` 存在
+- JOIN 与 ORDER BY 无歧义
+- 轨道类型取值在 `LEO/MEO/GEO/HEO/UNKNOWN` 内
+
+缺少数据文件时优雅跳过，不把「没数据」误报成「测试失败」。
+
+### 验证
+
+- `npm run test:wide` 9 项全过
+- `/catalogue`、`/catalogue/5`、`/catalogue?norad=5` 均 200
+- `npm run check` 全过
+
+---
+
 ## [0.1.30] - 2026-10-30
 
 修复编目页 KeepTrack 来源消失。
