@@ -12,6 +12,54 @@
 
 ---
 
+## [0.1.38] - 2026-10-30
+
+**卫星编目库定稿。** 权威说明写在 `docs/CATALOGUE-FINAL.md`。
+
+### 定稿内容
+
+| 项 | 定稿值 |
+|---|---|
+| 宽表 | 72,401 行 × 157 列 |
+| 来源数 | 5 |
+| 分类表 | 72,401 行（与宽表零缺口）|
+| 三维模型 | 299（NASA 257 + Spacebook 42）|
+
+两个已知缺口**不做补齐**，已在定稿文档第六节写清理由：
+
+- 轨道类型 UNKNOWN 522 个：缺轨道根数且无来源声明，只能靠名称猜，猜错会污染统计。
+- 硬体半径在轨缺失 1,539 个：1,111 个是分析型目标（无身份），337 个上游无模型，
+  实际能推算的只有 1 个。现有四源没有这些数据。
+
+### 修复：三维模型库报表 299 实际只有 257
+
+两张模型表长期没有桥接：
+
+| 表 | 内容 | 维护者 |
+|---|---|---|
+| `spacebook_model` | Spacebook 目录 42 条 | `npm run spacebook:models` |
+| `model_asset` | UI 读取，NASA 257 条 | `tools/models-sync.ts` |
+
+没有任何脚本把 Spacebook 的 42 条拷进 `model_asset`，两个同步脚本各自报告成功，
+所以模型库一直少 42 个。新增 `npm run models:restore-spacebook` 补齐。
+
+**Spacebook 的 `.glb` 文件本身不在本地**（需 Spacebook 会话，token 不能续期），
+所以 `local_path` 置 NULL 而不是指向不存在的路径——指向缺失文件比诚实地标注「未下载」更糟，
+前端会加载失败。
+
+### 文档
+
+- 新增 `docs/CATALOGUE-FINAL.md`：定稿说明、重建流程、核查脚本、六个已踩过的坑
+- 文档里明确了「定稿后允许的改动」与「必须重新评审的改动」
+
+### 验证
+
+- `npx tsc --noEmit`、`npm run check`、`npm run test:wide`（18 项）全部通过。
+- `/catalogue`、`/browse`、`/statistics`、`/models` 均返回 200。
+- `model_asset` 299 行（nasa-github 257 + spacebook 42），其中 42 行 `local_path` 为 NULL。
+
+---
+
 ## [0.1.37] - 2026-10-30
 
 查清编目剩余的物理量与轨道类型缺口，结论记录在 `docs/CATALOGUE-GAPS.md`。
