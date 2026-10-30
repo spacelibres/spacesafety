@@ -4,18 +4,20 @@
 Space-Track 官方再入预测 26,184 条、公开 CDM 3,161 条、DISCOS 碎片事件 673 条。
 这些不是无用的副产物，正好补上编目里最缺的几块。
 
-生成时间：2026-10-30
+生成时间：2026-10-30（每日刷新后复核）
 
 ---
 
 ## 一、四个编目源（已入库）
 
-| 源 | 表 | 行数 | 官方定位 | 抓取时间 |
+| 源 | 表 | 行数 | 官方定位 | 抓取时间（UTC）|
 |---|---|---|---|---|
-| Space-Track SATCAT | `space_track_satcat` | 71,198 | 美国太空军第 18 太空防御中队 | 10-29 18:03 |
-| Spacebook SATCAT | `satcat` | 72,310 | AGI/STK | 10-29 18:04 |
-| ESA DISCOSweb | `discos_objects` | 71,176 | 欧空局 | 10-29 18:39 |
-| KeepTrack | `keeptrack_object` | 35,175 | keeptrack.space（编译型参考） | 10-30 11:29 |
+| Space-Track SATCAT | `space_track_satcat` | 71,198 | 美国太空军第 18 太空防御中队 | 10-30 09:47 |
+| Spacebook SATCAT | `satcat` | 72,310 | AGI/STK | 10-30 09:48 |
+| ESA DISCOSweb | `discos_objects` | 71,176 | 欧空局 | 10-30 09:47 |
+| KeepTrack | `keeptrack_object` | 35,203 | keeptrack.space（编译型参考） | 10-30 09:52 |
+
+刷新后宽表 72,402 行（+1），五源覆盖与定稿逐项一致，见 `docs/CATALOGUE-FINAL.md`。
 
 ### Spacebook 的两个附属表
 
@@ -49,8 +51,8 @@ Space-Track 官方再入预测 26,184 条、公开 CDM 3,161 条、DISCOS 碎片
 
 | 归档 | 体积 | 条数 | 内容 | 为什么重要 |
 |---|---|---|---|---|
-| `space-track-tip` | 7.5 MB | **26,184** | 官方再入预测：`DECAY_EPOCH` `WINDOW` `LAT` `LON` `INCL` `NEXT_REPORT` | KeepTrack 只有 14 条；这是官方全量，带落点与置信窗口 |
-| `space-track-cdm-public` | 1.3 MB | **3,161** | 公开 CDM：`TCA` `MIN_RNG` `PC` `SAT_1/2_ID` `EXCL_VOL` | **官方碰撞告警**，含实际碰撞概率 |
+| `space-track-tip` | 7.9 MB | **26,189** | 官方再入预测：`DECAY_EPOCH` `WINDOW` `LAT` `LON` `INCL` `NEXT_REPORT` | KeepTrack 只有 14 条；这是官方全量，带落点与置信窗口 |
+| `space-track-cdm-public` | 1.3 MB | **3,164** | 公开 CDM：`TCA` `MIN_RNG` `PC` `SAT_1/2_ID` `EXCL_VOL` | **官方碰撞告警**，含实际碰撞概率 |
 | `space-track-decay` | 42 MB | — | 再入历史明细 | 补 `decay_date` 的官方依据 |
 | `discos-fragmentations` | 476 KB | **673** | 碎裂事件：`epoch` `latitude` `longitude` `altitude` `eventType` | **碎片来源**——碎片该补的不是制造商，是母体事件 |
 | `discos-launches` | 4.6 MB | 7,379 | 发射记录：`epoch` `flightNo` `cosparLaunchNo` `failure` | 发射批次与失败标记 |
@@ -97,7 +99,10 @@ Space-Track 官方再入预测 26,184 条、公开 CDM 3,161 条、DISCOS 碎片
 | DISCOS | 10-29 18:39 | 不定期 |
 | KeepTrack | 10-30 11:29 | 每日 |
 
-**目前没有任何自动调度**，全靠手动运行脚本。
+**目前没有任何自动调度**，全靠手动运行脚本。每日流程见 `docs/CATALOGUE-FINAL.md` §七，
+**不要**把 `npm run catalogue:build` 放进这条流程：它会用工作库重建 `catalogue.sqlite`，
+而 `keeptrack_object` 等表只存在于 `catalogue.sqlite`，重建后即丢失（2026-10-30 实测踩到）。
+`catalogue:build` 是"生成对外发布用的小库"，不是每日刷新的步骤。
 
 ---
 

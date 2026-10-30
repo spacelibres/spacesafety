@@ -12,6 +12,85 @@
 
 ---
 
+## [0.1.63] - 2026-10-30
+
+按「每天都要取数据」的原则刷新了全部数据源，并把每日刷新固化成一条命令。
+
+### 刷了什么（UTC 2026-10-30）
+
+```
+sources:download   24/25 端点，约 552 MB，耗时约 2 分钟
+                   另有 spacebook-satcat 因 24h 节奏差 17 分钟未到期，已用 --force 补抓
+keeptrack:sync     35,175 → 35,203 行
+keeptrack:feeds    交会 10 / 再入 14 / 发射统计 4,069 / 即将发射 100
+sources:load       satcat 72,310 · discos 71,176 · physics 71,074 · launch-info 69,918
+build-wide         72,401 → **72,402** 行（157 列不变）
+catalogue:classify 72,402 行（与宽表零缺口）
+ingest:events      CDM 3,164 · TIP 26,189 · 再入历史 143,386 · EOP 23,678 · 天气 25,232
+```
+
+### 五源覆盖与定稿逐项核对（全部一致）
+
+| 源 | 刷新后 | 定稿 |
+|---|---|---|
+| spacetrack | 71,198 | 71,198 ✓ |
+| spacebook | 71,088 | 71,088 ✓ |
+| discos | 71,176 | 71,176 ✓ |
+| keeptrack | 34,006 | 34,006 ✓ |
+| sbsup | 1,112 | 1,112 ✓ |
+
+站点实测：`/catalogue` 显示「五源并列 · 72,402 个对象」，与库一致。
+
+### 一处必须解释的减少
+
+`space_track_decay` 143,546 → **143,386**（-160）。查证过程：今天归档 143,554 行（比昨天多 8），
+但**唯一键 `(NORAD_ID, MSG_EPOCH)` 只有 36,761 个**、昨天 36,754 个，且昨天有的键今天全在
+（差集为空）。加载器按该键 upsert，所以表行数由**上游复用键**的多少决定，不是数据丢失。
+这条口径记在这里，因为"行数变少"在本项目的规则里必须能解释。
+
+### 我踩到的一个坑，以及它暴露的真实设计缺口
+
+我先跑了 `npm run catalogue:build`（看到名字以为是流水线一步），结果：
+
+- `data/catalogue.sqlite` 被**用工作库 `data/spacesafety.sqlite` 重建**；
+- `keeptrack_object` 等表**只存在于 `data/catalogue.sqlite`**，重建后全部消失
+  （宽表的 keeptrack 覆盖瞬间变成 0）；
+- 事件表也被回退到工作库里的旧状态。
+
+恢复方式：重跑 `keeptrack:sync`（它自建表）+ `keeptrack:feeds`，再走 load → wide → classify。
+**这不是新 bug，是工具定位与命名的问题**：`catalogue:build` 是"生成对外发布的小库"，
+不是"每日刷新的一步"。已写进 `docs/CATALOGUE-FINAL.md` §7.0 与 `docs/DATA-SOURCES.md`。
+
+### 新增 `npm run data:daily`
+
+`tools/daily-refresh.ts`：把**唯一验证过的顺序**固化成一条命令——
+下载 → KeepTrack → 入库 → 宽表 → 分类 → 事件。特点：
+
+- 打印**刷新前后逐表行数**，行数变少会显式告警（而不是安静地"成功"）；
+- 宽表与分类表行数不一致直接失败（定稿要求零缺口）；
+- 任一步失败即停止，不带着半成品继续；
+- `--force` 忽略各源节奏，`--dry-run` 只打印步骤。
+
+**幂等性已验证**：连跑两次，14 张表行数逐项「不变」。
+
+### 文档同步
+
+- `docs/CATALOGUE-FINAL.md`（唯一权威）：数据基准 10-29 → **10-30**，宽表/分类 72,401 → **72,402**，
+  轨道 UNKNOWN 522 → **523**，keeptrack 原表 35,175 → **35,203**；新增 §7.0 每日流程。
+- `docs/DATA-SOURCES.md`：四源抓取时间更新到 10-30 09:4x，TIP 26,189 / CDM 3,164，
+  并记录 `catalogue:build` 的坑。
+
+### 验证
+
+`npm run test:wide` **20 passed**（真实库执行真实查询）、`npm run check` 全过、
+`npx tsc --noEmit` 通过、`npm run data:daily` 二次运行全部「不变」。
+
+### 仍未做
+
+- **没有自动调度**：`sources:download --loop` 可以让下载层常驻，但整条链路仍需 `data:daily`
+  被定时触发（cron / systemd timer）。本次只提供了可复跑的命令，没有装调度器。
+- 磁盘上的 `data/models` 三维模型未重新抓取（`npm run models:sync`，299 个，变动极少）。
+
 ## [0.1.62] - 2026-10-30
 
 把发布流程写进规则书，并做成一条命令：`npm run release:verify`。
