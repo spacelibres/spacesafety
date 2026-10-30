@@ -3,7 +3,7 @@
 本文件是项目的**约束性规范**。任何代码改动、提交、发布都必须满足这里的条款；
 与之冲突的实现不予合入。规则的修改本身也需要走版本流程，并写入 `CHANGELOG.md`。
 
-版本：这一版对应 `0.1.61`。
+版本：这一版对应 `0.1.62`。
 
 ---
 
@@ -57,17 +57,71 @@
 
 ## 5. 版本控制
 
+### 5.1 版本号
+
 - **每次迭代只递增补丁号**：`0.1.4` → `0.1.5` → …。不跳号、不并行多分支各改各的版本。
-- 一次提交对应一个版本，四处必须一致，提交前逐项核对：
-  `package.json` / `package-lock.json` / git tag（`vX.Y.Z`）/ `CHANGELOG.md` 首条。
-- **"四处一致"包含推送到远端。** 本地打完 tag 不等于发布完成：远端没有这个 tag，GitHub 的
-  Releases/Tags 页面就是空的，别人按版本号 checkout 会失败。发布流程的最后一步是
-  `git push origin main && git push origin --tags`，并且要回读 `git ls-remote --tags origin`
-  确认数量与本地一致。
-  `git push --follow-tags` **不够**：它只带附注 tag，本仓库的 tag 是轻量 tag，会被静默略过。
-- 每条 tag 的内容必须自带该版本：`git show vX.Y.Z:package.json` 的 `version` 与
-  `git show vX.Y.Z:CHANGELOG.md` 的首条都必须是 `X.Y.Z`。`npm run check` 已逐条校验全部 tag。
-- `CHANGELOG.md` 每条写清**为什么改**；影响计算结果的改动必须写验证方式。
+- 一次提交对应一个版本。**一个版本 = 一次提交 + 一个 tag + 一次推送**，三者缺一不算发布。
+
+### 5.2 发布流程（照抄执行，顺序不能颠倒）
+
+```bash
+# 1) 改版本号（两处必须同时改，否则 check 会报 version 不一致）
+#    package.json 的 "version" 与 package-lock.json 的 "version"（根对象与 packages[""] 各一处）
+# 2) 在 CHANGELOG.md 顶部新增 "## [X.Y.Z] - YYYY-MM-DD" 条目
+#    写清"为什么改"；影响计算结果/数据格式的改动必须写验证方式
+# 3) 自检：类型 + 测试 + 规则
+npx tsc --noEmit && npm test && npm run check
+
+# 4) 提交（首行必须形如 vX.Y.Z: 一句话摘要）
+git add -A
+git commit -m "vX.Y.Z: 一句话摘要"   # 正文写动机与验证
+
+# 5) 打 tag（名字必须带 v 前缀，且等于 package.json 的版本）
+git tag vX.Y.Z
+
+# 6) 推送：分支与 tag 都推
+git push origin main
+git push origin --tags
+
+# 7) 回读确认（第 8 步会自动做，也可手工执行）
+git ls-remote --tags origin | wc -l && git tag | wc -l
+```
+
+```
+# 8) 发布校验：五项全过才算发布完成
+npm run release:verify
+```
+
+### 5.3 「四处一致」的完整定义
+
+| # | 位置 | 要求 | 谁来查 |
+|---|---|---|---|
+| 1 | `package.json` | `version` = X.Y.Z | `npm run check` |
+| 2 | `package-lock.json` | 根对象与 `packages[""]` 的 `version` = X.Y.Z | `npm run check` |
+| 3 | `CHANGELOG.md` | 首条 = `## [X.Y.Z]` | `npm run check` |
+| 4 | git tag | 存在 `vX.Y.Z`，且指向 HEAD | `npm run check` + `npm run release:verify` |
+| 5 | **远端** | `origin` 上有该提交与该 tag | `npm run release:verify` |
+| 6 | **每条历史 tag** | `git show vX.Y.Z:package.json` 的 version 与 `git show vX.Y.Z:CHANGELOG.md` 的首条都等于 X.Y.Z | `npm run check` 逐条校验全部 tag |
+
+前四条是**本地**一致，`npm run check` 能离线查；第 5 条必须联网，只有
+`npm run release:verify` 能查。**本地一致 ≠ 已发布**：曾出现 17 个提交与 17 个 tag 全部只
+在本地、`npm run check` 一路绿灯的情况——这就是第 5 条存在的原因。
+
+### 5.4 三个必须知道的坑
+
+1. **`git push --follow-tags` 带不走本仓库的 tag。** 它只推**附注 tag**；本仓库用的
+   （除 v0.1.2 与 v0.1.5 外）是**轻量 tag**，会被静默略过。必须显式 `git push origin --tags`。
+2. **不要用重建 tag 的方式做测试。** 删掉再建会改变 tag 的类型（附注 ↔ 轻量），指向同一提交
+   也无法推送，且历史被改动。测试未推送状态请用一次性名字（如 `v0.0.0-negative-test`）并在
+   测完立刻删除。
+3. **tag 打在错误的提交上，本地检查查不出。** 所以 `npm run check` 逐条读取每个 tag 自己的
+   `package.json` 与 `CHANGELOG.md`，而不是只比对 HEAD 与最新 tag。
+
+### 5.5 记录要求
+
+- `CHANGELOG.md` 每条写清**为什么改**，而不只是"改了什么"。
+- 影响计算结果、剪枝策略或数据格式的改动，必须写明验证方式。
+- 已知问题单列，不藏在"修复"里。
 - 提交信息首行为 `vX.Y.Z: 一句话摘要`，正文说明动机与验证。
 
 ## 6. 仓库内容
@@ -122,4 +176,13 @@ node --conditions=react-server --import tsx tools/check.ts   # 规则自检
 ```
 
 `tools/check.ts` 会校验：无 Python 残留、无硬编码文案、i18n 键齐全、
-版本号四处一致、`.gitignore` 无危险规则。任一项失败即不得提交。
+版本号四处一致（含**每个历史 tag 自带的版本**）、`.gitignore` 无危险规则、客户端 chunk 可解析、
+VI 配色与标志一致。任一项失败即不得提交。
+
+**发布后**还要跑一次（它联远端，所以不在提交前那三条里）：
+
+```bash
+npm run release:verify   # 工作区干净 / HEAD 已打 tag / 每条 tag 自带版本 / 无未推送提交 / 远端 tag 与本地一致
+```
+
+五项全过才叫"已发布"。只跑前三条会让版本留在本地——曾经 17 个版本就这样没上到 GitHub。

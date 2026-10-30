@@ -12,6 +12,71 @@
 
 ---
 
+## [0.1.62] - 2026-10-30
+
+把发布流程写进规则书，并做成一条命令：`npm run release:verify`。
+
+### 规则书里原来缺什么
+
+`CONTRIBUTING.md` §5 原文只说「四处一致：package.json / package-lock.json / git tag /
+CHANGELOG 首条」。这四个**全在本地**，所以：
+
+- 只跑那四条检查、不推送，规则书里没有任何一句说这是错的；
+- `npm run check` 也因此一路绿灯 —— 它查的正是那四处。
+
+结果 v0.1.44–v0.1.60 的 17 个提交与 17 个 tag 全部留在本地，GitHub 上什么都没有。
+**规则没写清，我就按没写清的部分做完了。**
+
+### §5 重写为可执行的发布流程
+
+八步，照抄即可：改两处版本号 → 写 CHANGELOG → `tsc && test && check` → 提交 →
+`git tag` → `git push origin main` + `git push origin --tags` → 回读 `ls-remote` →
+`npm run release:verify`。
+
+并把「四处一致」扩成**六条**，逐条标出谁来查：
+
+| # | 位置 | 谁来查 |
+|---|---|---|
+| 1–4 | package.json / package-lock.json / CHANGELOG 首条 / git tag | `npm run check`（离线）|
+| 5 | **远端有该提交与该 tag** | `npm run release:verify`（联网）|
+| 6 | **每条历史 tag 自带版本** | `npm run check`（逐条）|
+
+§5.4 写清三个坑：`--follow-tags` 带不走轻量 tag；不要用重建 tag 做测试；tag 打在错误提交上
+本地查不出。§7 的提交前清单补了一句「发布后还要跑 release:verify」。
+
+### 新增 `npm run release:verify`
+
+`tools/release-verify.ts`，五项断言：
+
+1. 工作区干净；
+2. HEAD 已打 `v<version>` 且指向 HEAD；
+3. 每个历史 tag 的 `git show vX:package.json` 与 `git show vX:CHANGELOG.md` 首条都等于 X；
+4. 没有未推送提交（比对上游）；
+5. 远端 tag 集合与本地逐一相等（`git ls-remote --tags origin`）。
+
+任一项不满足就打印具体差异并 exit 1。
+
+### 验证（负例都跑过）
+
+```
+$ npm run release:verify
+  · HEAD 已打 tag v0.1.61
+  · 59 个 tag 的内容均自带版本
+  · main 与 origin/main 同步
+  · 远端 tag 与本地一致（59 个）
+```
+
+- 负例 1：造一个只在本地、未推送的 tag → `[remote-tags] 1 个 tag 未推送：v0.0.0-negative-test`
+- 负例 2：有未提交改动 → `[clean-tree] 工作区有未提交改动`
+- 负例 3（v0.1.61 已验）：把 `v0.1.60` 指向 v0.1.59 的提交 → `[version] 1 tag(s) do not carry their own version`
+
+### 工具自身的 bug 也修了
+
+`tools/release-verify.ts` 第一版里有一行模板字符串少了一个反引号（49 个反引号，奇数），
+`tsc` 报的是 `',' expected` 且位置指向后面几行，不容易一眼看出。已修正。
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check`、`npm run check:css` 全过。
+
 ## [0.1.61] - 2026-10-30
 
 补齐发布流程里漏掉的一步：**推送到远端**。并把「每条 tag 自带版本」变成检查项。
