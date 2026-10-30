@@ -176,6 +176,85 @@ function loadSpacebook(): SourceLoad {
   return { id: "spacebook", label: "Spacebook（AGI/STK + ComSpoc）", rows: out };
 }
 
+/**
+ * The analyst objects Spacebook tracks but never assigned a catalogue number.
+ *
+ * ## What these are
+ *
+ * When a sensor sees an object near a known one but cannot tie it to a catalogue
+ * entry, the 18th Space Defense Squadron parks it on a provisional number in a high
+ * reserved block — 270 000 and up in this capture — and calls it `N - Analyst Sat`.
+ * They have real elements (period, inclination, apogee, perigee) and no
+ * international designator, because nobody can say what launch they came from.
+ *
+ * ## Why they cannot be left out
+ *
+ * They appear in Spacebook's own conjunction reports and in public CDMs. A
+ * catalogue that omits them will show a CDM naming an object the user cannot then
+ * look up: the row was loaded into `satcat`, was counted in the coverage report,
+ * and had no wide-table row to be found at. 429 objects in this capture.
+ *
+ * The values come from `satcat` rather than the archive's supplemental file: that
+ * file keys its records by Spacebook UUID and carries no name, no NORAD id and no
+ * elements, so it cannot be joined to a catalogue number at all. `satcat` is the
+ * table that already has them joined, and is where the wide build reads from.
+ *
+ * ## Why the filter is `norad_id >= 270000` and not "everything in satcat"
+ *
+ * `satcat.source_snapshot` is the same string for all 72,310 rows, so it cannot
+ * tell an analyst object from an ordinary one. The provisional-number block is the
+ * distinguishing feature that was verified against this capture: exactly 429 rows
+ * have `norad_id >= 270000`, and all 429 of them are named `N - Analyst Sat`, have
+ * no international designator, and carry elements. Reading the whole table instead
+ * put 71,881 duplicated rows into this source and made every ordinary object look
+ * as if a fifth catalogue also claimed it.
+ */
+function loadSpacebookSupplemental(): SourceLoad {
+  const label = "Spacebook 分析目标";
+  const out = new Map<number, Row>();
+  const path = process.env.SPACE_SAFETY_DB ?? "data/catalogue.sqlite";
+  if (!existsSync(path)) return { id: "sbsup", label, rows: out };
+
+  const db = new Database(path, { readonly: true });
+  const has = db
+    .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='satcat'")
+    .get() as { n: number };
+  if (!has.n) {
+    db.close();
+    return { id: "sbsup", label, rows: out };
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT norad_id, name, intl_id, object_type, owner, launch_site, launch_date,
+              decay_date, period, inclination, apogee, perigee, rcs_size
+         FROM satcat
+        WHERE norad_id >= 270000`,
+    )
+    .all() as Array<Record<string, unknown>>;
+  db.close();
+
+  for (const r of rows) {
+    const norad = Number(r.norad_id);
+    if (!Number.isFinite(norad) || norad <= 0) continue;
+    out.set(norad, new Map<string, string | number | null>([
+      ["name", txt(r.name as string)],
+      ["cospar_id", txt(r.intl_id as string)],
+      ["object_class", txt(r.object_type as string)],
+      ["country", txt(r.owner as string)],
+      ["launch_site", txt(r.launch_site as string)],
+      ["launch_date", dateOnly(r.launch_date as string)],
+      ["decay_date", dateOnly(r.decay_date as string)],
+      ["period_min", num(String(r.period ?? ""))],
+      ["inclination_deg", num(String(r.inclination ?? ""))],
+      ["apogee_km", num(String(r.apogee ?? ""))],
+      ["perigee_km", num(String(r.perigee ?? ""))],
+      ["rcs_size", txt(r.rcs_size as string)],
+    ]));
+  }
+  return { id: "sbsup", label, rows: out };
+}
+
 function loadDiscos(): SourceLoad {
   const doc = JSON.parse(readFileSync(newest("data/archive/discos-objects"), "utf8")) as {
     data: Array<{ attributes: Record<string, unknown> }>;
@@ -366,7 +445,7 @@ const FIELDS: Array<{ key: string; type: "text" | "real" }> = [
   { key: "length_m", type: "real" },
 ];
 
-const SOURCES = ["spacetrack", "spacebook", "discos", "keeptrack"] as const;
+const SOURCES = ["spacetrack", "spacebook", "discos", "keeptrack", "sbsup"] as const;
 
 /**
  * Spacebook columns that carry its placeholder triplet.
@@ -408,12 +487,24 @@ function main(): void {
   const sb = loadSpacebook();
   const ds = loadDiscos();
   const kt = loadKeepTrack();
-  const all = [st, sb, ds, kt];
+  const sbs = loadSpacebookSupplemental();
+  const all = [st, sb, ds, kt, sbs];
 
   console.log("\n读取原始数据\n");
   for (const s of all) console.log(`  ${s.label.padEnd(30)} ${s.rows.size} 条`);
 
-  const universe = new Set<number>([...st.rows.keys(), ...sb.rows.keys(), ...ds.rows.keys()]);
+  // Every object any source knows about, not every object the first three know.
+  // KeepTrack was missing from this set, which silently dropped the 1,837 objects
+  // only KeepTrack had — they were loaded, counted in this script's own coverage
+  // report, and then never written as a row. Those are exactly the objects a user
+  // could not find in the catalogue: one source had them, the wide table did not.
+  const universe = new Set<number>([
+    ...st.rows.keys(),
+    ...sb.rows.keys(),
+    ...ds.rows.keys(),
+    ...kt.rows.keys(),
+    ...sbs.rows.keys(),
+  ]);
   console.log(`\n  并集 ${universe.size}\n`);
 
   // ---------------------------------------------------------- build rows

@@ -62,3 +62,4 @@ data/reference/*
 .vscode/
 *.swp
 .tmp-shots/
+.cache/

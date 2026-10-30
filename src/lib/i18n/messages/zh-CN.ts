@@ -31,7 +31,7 @@ export const zhCN: MessageTable = {
   "catalogue.sectionPhysical": "物理模型",
   "catalogue.chosen": "当前采用",
   "catalogue.footnote": "各来源的值原样保留，互不覆盖。「当前采用」为默认建议，可按对象逐字段更改。来源：Space-Track（美国太空军）、Spacebook（AGI/STK + ComSpoc）、ESA DISCOSweb、KeepTrack（keeptrack.space）。",
-  "catalogue.disagreements": "{count} 个字段三源不一致",
+  "catalogue.disagreements": "{count} 个字段来源不一致",
   "catalogue.notBuilt": "宽表尚未构建。运行",
   "nav.models": "三维模型",
   "models.title": "三维模型库",

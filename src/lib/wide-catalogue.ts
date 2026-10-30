@@ -19,8 +19,14 @@
 
 import { getDb } from "@/db";
 
-/** The three catalogues, in the order the UI displays them. */
-export const SOURCE_IDS = ["spacetrack", "spacebook", "discos", "keeptrack"] as const;
+/** The catalogues, in the order the UI displays them. Must match the build script's SOURCES. */
+export const SOURCE_IDS = [
+  "spacetrack",
+  "spacebook",
+  "discos",
+  "keeptrack",
+  "sbsup",
+] as const;
 export type SourceId = (typeof SOURCE_IDS)[number];
 
 export const SOURCE_LABELS: Record<SourceId, { short: string; long: string }> = {
@@ -28,6 +34,7 @@ export const SOURCE_LABELS: Record<SourceId, { short: string; long: string }> = 
   spacebook: { short: "Spacebook", long: "Spacebook（AGI/STK + ComSpoc）" },
   discos: { short: "DISCOS", long: "ESA DISCOSweb（欧空局）" },
   keeptrack: { short: "KeepTrack", long: "KeepTrack（keeptrack.space）" },
+  "sbsup": { short: "SB 分析目标", long: "Spacebook 分析型目标（无编目号）" },
 };
 
 /** Every field the wide table carries. Must match the build script's FIELDS. */

@@ -203,7 +203,58 @@ function main(): void {
     }
   }
 
-  const universe = new Set<number>([...st.keys(), ...gcat.keys(), ...kt.keys()]);
+  /**
+   * Analyst objects, which exist in none of the other three sources.
+   *
+   * They are the reason this loader was needed: `universe` used to be the union of
+   * Space-Track, GCAT and KeepTrack, so the 429 provisional-number objects were
+   * absent from both the catalogue and the classification table — they could be
+   * found by NORAD but had no country, no regime and no entry in any breakdown.
+   *
+   * Only the orbital elements are available; there is no international designator,
+   * no owner and no purpose, so those columns stay null rather than being guessed
+   * from the name.
+   */
+  const sbsup = new Map<
+    number,
+    { name: string | null; country: string | null; apogee: number | null; perigee: number | null }
+  >();
+  for (const r of db
+    .prepare(
+      `SELECT norad_id, name, owner, apogee, perigee
+         FROM satcat WHERE norad_id >= 270000`,
+    )
+    .all() as Array<Record<string, unknown>>) {
+    sbsup.set(Number(r.norad_id), {
+      name: (r.name as string) ?? null,
+      country: (r.owner as string) ?? null,
+      apogee: r.apogee as number | null,
+      perigee: r.perigee as number | null,
+    });
+  }
+
+  /**
+   * DISCOS-only objects.
+   *
+   * DISCOS lists a few objects with a catalogue number Space-Track has never
+   * carried — NORAD 69475 is a CZ-5 upper stage. They reach the wide table but had
+   * no classification row, so they were findable by number yet absent from every
+   * breakdown.
+   */
+  const ds = new Map<number, { name: string | null }>();
+  for (const r of db
+    .prepare("SELECT norad_id, name FROM discos_objects WHERE norad_id > 0")
+    .all() as Array<Record<string, unknown>>) {
+    ds.set(Number(r.norad_id), { name: (r.name as string) ?? null });
+  }
+
+  const universe = new Set<number>([
+    ...st.keys(),
+    ...gcat.keys(),
+    ...kt.keys(),
+    ...sbsup.keys(),
+    ...ds.keys(),
+  ]);
 
   const rows: Classification[] = [];
   const regimeBasis = { computed: 0, stated: 0, unknown: 0 };
@@ -212,8 +263,9 @@ function main(): void {
     const s = st.get(norad);
     const g = gcat.get(norad);
     const k = kt.get(norad);
+    const p = sbsup.get(norad);
 
-    const name = s?.name ?? k?.name ?? g?.name ?? null;
+    const name = s?.name ?? k?.name ?? g?.name ?? p?.name ?? ds.get(norad)?.name ?? null;
 
     let constellation: string | null = null;
     let operator: string | null = null;
@@ -232,7 +284,7 @@ function main(): void {
 
     let regime: OrbitRegime;
     let basis: Classification["regimeBasis"];
-    const computed = regimeFromRadii(s?.apogee ?? null, s?.perigee ?? null);
+    const computed = regimeFromRadii(s?.apogee ?? p?.apogee ?? null, s?.perigee ?? p?.perigee ?? null);
     if (computed) {
       regime = computed === ("GTO" as OrbitRegime) ? "HEO" : computed;
       basis = "computed";
@@ -250,7 +302,7 @@ function main(): void {
 
     rows.push({
       noradId: norad,
-      country: s?.country ?? null,
+      country: s?.country ?? p?.country ?? null,
       constellation,
       operator,
       purpose,

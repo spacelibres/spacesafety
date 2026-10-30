@@ -1,18 +1,61 @@
-# 编目宽表（三源并列）
+# 编目宽表（多源并列）
 
 ## 这是什么
 
-一张表，**一个对象一行，每个字段并排保存三个来源的原值**，另有一列记录用户选择采用哪个。
+一张表，**一个对象一行，每个字段并排保存各来源的原值**，另有一列记录用户选择采用哪个。
 
-我们**不替用户裁决**。三家各有官方身份：
+我们**不替用户裁决**。各家各有官方身份：
 
 | 源 | 机构 | 定位 |
 |---|---|---|
 | `spacetrack` | 美国太空军第 18 太空防御中队 | 美国官方基准编目 |
 | `spacebook` | AGI/STK + ComSpoc | 商业推导物理模型 |
 | `discos` | 欧空局 ESA | 科研实测数据 |
+| `keeptrack` | keeptrack.space | 唯一贡献直径字段 |
+| `sbsup` | Spacebook 分析型目标 | 无编目号的临时编号目标 |
 
-同一字段三个值不同，不代表有错误——代表三个权威机构各说各话。**三个值必须都留着。**
+同一字段各值不同，不代表有错误——代表各权威机构各说各话。**所有来源的值必须都留着。**
+
+## 规模（2026-10-29 抓取）
+
+| 源 | 对象数 |
+|---|---|
+| Space-Track | 71,198 |
+| Spacebook | 71,088 |
+| DISCOS | 71,176 |
+| KeepTrack | 34,110 |
+| Spacebook 分析目标 | 429 |
+| **并集 = 宽表行数** | **72,401**（157 列） |
+
+## 两个曾导致编目不全的缺陷
+
+两个缺陷的共同症状是一样的：某一批对象**能被任一来源单独找到，却查不到整行**。
+两者都已修复，修复前后行数从 71,200 变为 72,401。
+
+### 1. 并集漏掉 KeepTrack
+
+`universe` 只由 Space-Track、Spacebook、DISCOS 组成，KeepTrack 虽被载入、也在覆盖率
+报告里被统计，却从未写出一行。**1,837 个只有 KeepTrack 知道的对象因此整行缺失。**
+这正是「KeepTrack 的来源怎么没有了」的根因。
+
+### 2. 分析型目标（Analyst Sat）未进入宽表
+
+当传感器看到已知目标附近的物体却无法确认身份时，会被放到高位预留号段
+（本次抓取为 270000 以上）并命名 `N - Analyst Sat`。它们**有真实轨道根数，没有国际编号**。
+
+它们出现在 Spacebook 的交会报告和公开 CDM 里，宽表漏掉它们后会显示「CDM 指向一个查不到的对象」。
+`satcat` 表里有这 429 个，但宽表只读 `satcat-details-csv`，而该 CSV 并不包含它们。
+
+**筛选条件是 `norad_id >= 270000`**，不是「`satcat` 里的全部」：
+`satcat.source_snapshot` 对全部 72,310 行都是同一个字符串，无法区分。
+实测 `norad_id >= 270000` 恰好 429 行，且全部满足 `名称含 Analyst Sat`、无国际编号、有轨道根数。
+若改为读全表，会引入 71,881 行重复，让每个普通对象看起来都有第五个来源认领。
+
+### 3. 只在 DISCOS 里的对象
+
+DISCOS 有个别带编目号、Space-Track 从未收录的对象（如 NORAD 69475，CZ-5 上面级）。
+它们在宽表里，却不在分类表里——按编号能查到，任何分类统计里都看不到。
+分类脚本的 `universe` 现已并入 `discos_objects`。
 
 ## 表结构
 
@@ -21,7 +64,8 @@ catalogue_wide (
   norad_id INTEGER PRIMARY KEY,
 
   mass_kg__spacetrack REAL,  mass_kg__spacebook REAL,  mass_kg__discos REAL,
-  mass_kg__chosen     TEXT,   -- 'spacetrack' | 'spacebook' | 'discos' | NULL
+  mass_kg__keeptrack REAL,   mass_kg__sbsup REAL,
+  mass_kg__chosen     TEXT,   -- 来源名，或 NULL
 
   hard_body_radius_m__spacetrack REAL, ...__spacebook REAL, ...__discos REAL,
   hard_body_radius_m__chosen TEXT,
