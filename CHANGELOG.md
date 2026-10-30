@@ -12,6 +12,61 @@
 
 ---
 
+## [0.1.26] - 2026-10-30
+
+KeepTrack 贡献实测，与 Spacebook 自动登录。
+
+### 1. KeepTrack 只为一个字段存在
+
+实测在轨 35 460 个对象，逐个字段看 KeepTrack 是否提供了主源没有的值：
+
+| 字段 | KeepTrack 独有 | 判定 |
+|---|---|---|
+| **diameter_m** | **17 379（49.01%）** | **唯一实质贡献** |
+| shape | 218（0.61%） | 可忽略 |
+| mass_kg / dry_mass / span / length | 60–122 | 可忽略 |
+| manufacturer / bus | 7–8 | 仅交叉验证 |
+| **其余 14 个字段** | **0** | **完全无贡献** |
+
+**结论：保留 KeepTrack 整表，但只把 `diameter_m` 的默认来源改为 KeepTrack。**
+其余字段仅作交叉验证列。理由是不删数据（重抓成本高），但避免 131 列里
+96 列为空以及界面继续被撑宽。
+
+改动后直径覆盖 12 654 → **21 746**。
+
+详见 `docs/KEEPTRACK-CONTRIBUTION.md`。
+
+### 2. Spacebook 登录已完全自动化
+
+之前写「需人工浏览器授权」是错的。实测 Auth0 只允许 `authorization_code`：
+
+| 方式 | 结果 |
+|---|---|
+| `password` / `password-realm` / `device_code` | 403 `not allowed for the client` |
+| `client_credentials` | 401 |
+
+但"需要浏览器"不等于"需要人"：`npm run spacebook:auto` 用 puppeteer-core 驱动本机
+Chrome 走真实登录页，自动填写邮箱与密码、捕获授权码、换取 token。已实跑验证两次。
+
+**关键发现**：登录是**两步式**（先邮箱、后密码），第一版脚本在邮箱页等密码框，
+30 秒后超时并误报「遇到验证码」，实为选择器错误。诊断工具 `spacebook-login-diag.ts`
+逐屏 dump 页面后定位。
+
+仍有限制：Auth0 不返回 refresh token（`offline_access` 被丢弃），
+每次同步都是重新登录而非续期。遇到验证码时脚本失败并提示人工。
+
+### 依赖
+
+- 新增 `puppeteer-core`（驱动本机 Chrome，不下载浏览器）
+
+### 验证
+
+- `tsc --noEmit` 无错误；`npm run check` 全过
+- `spacebook:auto` 连续两次登录成功，token 可用（`/api/Model` 返回 42 项）
+- `keeptrack-contribution.ts` 输出完整 24 字段贡献表
+
+---
+
 ## [0.1.25] - 2026-10-30
 
 四源编目逐字段实测对比，确定每字段采用源。
