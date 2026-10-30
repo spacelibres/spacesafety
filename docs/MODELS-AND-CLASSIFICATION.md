@@ -46,15 +46,23 @@ GET /repos/nasa/NASA-3D-Resources/git/trees/master?recursive=1
 第一版按目录逐个调用 contents API，**匿名限流 60 次/小时**，227 个目录直接耗尽，
 168 个目录静默失败——这是必须避免的「看起来成功实际没数据」问题。
 
-### 1.5 存储
+### 1.5 存储（全部本地，无运行时网络依赖）
 
-| 项 | 位置 |
-|---|---|
-| 元数据 | `model_asset` 表（257 + 42 行） |
-| 文件 | `data/models/nasa/`（582 MB，gitignored） |
-| 访问 | `/models/*` → `next.config.ts` rewrite → `/api/models/[...path]` |
+| 项 | 位置 | 大小 |
+|---|---|---|
+| 元数据 | `model_asset` 表 | 257 + 42 行 |
+| 模型本体 | `data/models/nasa/` | **582 MB** |
+| 预览图 | `data/models/previews/` | **199 MB** |
 
-文件不放进 `public/`，因为它们是**下载产物而非源码**，不该进版本库。
+**合计 780 MB，全部落盘。** 页面渲染时不请求 GitHub：
+实测 263 个资源链接全部指向 `/models/*` 本地路径，零外部引用。
+
+文件不放进 `public/`，因为它们是**下载产物而非源码**，不该进版本库：
+`/models/*` 由 `next.config.ts` rewrite 到 `/api/models/[...path]`，
+路由内做路径穿越校验，并按扩展名返回正确 MIME（`.glb` → `model/gltf-binary`，
+`.png` → `image/png`）。
+
+**离线可用**：下载完成后，断网也能浏览模型库与渲染三维模型。
 
 ---
 

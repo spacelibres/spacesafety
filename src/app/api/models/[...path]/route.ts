@@ -11,8 +11,19 @@ const ROOT = "data/models";
 /** Only mesh and preview files are served; the directory is not browsable. */
 const ALLOWED = /\.(glb|gltf|png|jpg|jpeg|webp)$/i;
 
+/** MIME type by extension; `octet-stream` makes images fail to render. */
+function contentType(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".glb")) return "model/gltf-binary";
+  if (lower.endsWith(".gltf")) return "model/gltf+json";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "application/octet-stream";
+}
+
 /**
- * Serve a downloaded model.
+ * Serve a downloaded model or preview.
  *
  * `data/models` sits outside `public/` because the files are fetched artefacts, not
  * source — `data/` is gitignored and hundreds of megabytes have no place in the
@@ -53,9 +64,7 @@ export async function GET(
 
   return new NextResponse(stream, {
     headers: {
-      "Content-Type": relative.toLowerCase().endsWith(".glb")
-        ? "model/gltf-binary"
-        : "application/octet-stream",
+      "Content-Type": contentType(relative),
       "Content-Length": String(size),
       "Cache-Control": "public, max-age=86400",
     },

@@ -12,6 +12,7 @@ interface ModelRow {
   sizeBytes: number;
   localPath: string | null;
   previewUrl: string | null;
+  localPreview: string | null;
 }
 
 /** Static serving path for a downloaded mesh, relative to the project root. */
@@ -62,7 +63,8 @@ export default async function ModelsPage({
     ? (sqlite
         .prepare(
           `SELECT id, source, name, filename, size_bytes AS sizeBytes,
-                  local_path AS localPath, preview_url AS previewUrl
+                  local_path AS localPath, preview_url AS previewUrl,
+                  local_preview AS localPreview
              FROM model_asset ${clause}
             ORDER BY source, name
             LIMIT 500`,
@@ -125,11 +127,14 @@ export default async function ModelsPage({
           <div className="model-grid">
             {rows.map((m) => {
               const url = localUrl(m.localPath);
+              // Preview from disk when downloaded, from the source URL otherwise. A
+              // page that always hot-links the source is slow and breaks offline.
+              const thumb = localUrl(m.localPreview) ?? m.previewUrl;
               return (
                 <div key={m.id} className="model-card">
-                  {m.previewUrl ? (
+                  {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.previewUrl} alt={m.name} className="model-thumb" loading="lazy" />
+                    <img src={thumb} alt={m.name} className="model-thumb" loading="lazy" />
                   ) : (
                     <div className="model-thumb model-thumb-empty" />
                   )}

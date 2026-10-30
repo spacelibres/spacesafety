@@ -12,6 +12,42 @@
 
 ---
 
+## [0.1.29] - 2026-10-30
+
+三维模型库改为完全本地化，消除运行时对 GitHub 的依赖。
+
+### 问题
+
+模型本体已在本地（582 MB），但 **257 张预览图仍是 `raw.githubusercontent.com` 外链**。
+页面每次渲染都向 GitHub 取图：慢、断网即失效，而且与「本地存储」的要求不符。
+
+### 变更
+
+- 预览图全量下载到 `data/models/previews/`（**199 MB，257 张**）
+- `model_asset` 新增 `local_preview` 列，带旧库迁移
+- 页面优先用本地预览，无本地文件时才回退到源 URL
+- 修复 MIME：`.png` 之前返回 `application/octet-stream`，浏览器不渲染图片；
+  现在按扩展名返回（`image/png`、`model/gltf-binary` 等）
+
+### 结果
+
+| 项 | 位置 | 大小 |
+|---|---|---|
+| 模型本体 | `data/models/nasa/` | 582 MB / 257 个 |
+| 预览图 | `data/models/previews/` | 199 MB / 257 张 |
+| **合计** | `data/models/` | **780 MB** |
+
+实测 `/models` 页面 **263 个资源链接全部指向本地路径，零外部引用**。
+断网状态下模型库可正常浏览与下载。
+
+### 验证
+
+- `tsc --noEmit` 无错误；`npm run check` 全过
+- 预览图 `200 image/png`，模型 `200 model/gltf-binary`
+- 截图确认 257 张预览图均从本地加载
+
+---
+
 ## [0.1.28] - 2026-10-30
 
 建立三维模型库与多维分类体系。

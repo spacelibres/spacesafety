@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS model_asset (
   size_bytes  INTEGER NOT NULL DEFAULT 0,
   preview_url TEXT,
   local_path  TEXT,
+  local_preview TEXT,
   fetched_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS model_name_idx ON model_asset(name COLLATE NOCASE);
@@ -99,12 +100,13 @@ async function downloadAll(
   items: Array<{ url: string; dest: string; id: string }>,
   db: Database.Database,
   concurrency = 12,
+  column: "local_path" | "local_preview" = "local_path",
 ): Promise<{ done: number; skipped: number; failed: number }> {
   let done = 0;
   let skipped = 0;
   let failed = 0;
   let next = 0;
-  const update = db.prepare("UPDATE model_asset SET local_path = ? WHERE id = ?");
+  const update = db.prepare(`UPDATE model_asset SET ${column} = ? WHERE id = ?`);
   const started = Date.now();
 
   const worker = async (): Promise<void> => {
@@ -193,6 +195,11 @@ async function main(): Promise<void> {
 
   const db = new Database(dbPath);
   db.exec(DDL);
+  // The first schema had no `local_preview`; add it for an existing database.
+  const cols = db.pragma("table_info(model_asset)") as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "local_preview")) {
+    db.exec("ALTER TABLE model_asset ADD COLUMN local_preview TEXT");
+  }
   const now = new Date().toISOString();
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO model_asset
@@ -210,14 +217,30 @@ async function main(): Promise<void> {
 
   if (download) {
     const outDir = "data/models/nasa";
+    const previewDir = "data/models/previews";
     mkdirSync(outDir, { recursive: true });
+    mkdirSync(previewDir, { recursive: true });
+
     const items = records.map((r) => ({
       id: r.id,
       url: r.url,
       dest: join(outDir, r.id.replace(/^nasa:/, "").replace(/[^\w().-]+/g, "_")),
     }));
     const res = await downloadAll(items, db);
-    console.log(`  下载        新增 ${res.done}  已存在 ${res.skipped}  失败 ${res.failed}`);
+    console.log(`  模型下载    新增 ${res.done}  已存在 ${res.skipped}  失败 ${res.failed}`);
+
+    // Previews are downloaded too. Leaving them as raw.githubusercontent.com URLs
+    // would make the catalogue page depend on GitHub at render time — slow, and it
+    // breaks the moment the network or the repository path changes.
+    const previews = records
+      .filter((r) => r.previewUrl)
+      .map((r) => ({
+        id: r.id,
+        url: r.previewUrl!,
+        dest: join(previewDir, r.id.replace(/^nasa:/, "").replace(/[^\w().-]+/g, "_") + ".png"),
+      }));
+    const pres = await downloadAll(previews, db, 12, "local_preview");
+    console.log(`  预览下载    新增 ${pres.done}  已存在 ${pres.skipped}  失败 ${pres.failed}`);
   }
 
   const total = db.prepare("SELECT COUNT(*) AS n FROM model_asset").get() as { n: number };
