@@ -169,6 +169,9 @@ npm run data:daily -- --force # 忽略节奏，全部重抓
 顺序是**下载 → KeepTrack → 入库 → 宽表 → 分类 → 事件**，每一步都验证过；
 脚本会打印刷新前后逐表行数，行数变少会显式告警，宽表与分类表不一致直接失败。
 
+自动化形式：`npm run data:schedule -- --once`（systemd timer 每 10 分钟触发一次），
+它按**各源自己的更新频率**决定抓什么，见 `docs/DATA-SOURCES.md` 的频率表。
+
 **不要把 `npm run catalogue:build` 放进这条流程。** 它用工作库（`data/spacesafety.sqlite`）
 重建 `data/catalogue.sqlite`，而 `keeptrack_object` 等表**只存在于后者**，重建后即丢失
 （2026-10-30 实测踩到：35,203 行被清空，需重跑 `keeptrack:sync` 才能恢复）。

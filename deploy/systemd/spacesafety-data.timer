@@ -1,0 +1,21 @@
+# Drives the refresh every 10 minutes.
+#
+# Ten minutes is not the data frequency — it is how often the *schedule* is
+# consulted. `dueForRefresh()` decides per endpoint: the 2-hourly Space-Track GP
+# and Spacebook OMM feeds are fetched when they age past 2 hours, the daily
+# SATCAT tables once a day, KeepTrack once a day. Asking more often than the
+# fastest source costs nothing, because a cycle with nothing due exits without
+# downloading or rebuilding.
+[Unit]
+Description=Consult the data schedule every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+# If the machine was off, run once shortly after it comes back rather than
+# skipping the day entirely.
+Persistent=true
+Unit=spacesafety-data.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,30 @@
+# Data refresh, one cycle. Started by spacesafety-data.timer.
+#
+# A cycle asks the registry which endpoints are past *their own* published
+# frequency, fetches only those, syncs KeepTrack once a day, and rebuilds the
+# catalogue only when something actually changed (tools/data-schedule.ts).
+#
+# Install (user scope, no root):
+#
+#   sed -i "s|/mnt/272bb81e-0746-4b47-98c3-82cb633860fa/spacesafety|$PWD|" deploy/systemd/spacesafety-data.service
+#   systemctl --user link "$PWD/deploy/systemd/spacesafety-data.service"
+#   systemctl --user link "$PWD/deploy/systemd/spacesafety-data.timer"
+#   systemctl --user enable --now spacesafety-data.timer
+#   journalctl --user -u spacesafety-data -f     # 观察每一轮
+[Unit]
+Description=Space Safety — refresh data sources at their published frequencies
+Documentation=file:///mnt/272bb81e-0746-4b47-98c3-82cb633860fa/spacesafety/docs/DATA-SOURCES.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/mnt/272bb81e-0746-4b47-98c3-82cb633860fa/spacesafety
+# `npm` comes from fnm here; keep the PATH systemd would otherwise drop.
+Environment=PATH=%h/.local/share/fnm/aliases/default/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env npm run data:schedule -- --once
+# A cycle downloads up to ~550 MB and rebuilds 72 k rows; give it room.
+TimeoutStartSec=3600
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

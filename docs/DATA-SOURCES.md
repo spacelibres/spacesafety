@@ -90,6 +90,43 @@ Space-Track 官方再入预测 26,184 条、公开 CDM 3,161 条、DISCOS 碎片
 **建议**：要么让 `master:build` 写入 claim，要么废掉该表并由宽表承担。
 两条路径并存是隐患。
 
+### 各源的更新频率（调度依据）
+
+| 源 | 端点 | 官网更新频率 | `downloads.ts` |
+|---|---|---|---|
+| Space-Track | GP | **每 2 小时** | 120 min |
+| Space-Track | public CDM | 每 1 小时 | 60 min |
+| Space-Track | TIP（再入预测）| 6 小时 | 360 min |
+| Space-Track | SATCAT / decay / boxscore / launch-site | **每日** | 1440 min |
+| Spacebook | OMM (json/kvn) / entity-TLE / xp-TLE / supplemental | **每 2 小时** | 120 min |
+| Spacebook | SATCAT / details / CSV / OMM-XML / EOP / 天气 | **每日** | 1440 min |
+| KeepTrack | 编目 + 五类 feeds | **每日** | 由 `data-schedule` 每日判定 |
+| DISCOS | objects / launches / fragmentations | 不定期 | 1440 min |
+| DISCOS | reference / launch-vehicles / orbits | 近乎静态 | 10080 min |
+
+频率只写在 `src/lib/sources/downloads.ts` 一处，调度器读它而不是重复一遍。
+
+**三维模型不在此表内**：299 个 `.glb` 变动极少，不参与每日刷新
+（需要时手动 `npm run models:sync`）。
+
+调度的两种用法：
+
+```bash
+npm run data:schedule -- --status   # 看每个端点：频率 / 上次成功 / 是否到期
+npm run data:schedule -- --once     # 跑一轮（systemd timer 调的就是这个）
+npm run data:schedule -- --loop     # 常驻，每 10 分钟自检一次
+```
+
+systemd 用户级 timer（已安装，10 分钟自检一次）：
+
+```bash
+systemctl --user list-timers spacesafety-data.timer
+journalctl --user -u spacesafety-data -f
+```
+
+每 10 分钟自检不是数据频率——它是"什么时候去问频率"的节奏。没到期的端点连下载都不会
+发起，一轮没有变化就退出，不重建。
+
 ### 数据新鲜度不一致
 
 | 源 | 最后抓取 | 官方更新频率 |

@@ -12,6 +12,76 @@
 
 ---
 
+## [0.1.64] - 2026-10-30
+
+按**每个站点自己的更新频率**调度三个编目源，并装上 systemd timer 让它自己跑。
+三维模型明确排除在每日刷新之外。
+
+### 频率从哪来（一条都不重复写）
+
+频率只存在于 `src/lib/sources/downloads.ts`，调度器读它：
+
+| 源 | 端点 | 频率 |
+|---|---|---|
+| Space-Track | GP | 每 2 小时 |
+| Space-Track | 公开 CDM | 每 1 小时 |
+| Space-Track | TIP 再入预测 | 6 小时 |
+| Space-Track | SATCAT / decay / boxscore / launch-site | 每日 |
+| Spacebook | OMM(json/kvn) / entity-TLE / xp-TLE / supplemental | 每 2 小时 |
+| Spacebook | SATCAT / details / CSV / OMM-XML / EOP / 天气 | 每日 |
+| KeepTrack | 编目 + 五类 feeds | 每日 |
+| DISCOS | objects / launches / fragmentations | 不定期（1440 min）|
+| DISCOS | reference / launch-vehicles / orbits | 近乎静态（10080 min）|
+| **三维模型** | 299 个 .glb | **不参与**（手动 `models:sync`）|
+
+### 新增 `npm run data:schedule`
+
+`tools/data-schedule.ts`，三种用法：
+
+```bash
+npm run data:schedule -- --status   # 每个端点：频率 / 上次成功 / 是否到期
+npm run data:schedule -- --once     # 跑一轮（timer 调这个）
+npm run data:schedule -- --loop     # 常驻，每 10 分钟自检
+```
+
+一轮的逻辑：问 registry 谁到期 → 只抓那些 → 若 KeepTrack 归档不是今天则同步它 →
+**只有确实抓到东西才重建**（load → wide → classify，事件源变化时再刷事件表）。
+"每 10 分钟"是询问频率的节奏，不是数据频率；没到期的一轮不下载也不重建。
+
+### 踩到的坑：读错了数据库
+
+第一版 `--status` 报告所有源都"昨天抓过"——因为它没调用 `loadEnvLocal()`，
+`SPACE_SAFETY_DB` 没被读入，`getDb()` 落到了默认的 `data/spacesafety.sqlite`（工作库），
+而工作库的 `source_fetches` 是旧的。加上 `loadEnvLocal()` 后立刻对上：全部 10-30 09:53。
+**教训：任何新脚本都必须先 loadEnvLocal，否则连"哪个库"都是猜的。**
+
+另发现一处账本不一致：`spacebook-satcat` 的归档目录里有 10-30 的文件，但 `source_fetches`
+里只有 10-29 的记录（我 09:48 那次 `--force` 写了归档却没留下账本行）。后果很轻——调度器会
+再抓一次并记录，自愈；但它说明**归档与账本可能不一致**，两者不能互相替代。
+
+### 上线：systemd 用户级 timer（已安装并验证）
+
+`deploy/systemd/spacesafety-data.{service,timer}`：`OnUnitActiveSec=10min`、`Persistent=true`
+（关机错过的会在开机后补跑一次），`/usr/bin/env npm run data:schedule -- --once`。
+
+```
+$ systemctl --user list-timers spacesafety-data.timer
+NEXT  LEFT LAST  PASSED UNIT                     ACTIVATES
+-     -    Fri 2026-10-30 18:00:23 CST  15ms ago  spacesafety-data.timer  spacesafety-data.service
+
+$ systemctl --user start spacesafety-data.service && journalctl --user -u spacesafety-data -n 4
+[10:00:24] 周期开始：0 个端点到期
+[10:00:24] 没有数据变化，跳过重建
+Finished spacesafety-data.service - Space Safety — refresh data sources at their published frequencies.
+```
+
+### 文档
+
+- `docs/DATA-SOURCES.md` 新增「各源的更新频率（调度依据）」表 + 调度用法 + timer 命令；
+- `docs/CATALOGUE-FINAL.md` §7.0 注明 `data:schedule --once` 是 `data:daily` 的自动化形式。
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check` 全过。
+
 ## [0.1.63] - 2026-10-30
 
 按「每天都要取数据」的原则刷新了全部数据源，并把每日刷新固化成一条命令。
