@@ -76,17 +76,24 @@ code,
 .sidebar-brand {
   display: flex;
   justify-content: center;
-  /* VI clear space: 0.25 of the canvas height around the mark. A 105px-high mark
-     needs 26px; the padding below and the rail's side margins supply it. */
-  padding: 20px 16px 16px;
+  /* VI clear space: 25% of the mark's canvas height on every side. The horizontal
+     master is 810x180, so at the VI's 240px minimum display width it is 53.3px
+     tall and needs 13.3px of clear space — 14px here, which the rail's own width
+     (--sidebar-w: 272px, generated from this same arithmetic) has room for. */
+  padding: 20px 14px 16px;
+}
+.sidebar-brand picture {
+  display: block;
+  line-height: 0;
 }
 .sidebar-brand img {
   display: block;
-  /* Fixed size, not 100%: the stacked master is 620x430, so 152px wide implies
-     105px tall. Both values are explicit to keep the canvas ratio exact and stop
-     the mark stretching inside a flex container. */
-  width: 152px;
-  height: 105px;
+  /* The canvas ratio is 810:180. Fixed dimensions rather than 100% keep it exact
+     and stop the mark stretching inside a flex container. */
+  width: 240px;
+  height: 53px;
+  /* The master is vector; keep it crisp if a browser scales it for a fraction. */
+  object-fit: contain;
 }
 
 /* Visually hidden, still read by screen readers. A general utility; no component
@@ -1286,15 +1293,14 @@ button.btn.primary:hover {
     width: 56px;
   }
   .sidebar-brand img {
-    /* Compact breakpoint: the icon master, per the VI's small-size rule. The
-       stacked mark cannot shrink below legibility, so it is replaced rather than
-       scaled. */
-    content: url("/vi/icon-primary-dark.svg");
-    width: 28px;
-    height: 28px;
+    /* Compact breakpoint: the <picture> element above already swapped to the icon
+       master, which the VI allows down to 48px. 48px tall means 12px of clear
+       space (25% of the canvas height). */
+    width: 48px;
+    height: 48px;
   }
   .sidebar-brand {
-    padding: 14px 16px 10px;
+    padding: 14px 12px 12px;
   }
   .sidebar-clock,
   .sidebar-search,

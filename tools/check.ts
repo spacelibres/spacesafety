@@ -597,6 +597,32 @@ function checkVi(): void {
     );
   }
 
+  // 8e. The navigation must show the vector master, not the product name in type.
+  //
+  // §9.3 says the logo is a real vector master and must not be replaced by
+  // lettering. It *was*: `<div className="sidebar-brand">{t.t("app.name")}</div>`
+  // rendered the name, while the stylesheet beside it had been written for an
+  // `<img>` the whole time — logo generated, styled, and never mounted. This
+  // check keeps that from happening again.
+  const shell = join(ROOT, "src", "components", "Shell.tsx");
+  if (existsSync(shell)) {
+    const text = readFileSync(shell, "utf8");
+    const brandBlock = text.slice(
+      text.indexOf('className="sidebar-brand"'),
+      text.indexOf("</div>", text.indexOf('className="sidebar-brand"')),
+    );
+    if (brandBlock === "") {
+      fail("vi", "Shell.tsx has no .sidebar-brand block");
+    } else {
+      if (!brandBlock.includes("<img")) {
+        fail("vi", "the sidebar brand renders no <img> — the logo must be the VI master");
+      }
+      if (!text.includes("logoFor(")) {
+        fail("vi", "the sidebar brand does not use logoFor() — the path must come from the VI generator");
+      }
+    }
+  }
+
   if (!problems.some((p) => p.check === "vi")) {
     notes.push("vi: palette, tokens, scene, logo masters and components consistent");
   }

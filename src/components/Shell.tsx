@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useTranslator } from "@/lib/i18n/client";
+import { logoFor, useThemeMode } from "@/lib/vi/theme-bridge";
 
 import { PreferenceDock } from "./PreferenceDock";
 
@@ -93,6 +94,9 @@ export function Icon({ name }: { name: string }) {
 export function Sidebar() {
   const pathname = usePathname();
   const t = useTranslator();
+  // The logo's planet is recoloured per theme (VI §2), so the asset follows the
+  // same attribute the rest of the page keys off.
+  const brandMode = useThemeMode();
   const [clock, setClock] = useState("");
 
   /**
@@ -124,7 +128,33 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">{t.t("app.name")}</div>
+      {/*
+        The VI is explicit that the mark is a vector master, not lettering
+        (§编排: 网站导航 uses the horizontal master; "标志 … 不得用文字代替").
+        This rendered `{t.t("app.name")}` — the CSS beside it had been written
+        for an <img> the whole time, which is how the logo ended up styled and
+        never mounted.
+
+        The compact breakpoint swaps to the icon master rather than shrinking
+        the horizontal mark below the VI's 240 px minimum (24–32 px is where the
+        VI warns the tips and thin gaps degrade).
+      */}
+      <div className="sidebar-brand">
+        <picture>
+          <source
+            media="(max-width: 900px)"
+            srcSet={logoFor(brandMode, "icon")}
+            width={48}
+            height={48}
+          />
+          <img
+            src={logoFor(brandMode, "horizontal")}
+            alt={t.t("app.name")}
+            width={240}
+            height={53}
+          />
+        </picture>
+      </div>
       {showBanner && <div className="sidebar-env">{env}</div>}
       <div className="sidebar-clock">{clock}</div>
 

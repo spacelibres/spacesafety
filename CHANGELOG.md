@@ -12,6 +12,87 @@
 
 ---
 
+## [0.1.55] - 2026-10-30
+
+按 <https://vi.spacelibre.cn>（VI 手册 1.5.34）修正 logo 与栏宽：**侧栏本来是用文字冒充 logo 的**。
+
+### 违反的是 VI 的哪一条
+
+VI §编排 写得很清楚：
+
+> 左右编排用于**导航与产品界面**；上下编排用于封面和居中展示；独立图标用于头像与紧凑空间。
+
+而 `Shell.tsx` 是这么写的：
+
+```tsx
+<div className="sidebar-brand">{t.t("app.name")}</div>
+```
+
+即：导航栏里放的是**文字**（"Space Safety" / "太空之眼"），不是矢量母版。更刺眼的是，
+旁边的 `globals.css` 早就为 `<img>` 写好了尺寸与安全留白注释：
+
+```css
+.sidebar-brand img { width: 152px; height: 105px; }  /* stacked master 620x430 */
+```
+
+母版生成了、样式写好了、`logoFor()` 也写好了 —— 零调用。这是本项目最典型的失效形态：
+代码齐全、检查全绿、界面不对。
+
+顺带还有两处不合规：
+
+| 项 | VI 要求 | 改前 |
+|---|---|---|
+| 编排 | 导航用 horizontal（810×180） | 用了 stacked（620×430） |
+| 显示宽度 | horizontal ≥ **240 px** | stacked 152 px（连 stacked 的 180 px 下限都不到） |
+
+### 改法
+
+- 侧栏改为 `<picture>` 渲染 VI 母版：宽屏 `horizontal-primary-{mode}.svg`（240×53），
+  窄屏（≤900px）换 `icon-primary-{mode}.svg`（48×48）—— **降到最小尺寸时换编排，
+  不是把母版缩小**，这是 VI 的做法。
+- 新增 `useThemeMode()`：全彩母版的**星球按主题重着色**（dark 用 `#FF3733`、light 用
+  `#E00400`），所以资源必须跟着主题换。
+- `--sidebar-w` 从 208px 改为 **272px**，由 VI 的算式生成而不是拍脑袋：240 px 宽的母版
+  高 53.3 px，安全留白 25% = 13.3 px，侧栏至少 240 + 2×13.3 = 266.7 px。
+  `tools/vi.ts` 里写了这个推导。
+- 删掉 `.sidebar-brand img { content: url(...) }` 这个换图 hack（`<picture>` 已经在
+  选资源了），补齐 `object-fit: contain`。
+- `CONTRIBUTING` §9 补编排选型表（三种编排的画布与最小宽度）与留白算式，并把规范出处
+  改为 vi.spacelibre.cn。
+
+### 新增检查：logo 不许再被文字顶替
+
+`checkVi` 新增 8e：`.sidebar-brand` 必须渲染 `<img>`，且路径必须来自 `logoFor()`。
+
+**已验证负例**：把品牌改回 `{t.t("app.name")}`，`npm run check` 报 `FAIL vi`；恢复后 `ok`。
+
+### 浏览器实测（VI 条款逐条核对）
+
+| VI 条款 | 要求 | 实测 |
+|---|---|---|
+| 导航用左右编排 | horizontal 母版 | `/vi/horizontal-primary-{mode}.svg` |
+| 星球随主题重着色 | 随全站配色 | dark→`-primary-dark`（星球 #FF3733）、light→`-primary-light`（#E00400）|
+| 蒙版结构色不参与主题化 | black / white | 生成物里 mask `fill="white"`、路径 `fill="black"` |
+| 安全留白 = 画布高 25% | ≥ 13.3 px | 侧 14 px、上 20 px |
+| 最小显示宽度 | ≥ 240 px | **240 × 53** |
+| 独立图标下限 | ≥ 48 px | 窄屏 **48 × 48**，留白 12 px = 25%×48 |
+| 全站配色同步 | 切换整页 | 换主题后 logo 资源随之更换 |
+| 单色母版单一墨色 | 1 种墨色 | black/white/navy 各 1 种（check 原本已拦）|
+
+1280px 视口下 `scrollWidth - innerWidth = 0`，加宽侧栏没有造成横向溢出。
+
+### 验证
+
+`npx tsc --noEmit`、`npm test`（39 套件）、`npm run check`、`npm run check:css` 全过；
+`npm run vi` 连续两次产物 md5 一致（生成器幂等）。
+
+### 仍未做（如实列出）
+
+- VI 推荐的主色/辅色/强调色**面积比 60 / 25 / 10 / 5** 只是"推荐面积关系"，本轮没有量化
+  测量整站面积分布，只保证了颜色都来自调色板。
+- `favicon`（`src/app/icon.svg`）由生成器写出，固定用深色主题的星球；静态文件无法跟随
+  主题，这是局限而非疏漏。
+
 ## [0.1.54] - 2026-10-30
 
 UI 结构按官方补齐：侧栏 `Users` / `Feedback` 两项，列表页计数改成 "Showing N of M"。

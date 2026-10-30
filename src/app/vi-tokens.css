@@ -42,7 +42,7 @@
   --bad: #C01C34;
   --operator-ephemeris: #007BFF;
   --spacex-optical: #F4F764;
-  --sidebar-w: 208px;
+  --sidebar-w: 272px;
 }
 
 [data-theme="light"] {
@@ -85,5 +85,5 @@
   --bad: #C01C34;
   --operator-ephemeris: #006CE0;
   --spacex-optical: #F4F764;
-  --sidebar-w: 208px;
+  --sidebar-w: 272px;
 }

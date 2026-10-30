@@ -111,9 +111,13 @@ export function emitTokens(palette: ViPalette): string {
       // apart on the same canvas.
       `  --operator-ephemeris: ${surfaces.primary};`,
       `  --spacex-optical: ${palette.accent};`,
-      // A layout constant rather than a colour, but it was referenced and never
-      // defined, which is why the rail collapsed to whatever the nav text needed.
-      `  --sidebar-w: 208px;`,
+      // A layout constant rather than a colour, sized by the VI rather than by
+      // taste: the navigation uses the *horizontal* master (810 x 180), the VI
+      // gives it a recommended minimum display width of 240 px, and the mark
+      // needs clear space of 25% of its canvas height on every side. At 240 px
+      // wide the mark is 53.3 px tall, so the clear space is 13.3 px and the rail
+      // must be at least 240 + 2 x 13.3 = 266.7 px. 272 px leaves the rounding.
+      `  --sidebar-w: 272px;`,
     ].join("\n");
 
   const css = [
