@@ -136,6 +136,58 @@ check("轨道类型取值在允许集合内", () => {
   assert.equal(bad.length, 0, `非法取值：${bad.map((b) => b.regime).join(", ")}`);
 });
 
+// ---------------------------------------------------- browse facet queries
+// The facet query concatenates a WHERE fragment conditionally; an empty fragment
+// produced `near "c": syntax error` in the browser instead of at build time.
+const FACET_COLS = {
+  regime: "c.regime",
+  country: "c.country",
+  constellation: "c.constellation",
+  purpose: "c.purpose_group",
+};
+
+for (const [name, col] of Object.entries(FACET_COLS)) {
+  check(`分面查询可执行：${name}（无筛选）`, () => {
+    const rows = sqlite
+      .prepare(
+        `SELECT ${col} AS value, COUNT(*) AS count
+           FROM wide.catalogue_wide w
+           JOIN object_classification c ON c.norad_id = w.norad_id
+          WHERE ${col} IS NOT NULL AND ${col} <> ''
+          GROUP BY ${col} ORDER BY count DESC LIMIT 5`,
+      )
+      .all() as Array<{ value: string; count: number }>;
+    assert.ok(rows.length > 0, "分面结果为空");
+  });
+
+  check(`分面查询可执行：${name}（带筛选）`, () => {
+    const rows = sqlite
+      .prepare(
+        `SELECT ${col} AS value, COUNT(*) AS count
+           FROM wide.catalogue_wide w
+           JOIN object_classification c ON c.norad_id = w.norad_id
+          WHERE c.regime = ? AND ${col} IS NOT NULL AND ${col} <> ''
+          GROUP BY ${col} ORDER BY count DESC LIMIT 5`,
+      )
+      .all("LEO") as Array<{ value: string; count: number }>;
+    assert.ok(Array.isArray(rows), "查询失败");
+  });
+}
+
+check("分类浏览的列表查询可执行", () => {
+  const rows = sqlite
+    .prepare(
+      `SELECT w.norad_id AS noradId, COALESCE(w.name__spacetrack, w.name__spacebook) AS name,
+              c.constellation AS constellation, c.regime AS regime
+         FROM wide.catalogue_wide w
+         JOIN object_classification c ON c.norad_id = w.norad_id
+        WHERE c.constellation = ?
+        ORDER BY w.norad_id LIMIT 10`,
+    )
+    .all("Starlink") as unknown[];
+  assert.ok(rows.length > 0, "Starlink 应有结果");
+});
+
 sqlite.close();
 
 console.log(`\n${passed} passed, ${failed} failed, ${skipped} skipped\n`);

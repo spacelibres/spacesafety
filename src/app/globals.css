@@ -799,6 +799,106 @@ table.data td.is-absent {
   margin-top: 2px;
 }
 
+/* ------------------------------------------------------------- browsing */
+
+.browse-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .browse-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The facet rail scrolls on its own: with 121 countries it would otherwise push the
+   object table off the first screen. */
+.facet-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.facet-title {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.facet-values {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.facet-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 7px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.facet-item:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+.facet-item.active {
+  background: var(--tint-accent, rgba(64, 140, 255, 0.16));
+  color: var(--text);
+}
+.facet-item.active .facet-count {
+  color: var(--text);
+}
+.facet-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.facet-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+.browse-main {
+  min-width: 0;
+}
+
+/* An inline checkbox with its label. `.filter-group` renders as a bordered control
+   sized for a select, which put the tick in an empty box. */
+.check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.check-inline:hover {
+  color: var(--text);
+}
+.check-inline input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .banner {
   display: flex;
   align-items: center;

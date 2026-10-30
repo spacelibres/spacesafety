@@ -12,6 +12,42 @@
 
 ---
 
+## [0.1.32] - 2026-10-30
+
+新增 `/browse` 分类浏览页：按轨道类型/星座/国家/用途四维筛选。
+
+### 功能
+
+- 左侧分面面板列出四个维度的全部取值与计数：
+  轨道类型（LEO 63 982 / HEO 3 288 / GEO 1 787 / MEO 1 710 / 未知 1 204）、
+  星座 25 个（Cosmos 13 358、Starlink 12 972 …）、
+  国家 121 个（US 29 487、CIS 25 239、PRC 9 439 …）、
+  用途 7 类（communication 8 629 …）
+- 点击任一取值即筛选，支持多维叠加（如 LEO + Starlink）
+- **分面计数随当前筛选重算**：选中 Starlink 后，轨道面板自动只剩 LEO，
+  不会出现点了之后是空页的情况
+- 名称/NORAD 搜索、仅在轨开关、清除筛选、分页
+- 点击对象进入 `/catalogue/<norad>` 看四源并列
+
+### 修复
+
+- 分面 SQL 在无筛选时拼接为空，导致 `near "c": syntax error` 与 500
+- `NORAD` 表头硬编码，改为走词典
+- 「仅在轨」复选框误用 `.filter-group` 样式，显示为空方块；新增 `.check-inline`
+
+### 测试
+
+`tests/wide-query.test.ts` 从 9 项扩到 **18 项**，新增四个维度的分面查询（带与不带筛选）
+与分类浏览列表查询，防止同类 SQL 错误再次只在浏览器里暴露。
+
+### 验证
+
+- `npm run test:wide` 18 项全过；`npm run check` 全过
+- `/browse`、`/browse?regime=LEO&constellation=Starlink`、`/browse?country=US` 均 200
+- 截图确认分面面板与实时计数
+
+---
+
 ## [0.1.31] - 2026-10-30
 
 修复 `/catalogue` 500（`no such table: cls.object_classification`），并加测试防止重现。
