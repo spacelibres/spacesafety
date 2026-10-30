@@ -12,6 +12,42 @@
 
 ---
 
+## [0.1.24] - 2026-10-30
+
+完成 Spacebook 浏览器授权，实测三个受限端点的真实内容，接入三维模型。
+
+### 实测结果（`npm run spacebook:probe`）
+
+| 端点 | 状态 | 实际内容 |
+|---|---|---|
+| `/api/Model` | 200 | **42 个公开 GLB 模型** |
+| `/api/Scene` | 200 | **空数组** |
+| `/api/UserEphemeris` | 200 | **空数组** |
+
+`Scene` 与 `UserEphemeris` 是**用户上传内容**，本账号从未上传，
+不是授权缺失。此前文档写「三者都需授权」，对 `Model` 正确、对另两个错误，已更正。
+
+### 变更
+
+- 新表 `spacebook_model`：42 个三维模型（含 Starlink / ISS / HST / 各类 Landsat 等），
+  全部 `isPublic`。`npm run spacebook:models` 同步。
+- `npm run spacebook:probe`：探测受限端点。
+- `docs/DATA-SOURCES.md` 增补第七节，记录授权实测与限制。
+
+### 限制：token 无法续期
+
+请求带了 `offline_access`，Auth0 仍返回 `scope: openid profile email`，**未发 refresh token**。
+token 24 小时后失效，不能自动续期，需人工重新授权。
+模型清单仅 42 条且极少变动，实际策略为 token 有效时抓取并缓存。
+
+### 验证
+
+- `tsc --noEmit` 无错误；`npm run check` 全过
+- 模型同步写入 42 行，全部公开
+- `data/.spacebook-token.json` 已被 `.gitignore` 覆盖，未入库
+
+---
+
 ## [0.1.23] - 2026-10-30
 
 逐条实测 KeepTrack v4 全部 86 个接口，接入可直接入库的五类数据。
