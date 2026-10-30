@@ -1,6 +1,6 @@
 {
   "name": "spacesafety",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "private": true,
   "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
@@ -91,7 +91,8 @@
     "keeptrack:feeds": "node --conditions=react-server --import tsx tools/keeptrack-feeds-sync.ts",
     "keeptrack:probe": "node --conditions=react-server --import tsx tools/keeptrack-probe.ts",
     "spacebook:probe": "node --conditions=react-server --import tsx tools/spacebook-auth-probe.ts",
-    "spacebook:models": "node --conditions=react-server --import tsx tools/spacebook-models-sync.ts"
+    "spacebook:models": "node --conditions=react-server --import tsx tools/spacebook-models-sync.ts",
+    "catalogue:compare": "node --conditions=react-server --import tsx tools/catalogue-comparison.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
