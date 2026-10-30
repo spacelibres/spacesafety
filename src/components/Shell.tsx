@@ -54,6 +54,10 @@ const NAV: NavEntry[] = [
   { href: "/conjunctions", labelKey: "nav.conjunctions", icon: "alert" },
   { href: "/screening/socrates", labelKey: "nav.socrates", icon: "alert" },
   { href: "/keys", labelKey: "nav.keys", icon: "key" },
+  // The official sidebar ends with these two; keeping the order lets a reader
+  // compare this layout with the reference screenshots entry for entry.
+  { href: "/users", labelKey: "nav.users", icon: "people" },
+  { href: "/feedback", labelKey: "nav.feedback", icon: "docs" },
 ];
 
 const ICONS: Record<string, string> = {

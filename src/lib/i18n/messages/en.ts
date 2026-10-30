@@ -351,7 +351,7 @@ export const en = {
 
   // --- object list ----------------------------------------------------------
   "objectsPage.title": "Objects",
-  "objectsPage.showingCount": "showing {count} objects",
+  "objectsPage.showingCount": "Showing {shown} of {total} objects",
   "objectsPage.columns": "Columns",
   "objectsPage.nameFilter": "Name filter",
   "objectsPage.noradFilter": "NORAD filter",
@@ -473,6 +473,25 @@ export const en = {
   "accuracy.axisInTrack": "In-track (T)",
   "accuracy.axisCrossTrack": "Cross-track (N)",
   "chart.elementsOverTime": "{metric} over time",
+  "nav.users": "Users",
+  "nav.feedback": "Feedback",
+  "users.title": "Users",
+  "users.count": "{count} identities",
+  "users.identityNote": "In this deployment an identity is a client certificate: access is granted by mTLS, so this list is the issued credentials rather than a separate user account table.",
+  "users.commonName": "Common name",
+  "users.fingerprint": "SHA-256 fingerprint",
+  "users.created": "Created",
+  "users.lastUsed": "Last used",
+  "users.active": "active",
+  "users.empty": "No identities have been issued yet.",
+  "feedback.title": "Feedback",
+  "feedback.contact": "Contact",
+  "feedback.noContact": "No contact address is configured for this deployment. Set SPACE_SAFETY_CONTACT_EMAIL to publish one.",
+  "feedback.include": "What to include",
+  "feedback.includeCorrelation": "The correlation_id from the response body or the x-correlation-id header.",
+  "feedback.includeRequest": "The exact request: method, path, and query parameters.",
+  "feedback.includeExpected": "What you expected and what happened instead.",
+  "feedback.includeSensitive": "Do not send private keys, certificates, or ephemeris files.",
 } as const;
 
 export type MessageTable = Record<keyof typeof en, string>;

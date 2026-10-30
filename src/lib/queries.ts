@@ -232,6 +232,20 @@ export interface ObjectRow {
  * added test body) simply has no catalogue row, which is why every field is
  * nullable rather than defaulted.
  */
+/**
+ * How many objects the deployment knows about.
+ *
+ * The list pages cap their result set (200 objects, 1000 trajectories), so the
+ * header could only ever say "showing 200" — which reads like a total. The
+ * vendor's UI shows "Showing 50 of >10000 objects", so the count is fetched
+ * separately and the header reports both.
+ */
+export function countObjects(): number {
+  const { sqlite } = getDb();
+  const row = sqlite.prepare("SELECT COUNT(*) AS n FROM objects").get() as { n: number };
+  return row.n;
+}
+
 export function listObjects(limit = 200): ObjectRow[] {
   const { sqlite } = getDb();
   const rows = sqlite

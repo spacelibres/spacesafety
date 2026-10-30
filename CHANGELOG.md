@@ -12,6 +12,56 @@
 
 ---
 
+## [0.1.54] - 2026-10-30
+
+UI 结构按官方补齐：侧栏 `Users` / `Feedback` 两项，列表页计数改成 "Showing N of M"。
+配色仍走 spacelibre VI（这是本轮确认的取舍：结构照官方，颜色保留我们自己的视觉体系）。
+
+### 缺口
+
+`docs/UI-SPEC.md`（源自 27 张官方截图）列出的侧栏是 9 项：
+
+> Home · Docs · Operators · Objects · Trajectories · Conjunctions · **Users** · Keys · **Feedback**
+
+我们缺 `Users` 与 `Feedback`。另外对象列表页头部写的是 `showing {count} objects`，
+而官方是 `Showing 50 of >10000 objects` —— 只说显示了 200 条，读起来像总数只有 200。
+
+### Users 页：身份就是证书，不编造用户表
+
+官方 `Users` 是"仅管理员"的用户列表，运营方页也提到 "a list of users and API keys
+associated with your account"。但**本部署没有用户表**：`SPEC-BEHAVIOR.md` §1 规定客户端
+证书就是凭据，`credentials` 表是唯一的身份记录。
+
+所以这个页面如实列出已签发凭据（按运营方分组：通用名、SHA-256 指纹前缀、创建时间、
+最后使用、状态），并在页面顶部写明"本部署的访问身份就是客户端证书"。**没有为了让列名
+更像官方截图而虚构一张用户表** —— 那会是一个看起来完整、实际为空的页面，正是本项目最
+忌讳的失效形态。
+
+### Feedback 页：联系地址来自配置，不冒充上游
+
+官方侧栏有 `Feedback`。这里能诚实写的是"怎么联系本部署的维护者"与"反馈该带什么"。
+地址读 `SPACE_SAFETY_CONTACT_EMAIL`：把 SpaceX 的 onboarding 邮箱印上去会让读者去拨错人，
+编一个更糟。未配置时页面直说未配置。
+
+### 计数改成 Showing N of M
+
+`countObjects()` 单独查总数，对象列表头改成 `共 42,427 个物体，显示 200 个`
+（六语种同步，数字走 `t.number()` 本地化）。
+
+### 验证
+
+- 浏览器实测：`/users` 200，显示身份说明与空状态；`/feedback` 200，显示联系方式与
+  反馈要点；`/objects` 200，头部 `共 42,427 个物体，显示 200 个`。
+- 侧栏现在 11 项（官方 9 项 + 我们自有的编目组与 SOCRATES）。
+- 新增 19 个键 × 6 语种（427 → 446）。
+- `npx tsc --noEmit`、`npm test`（39 套件）、`npm run check`、`npm run check:css` 全过。
+
+### 仍未对齐（记录在案，不在本轮范围）
+
+官方侧栏的 `Users` 是"仅管理员可见"，而本部署的鉴权只有"有没有有效证书"——没有角色
+概念，所以这个页面目前对所有持有证书的调用方可见。要做成真正的管理员视图，得先引入角色
+模型，那是鉴权设计变更，不是加一个页面。
+
 ## [0.1.53] - 2026-10-30
 
 实现限流：`api-keys.md` 承诺的 HTTP 503 之前只是个没被调用过的函数。

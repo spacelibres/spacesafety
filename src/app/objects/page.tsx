@@ -2,12 +2,13 @@ import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
-import { listObjects } from "@/lib/queries";
+import { countObjects, listObjects } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function ObjectsPage() {
   const rows = listObjects(200);
+  const total = countObjects();
   const t = await getTranslator();
 
   return (
@@ -17,7 +18,7 @@ export default async function ObjectsPage() {
         <div className="page-head">
           <h1 className="page-title">{t.t("objectsPage.title")}</h1>
           <span className="count">
-            {t.t("objectsPage.showingCount", { count: rows.length })}
+            {t.t("objectsPage.showingCount", { shown: t.number(rows.length), total: t.number(total) })}
           </span>
         </div>
 
