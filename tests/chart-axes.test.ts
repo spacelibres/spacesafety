@@ -14,6 +14,8 @@
 import { execFileSync } from "node:child_process";
 
 import { logDomain, logTicks, logToY } from "../src/components/chart-axes";
+import { chartTheme } from "../src/lib/vi/theme-bridge";
+import { contrastRatio, ELECTRIC_ORBIT } from "../src/lib/vi/palette";
 
 let pass = 0;
 let fail = 0;
@@ -121,6 +123,40 @@ console.log("\nAxis — the real component renders");
     out.split("\n").filter((l) => l.startsWith("fixtures rendered")).join("").trim(),
   );
 }
+
+
+// ---------------------------------------------------------------- chart theme
+// The SVG charts used to carry their own dark-mode hexes (#2ec27e, #6b6b6b …),
+// which survived a switch to the light theme and had never been measured for
+// contrast. Every role now comes from the palette, so these assertions hold for
+// both modes by construction.
+const dark = chartTheme(ELECTRIC_ORBIT, "dark");
+const light = chartTheme(ELECTRIC_ORBIT, "light");
+const roles = Object.keys(dark) as Array<keyof typeof dark>;
+
+const isColour = (v: string) => /^#[0-9a-fA-F]{6}$/.test(v) || /^rgba\(\d+, \d+, \d+, [\d.]+\)$/.test(v);
+check("图表主题的每个角色都是颜色值", roles.every((r) => isColour(dark[r])), roles.join(","));
+
+check(
+  "深浅两套主题的图表颜色不同",
+  roles.every((r) => dark[r] !== light[r]),
+  roles.filter((r) => dark[r] === light[r]).join(","),
+);
+
+// Only the roles that carry meaning as text or as a mark are measured; the frame
+// and the guides are decorative lines, and `okDim` is an alpha fill.
+check(
+  "文字与数据色在两套背景上都达到 4.5:1",
+  (["series", "ok", "danger", "label", "reference"] as const).every(
+    (r) => contrastRatio(dark[r], ELECTRIC_ORBIT.deep) >= 4.5 && contrastRatio(light[r], ELECTRIC_ORBIT.surface) >= 4.5,
+  ),
+  `dark label=${contrastRatio(dark.label, ELECTRIC_ORBIT.deep).toFixed(2)} light label=${contrastRatio(light.label, ELECTRIC_ORBIT.surface).toFixed(2)}`,
+);
+
+check(
+  "状态色取自调色板而不是另造一套",
+  dark.ok !== dark.danger && dark.ok !== dark.series,
+);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

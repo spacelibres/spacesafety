@@ -9,6 +9,7 @@
  */
 
 import type { Translator } from "@/lib/i18n";
+import { useChartTheme } from "@/lib/vi/theme-bridge";
 import { useTranslator } from "@/lib/i18n/client";
 
 import { logDomain, logTicks, logToY } from "./chart-axes";
@@ -42,6 +43,7 @@ export function PcHistoryChart({
   translator?: Translator;
 }) {
   const t = useTranslator(translator);
+  const theme = useChartTheme();
   const W = 760;
   const H = 240;
   const PAD = { l: 56, r: 16, t: 16, b: 34 };
@@ -93,14 +95,14 @@ export function PcHistoryChart({
               x2={W - PAD.r}
               y1={yy}
               y2={yy}
-              stroke="#262626"
+              stroke={theme.axis}
               strokeWidth="1"
             />
             <text
               x={PAD.l - 8}
               y={yy + 4}
               textAnchor="end"
-              fill="#6b6b6b"
+              fill={theme.label}
               fontSize="10"
               fontFamily="ui-monospace, monospace"
             >
@@ -110,7 +112,7 @@ export function PcHistoryChart({
         );
       })}
 
-      <path d={path} fill="none" stroke="#2ec27e" strokeWidth="1.5" />
+      <path d={path} fill="none" stroke={theme.ok} strokeWidth="1.5" />
 
       {points.map((p, i) =>
         p.pc && p.pc > 0 ? (
@@ -119,8 +121,8 @@ export function PcHistoryChart({
             cx={x(i)}
             cy={y(p.pc)}
             r={p.isActive ? 3.5 : 2}
-            fill={p.isActive ? "#2ec27e" : "#1d5c3c"}
-            stroke={p.isActive ? "#0a0a0a" : "none"}
+            fill={p.isActive ? theme.ok : theme.okDim}
+            stroke={p.isActive ? theme.stroke : "none"}
             strokeWidth="1"
           />
         ) : null,
@@ -130,12 +132,12 @@ export function PcHistoryChart({
         x={W / 2}
         y={H - 8}
         textAnchor="middle"
-        fill="#6b6b6b"
+        fill={theme.label}
         fontSize="10"
       >
         {t.t("chart.cdmSequence", { count: points.length })}
       </text>
-      <text x={PAD.l - 44} y={PAD.t + innerH / 2} fill="#6b6b6b" fontSize="10" transform={`rotate(-90 ${PAD.l - 44} ${PAD.t + innerH / 2})`} textAnchor="middle">
+      <text x={PAD.l - 44} y={PAD.t + innerH / 2} fill={theme.label} fontSize="10" transform={`rotate(-90 ${PAD.l - 44} ${PAD.t + innerH / 2})`} textAnchor="middle">
         {t.t("conjunction.pc")}
       </text>
     </svg>
@@ -151,6 +153,7 @@ export function TinyBars({
   height?: number;
 }) {
   const max = Math.max(1, ...data.map((d) => d.value));
+  const theme = useChartTheme();
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height }}>
       {data.map((d) => (
@@ -158,11 +161,11 @@ export function TinyBars({
           <div
             style={{
               height: Math.max(2, (d.value / max) * (height - 18)),
-              background: d.color ?? "#4da3ff",
+              background: d.color ?? theme.series,
               borderRadius: 2,
             }}
           />
-          <div style={{ fontSize: 9, color: "#6b6b6b", marginTop: 3 }}>
+          <div style={{ fontSize: 9, color: theme.label, marginTop: 3 }}>
             {d.label}
           </div>
         </div>

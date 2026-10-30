@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import type { OrbitalElements } from "@/lib/core/kinematics";
+import { useChartTheme } from "@/lib/vi/theme-bridge";
 import { useTranslator } from "@/lib/i18n/client";
 
 export interface ElementSample {
@@ -28,6 +29,7 @@ type MetricKey = (typeof METRICS)[number]["key"];
  */
 export function ElementsChart({ series }: { series: ElementSample[] }) {
   const t = useTranslator();
+  const theme = useChartTheme();
   const [metric, setMetric] = useState<MetricKey>("smaAltitudeKm");
   const meta = METRICS.find((m) => m.key === metric)!;
 
@@ -86,14 +88,14 @@ export function ElementsChart({ series }: { series: ElementSample[] }) {
               x2={W - PAD.r}
               y1={y(v)}
               y2={y(v)}
-              stroke="#262626"
+              stroke={theme.axis}
               strokeWidth="1"
             />
             <text
               x={PAD.l - 8}
               y={y(v) + 4}
               textAnchor="end"
-              fill="#6b6b6b"
+              fill={theme.label}
               fontSize="9.5"
               fontFamily="ui-monospace, monospace"
             >
@@ -102,11 +104,11 @@ export function ElementsChart({ series }: { series: ElementSample[] }) {
           </g>
         ))}
 
-        <path d={path} fill="none" stroke="#4da3ff" strokeWidth="1.2" />
+        <path d={path} fill="none" stroke={theme.series} strokeWidth="1.2" />
 
         {values.map((v, i) =>
           i % Math.max(1, Math.floor(values.length / 120)) === 0 ? (
-            <circle key={i} cx={x(i)} cy={y(v)} r="1.1" fill="#4da3ff" opacity="0.75" />
+            <circle key={i} cx={x(i)} cy={y(v)} r="1.1" fill={theme.series} opacity="0.75" />
           ) : null,
         )}
 
@@ -118,7 +120,7 @@ export function ElementsChart({ series }: { series: ElementSample[] }) {
               x={x(idx)}
               y={H - 10}
               textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"}
-              fill="#6b6b6b"
+              fill={theme.label}
               fontSize="9.5"
             >
               {shortDate(t)}
@@ -130,7 +132,7 @@ export function ElementsChart({ series }: { series: ElementSample[] }) {
           x={W / 2}
           y={H - 10}
           textAnchor="middle"
-          fill="#4a4a4a"
+          fill={theme.grid}
           fontSize="9"
         >
           {" "}

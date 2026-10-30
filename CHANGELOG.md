@@ -12,6 +12,65 @@
 
 ---
 
+## [0.1.50] - 2026-10-30
+
+把图表里 31 处自己写死的十六进制色值收回到调色板 —— §9 一直说这件事被拦着，其实没拦。
+
+### 两个图表组件不在 §9 的检查范围内
+
+`checkVi` 只扫 `globals.css` 和 `src/components/cesium/`。于是：
+
+```
+src/components/Charts.tsx          10 处：#262626 #6b6b6b #2ec27e #1d5c3c #0a0a0a #4da3ff …
+src/components/Charts2.tsx         6 处：#262626 #6b6b6b #4da3ff #4a4a4a
+src/components/AccuracyPanels.tsx 15 处：#ff4d5e #2ec27e #3a3a3a #6b6b6b #222 #9a9a9a
+```
+
+这些是**只按深色底挑的**颜色。切到浅色主题后，页面背景、卡片、Cesium 星球都换了，
+只有图表还停在深色配色上 —— 正是 §9.1 说的"第二套未维护的调色板"。而且
+`#2ec27e` / `#ff4d5e` 这对状态色**从未做过对比度测量**，§9.4 要求的 4.5:1 无从谈起。
+
+### 改法
+
+- `theme-bridge.ts` 新增 `ChartTheme` / `chartTheme(palette, mode)` / `useChartTheme()`。
+  十个角色（axis / grid / zero / label / series / ok / okDim / danger / reference / stroke）
+  全部取自 `themeSurfaces()` —— 它本来就已经对状态色跑了 `legibleOn()`，所以图表在两套
+  主题下**天然**达标，不需要另加一列 `if (dark)`。
+- 三个组件改为读角色。`useChartTheme()` 首帧用服务端渲染的 `data-theme`，
+  之后由 `onThemeChange` 跟随切换（与 Cesium 场景同一套机制）。
+- 轴标签用 `textDim` 而不是 `textFaint`：后者实测深色 4.06:1、浅色 2.46:1，
+  达不到小字号要求的 4.5:1。
+
+### 规则补上这一条
+
+`checkVi` 新增：`src/app` 与 `src/components` 下任何 `.tsx`/`.ts` 的字符串里不得出现
+十六进制色值，只有 `palette.ts` 与 `theme-bridge.ts` 例外（它们是颜色的定义层）。
+
+**已验证它能拦住真实故障**：把 `stroke={theme.axis}` 改回 `stroke="#262626"`，
+`npm run check` 报 `[vi] 1 colour literal(s) outside the palette modules`；改回后 `ok`。
+
+### 验证
+
+- `tests/chart-axes.test.ts` **24 passed**（原 20），新增 4 条：每个角色都是合法颜色、
+  深浅两套取值不同（证明主题真的传到了图表）、文字与数据色在两套背景上均 ≥ 4.5:1
+  （实测 label 深 7.04 / 浅 4.57）、状态色不是另造的一套。
+- 组件实测渲染（`renderToStaticMarkup`）已无十六进制字面量，SVG 上是 `#0A2B4D`、
+  `#73787E` 这类来自 `themeSurfaces` 的值。
+- 浏览器冒烟：`/`、`/catalogue`、`/statistics`、`/browse`、`/models` 全部 200、
+  侧栏 208px、首页 globe canvas 存在、控制台 0 错误。
+- `npx tsc --noEmit`、`npm test`（38 套件）、`npm run check`、`npm run check:css` 全过。
+
+### 顺手清掉审计过程留下的脚本
+
+这次审计为了取证写的一次性脚本放在 `.audit/`，其中 5 个（`cjk.ts`、`dock*.mts`、
+`i18n2.mts`）被 `git add -A` 带进了 v0.1.45–v0.1.49。它们不是项目的一部分，
+已从工作区删除并在本版本里提交删除。教训：临时取证脚本要放在仓库之外。
+
+### 已知问题
+
+- 图表只在有轨迹数据时渲染，而本库没有轨迹；本次用组件级渲染取证，没有在真实页面上
+  看到这些图。数据到位后应再看一眼两套主题下的实际效果。
+
 ## [0.1.49] - 2026-10-30
 
 挂上早就写好、却从未挂载的外观/语言面板 —— 在此之前**界面上没有任何主题切换入口**。

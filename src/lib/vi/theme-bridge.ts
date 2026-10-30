@@ -24,6 +24,8 @@
  * three-dimensional view, the logo and the chrome in one step.
  */
 
+import { useEffect, useState } from "react";
+
 import { ELECTRIC_ORBIT, themeSurfaces, toThreeColor, withAlpha, type ViPalette } from "./palette";
 
 export type ThemeMode = "dark" | "light";
@@ -93,6 +95,74 @@ export function sceneTheme(palette: ViPalette, mode: ThemeMode): SceneTheme {
     trackOperator: toThreeColor(palette.primary),
     trackOptical: toThreeColor(palette.accent),
   };
+}
+
+/**
+ * Colours for the SVG charts.
+ *
+ * The charts used to carry their own dark-mode hexes — `#2ec27e` for a series,
+ * `#ff4d5e` for an error band, `#6b6b6b` for axis labels. That is precisely the
+ * "second, unmaintained palette" the VI forbids (§9.1, §9.4): on a light theme the
+ * charts kept a dark canvas' colours, and on a dark theme the status colours were
+ * a hand-picked pair that no contrast measurement had ever seen.
+ *
+ * Every value here comes from `themeSurfaces`, which already applies `legibleOn`
+ * to the status colours, so a chart is legible in both modes by construction.
+ */
+export interface ChartTheme {
+  /** Frame and tick lines. */
+  axis: string;
+  /** Horizontal/vertical guides behind the data. */
+  grid: string;
+  /** The zero line, drawn heavier than the guides. */
+  zero: string;
+  /** Axis labels and tick values. Small text, so it needs 4.5:1, not the faintest ink. */
+  label: string;
+  /** The measured series. */
+  series: string;
+  /** A passing band, and its dimmer fill. */
+  ok: string;
+  okDim: string;
+  /** A failing band / threshold exceedance. */
+  danger: string;
+  /** The theoretical reference curve. */
+  reference: string;
+  /** Marker outline, drawn in the surface colour so dots read as cut out. */
+  stroke: string;
+}
+
+export function chartTheme(palette: ViPalette, mode: ThemeMode): ChartTheme {
+  const surfaces = themeSurfaces(palette, mode);
+  return {
+    axis: surfaces.border,
+    grid: surfaces.border,
+    zero: surfaces.borderStrong,
+    label: surfaces.textDim,
+    series: surfaces.primary,
+    ok: surfaces.success,
+    okDim: withAlpha(surfaces.success, 0.45),
+    danger: surfaces.danger,
+    reference: surfaces.textDim,
+    stroke: surfaces.bg,
+  };
+}
+
+/** The chart theme for the approved palette. */
+export function defaultChartTheme(mode: ThemeMode = "dark"): ChartTheme {
+  return chartTheme(ELECTRIC_ORBIT, mode);
+}
+
+/**
+ * Chart colours that follow the live theme.
+ *
+ * The first render uses the server-rendered `data-theme` so the SVG matches the
+ * page; `onThemeChange` then re-renders on a switcher or OS change. Only client
+ * components may call this — it subscribes to a DOM observer.
+ */
+export function useChartTheme(): ChartTheme {
+  const [theme, setTheme] = useState<ChartTheme>(() => defaultChartTheme(currentMode()));
+  useEffect(() => onThemeChange((mode) => setTheme(defaultChartTheme(mode))), []);
+  return theme;
 }
 
 /** The default theme, dark, from the approved palette. */

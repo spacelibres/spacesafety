@@ -550,8 +550,55 @@ function checkVi(): void {
     }
   }
 
+  // 8d. No component may carry its own colours.
+  //
+  // §9 checks the stylesheet and the 3D scene, which left the SVG charts out: they
+  // held eleven hex literals of their own (#2ec27e, #4d4d4d, #6b6b6b …) and stayed
+  // on dark-mode values after a switch to light. Only the two palette modules may
+  // name a colour; everything else reads one.
+  const colourCarriers = new Set(["palette.ts", "theme-bridge.ts"]);
+  const offenders: string[] = [];
+  const scanColourLiterals = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const name of readdirSync(dir)) {
+      if (name === "node_modules" || name === ".next") continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) {
+        scanColourLiterals(full);
+        continue;
+      }
+      if (!/\.tsx?$/.test(name) || colourCarriers.has(name)) continue;
+      const text = readFileSync(full, "utf8");
+      const sf = ts.createSourceFile(
+        full,
+        text,
+        ts.ScriptTarget.ESNext,
+        true,
+        name.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+      );
+      const visit = (node: ts.Node): void => {
+        if (ts.isStringLiteralLike(node) && /#[0-9a-fA-F]{3,8}\b/.test(node.text)) {
+          const { line } = sf.getLineAndCharacterOfPosition(node.getStart());
+          offenders.push(`${relative(ROOT, full)}:${line + 1}  "${node.text.slice(0, 30)}"`);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(sf);
+    }
+  };
+  scanColourLiterals(join(ROOT, "src", "app"));
+  scanColourLiterals(join(ROOT, "src", "components"));
+  if (offenders.length) {
+    fail(
+      "vi",
+      `${offenders.length} colour literal(s) outside the palette modules:\n    ${offenders
+        .slice(0, 10)
+        .join("\n    ")}`,
+    );
+  }
+
   if (!problems.some((p) => p.check === "vi")) {
-    notes.push("vi: palette, tokens, scene and logo masters consistent");
+    notes.push("vi: palette, tokens, scene, logo masters and components consistent");
   }
 }
 

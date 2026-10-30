@@ -1,6 +1,7 @@
 "use client";
 
 import type { AccuracyReport } from "@/lib/core/accuracy-report";
+import { useChartTheme } from "@/lib/vi/theme-bridge";
 import { chi2Cdf1 } from "@/lib/core/accuracy";
 import { useTranslator } from "@/lib/i18n/client";
 import type { Translator } from "@/lib/i18n";
@@ -118,6 +119,7 @@ function ErrorTimeline({
   nonNegative?: boolean;
 }) {
   const t = useTranslator();
+  const theme = useChartTheme();
   const W = 560;
   const H = 210;
   const PAD = { l: 52, r: 14, t: 14, b: 30 };
@@ -143,7 +145,7 @@ function ErrorTimeline({
             y={y(sigma1 * 3)}
             width={innerW}
             height={Math.abs(y(-sigma1 * 3) - y(sigma1 * 3))}
-            fill="#ff4d5e"
+            fill={theme.danger}
             opacity="0.16"
           />
           <rect
@@ -151,10 +153,10 @@ function ErrorTimeline({
             y={y(sigma1)}
             width={innerW}
             height={Math.abs(y(-sigma1) - y(sigma1))}
-            fill="#2ec27e"
+            fill={theme.ok}
             opacity="0.22"
           />
-          <line x1={PAD.l} x2={W - PAD.r} y1={y(0)} y2={y(0)} stroke="#3a3a3a" strokeWidth="1" />
+          <line x1={PAD.l} x2={W - PAD.r} y1={y(0)} y2={y(0)} stroke={theme.zero} strokeWidth="1" />
         </>
       )}
 
@@ -162,12 +164,12 @@ function ErrorTimeline({
         .filter((v, i, arr) => !nonNegative || i > 0)
         .map((v) => (
           <g key={v}>
-            <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#222" strokeWidth="1" />
+            <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke={theme.grid} strokeWidth="1" />
             <text
               x={PAD.l - 8}
               y={y(v) + 4}
               textAnchor="end"
-              fill="#6b6b6b"
+              fill={theme.label}
               fontSize="9.5"
               fontFamily="ui-monospace, monospace"
             >
@@ -176,18 +178,18 @@ function ErrorTimeline({
           </g>
         ))}
 
-      <path d={path} fill="none" stroke="#2ec27e" strokeWidth="1.3" />
+      <path d={path} fill="none" stroke={theme.ok} strokeWidth="1.3" />
       {points.map((p, i) => (
-        <circle key={i} cx={x(i)} cy={y(p.y)} r="1.6" fill="#2ec27e" />
+        <circle key={i} cx={x(i)} cy={y(p.y)} r="1.6" fill={theme.ok} />
       ))}
 
-      <text x={W / 2} y={H - 8} textAnchor="middle" fill="#6b6b6b" fontSize="9.5">
+      <text x={W / 2} y={H - 8} textAnchor="middle" fill={theme.label} fontSize="9.5">
         {t.t("accuracy.sequenceAxis")}
       </text>
       <text
         x={PAD.l - 38}
         y={PAD.t + innerH / 2}
-        fill="#6b6b6b"
+        fill={theme.label}
         fontSize="9.5"
         textAnchor="middle"
         transform={`rotate(-90 ${PAD.l - 38} ${PAD.t + innerH / 2})`}
@@ -211,6 +213,7 @@ function CdfChart({
   symmetric?: boolean;
 }) {
   const t = useTranslator();
+  const theme = useChartTheme();
   const W = 560;
   const H = 210;
   const PAD = { l: 46, r: 14, t: 14, b: 30 };
@@ -245,12 +248,12 @@ function CdfChart({
     <svg className="sparkline" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={axisLabel}>
       {[0, 0.2, 0.4, 0.6, 0.8, 1].map((p) => (
         <g key={p}>
-          <line x1={PAD.l} x2={W - PAD.r} y1={y(p)} y2={y(p)} stroke="#222" />
+          <line x1={PAD.l} x2={W - PAD.r} y1={y(p)} y2={y(p)} stroke={theme.grid} />
           <text
             x={PAD.l - 8}
             y={y(p) + 4}
             textAnchor="end"
-            fill="#6b6b6b"
+            fill={theme.label}
             fontSize="9.5"
             fontFamily="ui-monospace, monospace"
           >
@@ -260,21 +263,21 @@ function CdfChart({
       ))}
 
       {symmetric && (
-        <line x1={x(0)} x2={x(0)} y1={PAD.t} y2={PAD.t + innerH} stroke="#3a3a3a" strokeDasharray="3 3" />
+        <line x1={x(0)} x2={x(0)} y1={PAD.t} y2={PAD.t + innerH} stroke={theme.zero} strokeDasharray="3 3" />
       )}
 
-      <path d={path} fill="none" stroke="#2ec27e" strokeWidth="1.6" />
+      <path d={path} fill="none" stroke={theme.ok} strokeWidth="1.6" />
       {refPath && (
-        <path d={refPath} fill="none" stroke="#9a9a9a" strokeWidth="1.2" strokeDasharray="5 4" />
+        <path d={refPath} fill="none" stroke={theme.reference} strokeWidth="1.2" strokeDasharray="5 4" />
       )}
 
-      <text x={W / 2} y={H - 8} textAnchor="middle" fill="#6b6b6b" fontSize="9.5">
+      <text x={W / 2} y={H - 8} textAnchor="middle" fill={theme.label} fontSize="9.5">
         {axisLabel}
       </text>
       <text
         x={PAD.l - 34}
         y={PAD.t + innerH / 2}
-        fill="#6b6b6b"
+        fill={theme.label}
         fontSize="9.5"
         textAnchor="middle"
         transform={`rotate(-90 ${PAD.l - 34} ${PAD.t + innerH / 2})`}
