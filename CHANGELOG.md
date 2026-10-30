@@ -12,6 +12,66 @@
 
 ---
 
+## [0.1.59] - 2026-10-30
+
+整页不再滚动：任何页面、任何屏幕尺寸都不出现滚动条。
+
+### 改前实测
+
+14 个页面 × 5 个视口，逐个量 `scrollHeight - clientHeight`：
+
+```
+1440x900   最差纵向溢出 15,493 px  (/models)
+1280x800   最差纵向溢出 20,453 px  (/models)
+1024x768   最差纵向溢出 27,005 px  (/models)
+ 820x700   最差纵向溢出 27,882 px  (/models)
+ 480x800   最差纵向溢出 118,866 px (/models)
+```
+
+横向一直是 0，纵向每页都在滚 —— 文档本身就是滚动容器。
+
+### 改法：应用外壳
+
+- `html, body { height: 100%; overflow: hidden }`，`.app { height: 100dvh }`。
+  用 `dvh` 而不是 `vh`：手机浏览器地址栏出现时可视高度会变小，`vh` 会把几像素内容推到
+  屏幕外，凭空长出一条滚动条。
+- `.main { min-height: 0; height: 100%; overflow: hidden }` —— flex 子项默认 `min-height:auto`
+  会长到内容高度，不显式清零的话上面的 `overflow: hidden` 根本不起作用。
+- `.content { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain }`：
+  内容在自己的区域里滚动，**滚动条隐藏**（`scrollbar-width: none` + `::-webkit-scrollbar`）。
+  滚轮、触控板、键盘仍然可用，只是不画那条滚动条。
+- `.sidebar` 与 `.table-wrap` 同样处理：各自内部滚动、不显示滚动条。
+
+### 新增可复跑的审计：`npm run audit:viewport`
+
+`tools/viewport-audit.ts`：用真实浏览器跑 **14 个页面 × 7 个视口**（1920×1080 → 360×720），
+检查两件事——文档滚动量必须为 0，且**任何允许滚动却没隐藏滚动条的元素**都算失败
+（读 computed style 的 `scrollbar-width`，所以"隐藏了"是真检查，不是量不出来就当通过）。
+
+```
+$ npm run audit:viewport
+  ok   1920x1080
+  ok   1440x900
+  ok   1280x800
+  ok   1024x768
+  ok   820x700
+  ok   480x800
+  ok   360x720
+全部视口无滚动条。
+```
+
+### 验证
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check`、`npm run check:css` 全过；
+`npm run audit:viewport` 7 个视口全绿。
+
+### 取舍（如实记录）
+
+隐藏滚动条会让"这页还能往下滚"失去视觉提示。这里接受它，因为需求明确要求不出现滚动条，
+且外壳本身已经把内容高度限制在视口内——真正的长列表（编目 72,401 行）仍然是分页的，
+内容区滚动只用于短距离溢出。若以后要做成"必须有滚动提示"，可以给内容区加一条
+`scrollbar-color` 细条，而不是恢复默认滚动条。
+
 ## [0.1.58] - 2026-10-30
 
 按 VI 的 **COLOR EXPLORER** 重做色系：**只选一个主色，其余 15 个角色由主色推导**。

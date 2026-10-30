@@ -14,16 +14,48 @@
   box-sizing: border-box;
 }
 
+/*
+ * The document itself never scrolls.
+ *
+ * Every page is an application shell that exactly fills the viewport: the
+ * sidebar and the top bar are fixed, and only the content region scrolls — with
+ * its scrollbar hidden, because a visible bar is the thing this layout exists to
+ * avoid. Keyboard and wheel scrolling still work inside that region, and
+ * `overscroll-behavior: contain` stops the page behind it from rubber-banding.
+ *
+ * `100dvh` rather than `100vh`: on mobile browsers the visible viewport shrinks
+ * when the address bar shows, and `vh` would push a few pixels of content under
+ * it — a scrollbar appearing for no reason.
+ */
 html,
 body {
   margin: 0;
   padding: 0;
+  height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* One place to hide a scrollbar without disabling scrolling. */
+.scroll-hidden,
+.content,
+.sidebar,
+.table-wrap,
+.modal-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scroll-hidden::-webkit-scrollbar,
+.content::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
+  display: none;
 }
 
 a {
@@ -53,7 +85,9 @@ code,
 
 .app {
   display: flex;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* --------------------------------------------------------------- sidebar */
@@ -67,10 +101,10 @@ code,
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .sidebar-brand {
@@ -338,8 +372,11 @@ code,
 .main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .topbar {
@@ -375,8 +412,12 @@ code,
 }
 
 .content {
-  padding: 20px 24px 60px;
+  padding: 20px 24px 32px;
   min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .page-head {
@@ -456,7 +497,9 @@ code,
 /* ------------------------------------------------------------- tables */
 
 .table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  max-width: 100%;
   border-top: 1px solid var(--border);
 }
 
