@@ -67,6 +67,8 @@ export interface SupplementClaim {
   unit: string | null;
   sourceUrl: string;
   sourceType: SourceType;
+  /** Credit line the site's terms require. Stored, not recomputed at render time. */
+  attribution?: string | null;
   quote: string;
   evidenceCount: number;
   corroboration: string[];
@@ -92,6 +94,7 @@ CREATE TABLE IF NOT EXISTS supplement_claim (
   source_url      TEXT NOT NULL,
   source_type     TEXT NOT NULL,
   source_grade    TEXT NOT NULL,
+  attribution     TEXT,
   quote           TEXT NOT NULL,
   retrieved_at    TEXT NOT NULL,
   evidence_count  INTEGER NOT NULL DEFAULT 1,
@@ -179,9 +182,9 @@ export class SupplementStore {
     this.insert = sqlite.prepare(
       `INSERT INTO supplement_claim
          (id, norad_id, cospar_id, object_name, field, value_num, value_text, unit,
-          source_url, source_type, source_grade, quote, retrieved_at,
+          source_url, source_type, source_grade, attribution, quote, retrieved_at,
           evidence_count, corroboration, confidence, verified, verifier, note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
     );
   }
 
@@ -218,6 +221,7 @@ export class SupplementStore {
           claim.sourceUrl,
           claim.sourceType,
           grade,
+          claim.attribution ?? null,
           claim.quote.trim(),
           now,
           claim.evidenceCount,
@@ -264,7 +268,7 @@ export class SupplementStore {
     const rows = this.sqlite
       .prepare(
         `SELECT field, value_num AS valueNum, value_text AS valueText, unit,
-                source_url AS sourceUrl, source_grade AS sourceGrade,
+                source_url AS sourceUrl, source_grade AS sourceGrade, attribution,
                 quote, confidence, evidence_count AS evidenceCount
            FROM supplement_claim WHERE norad_id = ? AND verified = 1
           ORDER BY field, confidence DESC`,

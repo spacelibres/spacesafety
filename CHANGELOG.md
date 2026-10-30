@@ -12,6 +12,55 @@
 
 ---
 
+## [0.1.21] - 2026-10-30
+
+KeepTrack 作为第四个数据源全量本地化，并修掉一处污染 32 410 行的占位值。
+
+### 变更
+
+- **KeepTrack API v4 作为第四源**（`src/lib/sources/keeptrack.ts`）：不再是补充层，
+  与 Space-Track / Spacebook / DISCOS 平级，在宽表中占独立一列，可由用户选择。
+- **`npm run keeptrack:sync`**：一次请求拉全部 50 539 个对象（24 MB，约 5 s），
+  写入 `keeptrack_object` 并归档原始 JSON。全量替换，不做增量合并。
+- 宽表扩至 **131 列**、48.3 MB，四源并列。
+- 抓取白名单补全：NASA / ESA / CNSA / JAXA / ISRO / NOAA / 美天军 / SpaceX / HawkEye 360 /
+  Planet / OneWeb / Spire / ICEYE / BlackSky / FCC / ITU / Gunter's / Wikipedia /
+  SpaceNews / LeoLabs / KeepTrack。
+- 新增 `robots.txt` 检查；Gunter's 的 `aiRAG: allowed-with-attribution-required`
+  在 claim 中写入 `attribution` 字段。
+
+### 修复：Spacebook 占位值污染 32 410 行
+
+实测：**31 879 个碎片**同时具有 `mass=5 kg / HBR=5 m / span=10 m`，为 Spacebook 对
+无物理模型对象的默认填充，其中 **13 024 个在轨**。该值被当作实测数据使用。
+
+构建时现将其从 Spacebook 列清除（读作「无值」而不是「5 kg」）。
+质量覆盖 71 074 → 38 664，但留下的每一条都是真实数据。
+
+### 实测：KeepTrack 的能力与局限
+
+| 字段 | 覆盖（34 110 条有 NORAD 的记录） |
+|---|---|
+| name | 99.7% |
+| manufacturer | 68.3% |
+| shape | 61.0% |
+| bus | 59.9% |
+| launch_mass | 61.0% |
+| span | 61.0% |
+| **source_urls（引用出处）** | **0.3%** |
+
+结论：物理字段覆盖可观，但**几乎不提供引用来源**，因此作为第四源并列展示而非默认采用。
+
+另：50 539 条中有 **16 429 条无 NORAD**（KeepTrack 临时编号 `A0000`），已按 COSPAR
+归档；这批对象几无物理数据（仅 2 条有 manufacturer）。
+
+### 验证
+
+- `tsc --noEmit` 无错误；`npm run check` 全过；`tests/catalogue` 13 项、`tests/supplement` 18 项全过
+- 页面截图核对四源并列显示
+
+---
+
 ## [0.1.20] - 2026-10-30
 
 补充数据层：AI 检索结果单独存放，带完整溯源，不直接进编目库。

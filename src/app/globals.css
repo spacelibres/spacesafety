@@ -705,19 +705,25 @@ table.data a:hover {
   margin-top: 12px;
 }
 
-/* The three-source comparison table. Fixed layout so the three value columns are
-   equal width regardless of content length; without it a long date string in one
-   source column squeezed the other two to nothing. */
+/* The source-comparison table. Fixed layout so the value columns are equal width
+   regardless of content length; without it a long date string in one source column
+   squeezed the others to nothing. Four sources plus a field name and a choice column
+   no longer fit at 22%, so the field column is narrower and the values share the rest. */
 table.data.wide {
   table-layout: fixed;
 }
 table.data.wide th:first-child,
 table.data.wide td:first-child {
-  width: 22%;
+  width: 17%;
 }
 table.data.wide th:last-child,
 table.data.wide td:last-child {
-  width: 130px;
+  width: 110px;
+}
+/* Long object names in one source column must not push the row wider than the card. */
+table.data.wide td {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* The value currently in use. Weight, not colour alone: the source is also named
    in the last column, and colour-only emphasis is lost on a colour-blind reader. */

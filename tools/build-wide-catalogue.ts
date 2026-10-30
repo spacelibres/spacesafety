@@ -27,7 +27,7 @@
  * Run: npx tsx tools/build-wide-catalogue.ts
  */
 
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import Database from "better-sqlite3";
@@ -197,6 +197,59 @@ function loadDiscos(): SourceLoad {
   return { id: "discos", label: "ESA DISCOSweb（欧空局）", rows: out };
 }
 
+/**
+ * KeepTrack, from the local table produced by `npm run keeptrack:sync`.
+ *
+ * Read from the database rather than the API: the sync archives the full response
+ * and writes one row per object, so the wide build stays reproducible without a
+ * network call and without depending on what the API returns today.
+ */
+function loadKeepTrack(): SourceLoad {
+  const out = new Map<number, Row>();
+  if (!existsSync("data/catalogue.sqlite")) {
+    console.log(`    （未找到 data/catalogue.sqlite，跳过 KeepTrack）`);
+    return { id: "keeptrack", label: "KeepTrack", rows: out };
+  }
+  const db = new Database("data/catalogue.sqlite", { readonly: true });
+  const exists = db
+    .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='keeptrack_object'")
+    .get() as { n: number };
+  if (!exists.n) {
+    db.close();
+    console.log(`    （keeptrack_object 不存在，先运行 npm run keeptrack:sync）`);
+    return { id: "keeptrack", label: "KeepTrack", rows: out };
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT norad_id AS noradId, name, manufacturer, bus, shape,
+              launch_mass_kg AS mass, dry_mass_kg AS dryMass,
+              length_m AS length, diameter_m AS diameter, span_m AS span,
+              motor, owner, country, launch_date AS launchDate, source
+         FROM keeptrack_object WHERE norad_id > 0`,
+    )
+    .all() as Array<Record<string, unknown>>;
+  db.close();
+
+  for (const r of rows) {
+    out.set(Number(r.noradId), new Map<string, string | number | null>([
+      ["name", txt(r.name as string)],
+      ["object_class", null],
+      ["country", txt(r.country as string)],
+      ["launch_date", txt(r.launchDate as string)],
+      ["mass_kg", num(String(r.mass ?? ""))],
+      ["dry_mass_kg", num(String(r.dryMass ?? ""))],
+      ["length_m", num(String(r.length ?? ""))],
+      ["diameter_m", num(String(r.diameter ?? ""))],
+      ["span_m", num(String(r.span ?? ""))],
+      ["manufacturer", txt(r.manufacturer as string)],
+      ["bus", txt(r.bus as string)],
+      ["shape", txt(r.shape as string)],
+    ]));
+  }
+  return { id: "keeptrack", label: "KeepTrack（keeptrack.space）", rows: out };
+}
+
 // ------------------------------------------------------------ default pick
 
 /**
@@ -284,7 +337,24 @@ const FIELDS: Array<{ key: string; type: "text" | "real" }> = [
   { key: "length_m", type: "real" },
 ];
 
-const SOURCES = ["spacetrack", "spacebook", "discos"] as const;
+const SOURCES = ["spacetrack", "spacebook", "discos", "keeptrack"] as const;
+
+/**
+ * Spacebook columns that carry its placeholder triplet.
+ *
+ * Only the fields that form the triplet are cleared. `name`, `manufacturer` and the
+ * launch record are not defaults and stay as they are.
+ */
+const PLACEHOLDER_FIELDS = new Set([
+  "mass_kg",
+  "dry_mass_kg",
+  "hard_body_radius_m",
+  "cross_section_avg_m2",
+  "span_m",
+  "diameter_m",
+  "length_m",
+  "ballistic_coefficient",
+]);
 
 function main(): void {
   const st = loadSpaceTrack();
@@ -312,11 +382,30 @@ function main(): void {
     const values: Record<string, Record<string, string | number | null>> = {};
     const chosen: Record<string, string | null> = {};
 
+    /**
+     * Spacebook's placeholder for an object it has no physical model for.
+     *
+     * Measured: 31 879 debris objects share exactly mass 5 kg, hard-body radius 5 m
+     * and span 10 m. A real fragment is not 5 kg and 10 m wide; 13 024 of them are
+     * still in orbit. Leaving it in the mass column would put a fabricated value into
+     * 32 410 rows, and any consumer computing a collision cross-section would use it
+     * as if it were measured.
+     *
+     * The value is cleared rather than flagged in place: a cleared cell correctly
+     * reads as "no value", while a flagged cell still invites a consumer to use it.
+     */
+    const sbValues = sb.rows.get(norad);
+    const spacebookPlaceholder =
+      sbValues !== undefined &&
+      sbValues.get("mass_kg") === 5 &&
+      sbValues.get("hard_body_radius_m") === 5;
+
     for (const { key } of FIELDS) {
       values[key] = {};
       const present: string[] = [];
       for (const s of all) {
-        const v = s.rows.get(norad)?.get(key) ?? null;
+        let v = s.rows.get(norad)?.get(key) ?? null;
+        if (spacebookPlaceholder && s.id === "spacebook" && PLACEHOLDER_FIELDS.has(key)) v = null;
         values[key][s.id] = v;
         if (v !== null && v !== "") present.push(s.id);
       }

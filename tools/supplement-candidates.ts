@@ -93,6 +93,9 @@ function main(): void {
          FROM catalogue_wide
         WHERE decay_date__spacetrack IS NULL
           AND object_class__spacetrack IN ('PAYLOAD', 'ROCKET BODY', 'UNKNOWN', '')
+          -- Mirrors the window used by the crawler: too new and no reference work has
+          -- written it up yet, too old and any write-up was already ingested.
+          AND launch_date__spacetrack IS NOT NULL
         ORDER BY launch_date__spacetrack DESC`,
     )
     .all() as Array<Record<string, unknown> & { objectClass: string }>;
@@ -128,8 +131,35 @@ function main(): void {
     console.log(`    ${f.padEnd(16)} ${String(n).padStart(6)}`);
   }
 
-  const selected = candidates.slice(0, limit);
-  console.log(`\n  本次候选（按发射日期倒序，取 ${selected.length} 个）：`);
+  /**
+   * Prefer the window where documentation exists but our catalogue still lacks it.
+   *
+   * Measured against a run of the 5 most recent objects: all five 404'd on every
+   * reference site, because a satellite launched last week has not been written up
+   * anywhere yet. Below ~3 months there is nothing to find; above ~5 years the
+   * write-ups were already ingested by the three catalogues. The window between is
+   * where a crawl actually produces corroborated values.
+   */
+  const now = Date.now();
+  const monthsSince = (iso: string | null): number | null => {
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return null;
+    return (now - t) / (30.44 * 864e5);
+  };
+
+  const ranked = [...candidates].sort((a, b) => {
+    const score = (c: Candidate): number => {
+      const m = monthsSince(c.launchDate);
+      if (m === null) return 1e9; // unknown launch date sorts last
+      if (m >= 3 && m <= 60) return Math.abs(m - 18); // best around 18 months
+      return m < 3 ? 1e6 + (3 - m) * 10 : 1e5 + (m - 60) * 10;
+    };
+    return score(a) - score(b);
+  });
+
+  const selected = ranked.slice(0, limit);
+  console.log(`\n  本次候选（按可查到资料的窗口排序，取 ${selected.length} 个）：`);
   for (const c of selected.slice(0, 15)) {
     console.log(
       `    ${String(c.noradId).padStart(6)}  ${String(c.name ?? "—").slice(0, 24).padEnd(26)} ${String(c.launchDate ?? "—").padEnd(12)} 缺 ${c.missing.join(",")}`,

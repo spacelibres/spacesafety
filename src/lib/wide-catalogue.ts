@@ -20,13 +20,14 @@
 import { getDb } from "@/db";
 
 /** The three catalogues, in the order the UI displays them. */
-export const SOURCE_IDS = ["spacetrack", "spacebook", "discos"] as const;
+export const SOURCE_IDS = ["spacetrack", "spacebook", "discos", "keeptrack"] as const;
 export type SourceId = (typeof SOURCE_IDS)[number];
 
 export const SOURCE_LABELS: Record<SourceId, { short: string; long: string }> = {
   spacetrack: { short: "Space-Track", long: "Space-Track（美国太空军）" },
   spacebook: { short: "Spacebook", long: "Spacebook（AGI/STK + ComSpoc）" },
   discos: { short: "DISCOS", long: "ESA DISCOSweb（欧空局）" },
+  keeptrack: { short: "KeepTrack", long: "KeepTrack（keeptrack.space）" },
 };
 
 /** Every field the wide table carries. Must match the build script's FIELDS. */
