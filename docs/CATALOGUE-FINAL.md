@@ -6,6 +6,7 @@
 
 其他 `docs/CATALOGUE-*.md`、`docs/KEEPTRACK-*.md`、`docs/WIDE-CATALOGUE.md`
 是各自测量时刻的分析记录，**不是定稿**；与本文件冲突时以本文件为准。
+全部已知缺口的索引见 [`docs/GAPS.md`](GAPS.md)。
 
 ---
 

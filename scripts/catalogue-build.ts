@@ -120,6 +120,25 @@ function copyTable(
   return count(target, "src", table);
 }
 
+/** Tables present in `target` that the source database does not have. */
+function foreignTables(target: string, source: string): string[] {
+  if (!existsSync(target)) return [];
+  const namesOf = (path: string): Set<string> => {
+    const db = new Database(path, { readonly: true });
+    try {
+      const rows = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+        .all() as Array<{ name: string }>;
+      return new Set(rows.map((r) => r.name));
+    } finally {
+      db.close();
+    }
+  };
+  const targetTables = namesOf(target);
+  const sourceTables = namesOf(source);
+  return [...targetTables].filter((name) => !sourceTables.has(name)).sort();
+}
+
 function main(): void {
   const { source, out, verifyOnly } = parseArgs(process.argv.slice(2));
 
@@ -129,6 +148,25 @@ function main(): void {
   }
 
   if (!verifyOnly) {
+    // Guard: the rebuild copies a fixed set of tables out of the working database,
+    // so anything that lives *only* in the target is destroyed. On 2026-10-30 that
+    // silently deleted the KeepTrack tables (35 203 rows — `keeptrack:sync` writes
+    // to this file, not to the working database) and reset the event tables.
+    //
+    // Refusing is the honest fix: the tool exists to publish a small catalogue
+    // database, and losing sources to do that is never the intent. Run it against a
+    // fresh path (`--out`) instead.
+    const dropped = foreignTables(out, source);
+    if (dropped.length) {
+      console.error(
+        `\n  拒绝重建：\`${out}\` 里有 ${dropped.length} 张表不在源库中，重建会把它们删掉：\n` +
+          `    ${dropped.join(", ")}\n\n` +
+          "  These tables are not copied by this tool. Either\n" +
+          "    · pass --out <new path> to build next to the current database, or\n" +
+          "    · re-create them afterwards (e.g. npm run keeptrack:sync && npm run keeptrack:feeds).\n",
+      );
+      process.exit(1);
+    }
     rmSync(out);
 
     console.log(`\n  源：${source}  ${(statSync(source).size / 1e9).toFixed(1)} GB`);

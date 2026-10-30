@@ -117,10 +117,15 @@ npm run data:schedule -- --once     # 跑一轮（systemd timer 调的就是这�
 npm run data:schedule -- --loop     # 常驻，每 10 分钟自检一次
 ```
 
-systemd 用户级 timer（已安装，10 分钟自检一次）：
+**开发期不装自动调度**（2026-10-30 决定）：后台自动改数据会让本地测试状态不可控。
+需要时手动 `npm run data:schedule -- --once`。
+
+上线时再启用 systemd 用户级 timer（unit 文件已备好）：
 
 ```bash
-systemctl --user list-timers spacesafety-data.timer
+systemctl --user link "$PWD/deploy/systemd/spacesafety-data.service"
+systemctl --user link "$PWD/deploy/systemd/spacesafety-data.timer"
+systemctl --user enable --now spacesafety-data.timer
 journalctl --user -u spacesafety-data -f
 ```
 
@@ -136,7 +141,7 @@ journalctl --user -u spacesafety-data -f
 | DISCOS | 10-29 18:39 | 不定期 |
 | KeepTrack | 10-30 11:29 | 每日 |
 
-**目前没有任何自动调度**，全靠手动运行脚本。每日流程见 `docs/CATALOGUE-FINAL.md` §七，
+**开发期不装调度**，靠手动运行脚本（上线时用 `deploy/systemd/` 的 timer）。每日流程见 `docs/CATALOGUE-FINAL.md` §七，
 **不要**把 `npm run catalogue:build` 放进这条流程：它会用工作库重建 `catalogue.sqlite`，
 而 `keeptrack_object` 等表只存在于 `catalogue.sqlite`，重建后即丢失（2026-10-30 实测踩到）。
 `catalogue:build` 是"生成对外发布用的小库"，不是每日刷新的步骤。

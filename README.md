@@ -3,9 +3,9 @@
 仿制 `space-safety.starlink.com` 的卫星轨道安全与交会筛查平台。
 API 名称、数据结构与服务行为与原站一致；实现与部署方式是我们自己的。
 
-当前版本 **0.1.64** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本 **0.1.65** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-> **版本规则**：每次迭代只递增补丁号（`0.1.64` → `0.1.65` → …），
+> **版本规则**：每次迭代只递增补丁号（`0.1.65` → `0.1.66` → …），
 > 并同步更新 `package.json`、`package-lock.json`、git tag 与 `CHANGELOG.md`。
 > 提交前请确认这四处一致。
 
@@ -167,11 +167,11 @@ npm run worker
 
 ```
 $ npm test
-…（38 个套件，每个套件独立进程）…
-All 38 suites passed.
+…（40 个套件，每个套件独立进程）…
+All 40 suites passed.
 ```
 
-38 个套件、786 条断言。套件清单由 `tests/*.test.ts` 自动发现，
+40 个套件、825 条断言。套件清单由 `tests/*.test.ts` 自动发现，
 新增测试文件无需再登记（登记名单曾是手写的，因此漏跑过两个套件）。
 
 ## 压测

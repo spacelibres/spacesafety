@@ -12,6 +12,70 @@
 
 ---
 
+## [0.1.65] - 2026-10-30
+
+停掉开发期的自动调度，建立**缺口清单**，并补上两处数据链路的真实缺口。
+
+### 停掉自动调度（开发期）
+
+按你的要求不装系统级启动；用户级 timer 也一并停用并移出 `~/.config/systemd/user`
+（`deploy/systemd/` 里的 unit 文件保留，上线时 link 一下就启用）。理由写进
+`docs/DATA-SOURCES.md`：**后台自动改数据会让本地测试状态不可控**。
+需要时手动 `npm run data:schedule -- --once`。
+
+### 新增 `docs/GAPS.md`：所有缺口的唯一索引
+
+分四类，每条都带状态与理由：
+
+- **数据缺口（不补，5 条）**：轨道类型 UNKNOWN 523、在轨硬体半径缺失 1,539、分类 UNKNOWN 1,317、
+  已再入对象物理量缺失 32,198、分析型目标无身份 1,112 —— 全部是定稿决定，**禁止用猜测值填充**。
+- **已补的（13 条）**：逐条列出补法与验证命令（本会话 0.1.51–0.1.64 做的事都在里面）。
+- **待定（7 条）**：`<title>` 在 body、`master:build` 依赖库布局、限流进程内、Users 非管理员、
+  v1 列表字段是我们定的、账本与归档可能不一致、开发期无调度。
+- **尚未触及的源**：LeoLabs、CelesTrak、Spacebook 两个空端点、三维模型不参与每日刷新。
+
+### 缺口 G1：`object_field_claim` 空表 —— 补上了
+
+文档一直说"合并流程从未调用它，实测 0 行"。查代码后确认**它其实会写**：
+`master-merge.ts` 无条件 `INSERT OR REPLACE`。真正的原因是 **`master:build` 在当前数据上
+从没跑过**。跑一次后：
+
+```
+object_field_claim  0 → 2,632,777 行
+master_object       72,311（不变）
+master_conflict     53
+```
+
+### 缺口 G2：`catalogue:build` 静默删表 —— 现在会拒绝
+
+上次踩到它删 KeepTrack（35,203 行）后，我以为是"只丢 KeepTrack"。加了保护再跑一次，
+它把完整清单打出来了：**14 张表**只存在于目标库、重建即被删——
+
+```
+discos_fragmentation · earth_orientation · keeptrack_conjunction · keeptrack_launch_stat
+keeptrack_object · keeptrack_reentry · keeptrack_upcoming_launch · launch_site
+object_classification · space_track_boxscore · space_track_cdm_public · space_track_decay
+space_track_tip · space_weather
+```
+
+也就是说，除了 KeepTrack，**分类表和全部事件表也会被删**。现在工具先检测后拒绝，
+并把表名与两条出路（`--out` 到新路径 / 事后重建）一起打印出来。**静默数据丢失变成明确拒绝。**
+
+### 一处需要说明的副作用
+
+在应用库跑 `master:build` 后 `master_element_set` 32,823 → 0、`derived_state` 390,884 → 216,933：
+单文件布局没有挂载星历库，星历选择自然是空的。已核实：**应用侧没有任何代码读这两张表**
+（`master_object` 才是页面用的那张，仍是 72,311 行），所以 UI 无影响；记在 GAPS.md 的 P2。
+
+### 文档一致性
+
+- `docs/DATA-SOURCES.md`：调度章节改为"开发期不装"，并给出上线时的启用命令；
+- `docs/CATALOGUE-FINAL.md`：开头指向 `docs/GAPS.md`；
+- `docs/CATALOGUE-GAPS.md`：核查基准更新到 10-30 / 72,402 行；
+- `README.md`：测试数字 38 套件/786 断言 → **40 套件/825 断言**。
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check` 全过。
+
 ## [0.1.64] - 2026-10-30
 
 按**每个站点自己的更新频率**调度三个编目源，并装上 systemd timer 让它自己跑。
