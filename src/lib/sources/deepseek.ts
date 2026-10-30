@@ -62,6 +62,21 @@ const SYSTEM = `你是一个严谨的航天数据抽取器。
 6. quote 必须是原文中连续的一段，不得改写、拼接或翻译。
 7. 如果原文用不同语言书写，quote 保持原文语言，不要翻译。
 
+## 关于「整批适用」的说明（重要）
+
+网页常常描述**一个型号或一个星座**，而不是单颗卫星。例如原文可能写：
+
+    Contractor: SpaceX      （适用于整个 Starlink 星座）
+    Mass: 260 kg            （适用于 Starlink v1.5 批次）
+
+如果原文明确说明某参数适用于**整个型号/星座/批次**，而目标对象属于该型号，
+那么这条信息可以用于该对象。但必须满足全部条件：
+- 原文明确写出了这是型号级参数（如出现在型号介绍段、参数表、或「all satellites」等表述中）
+- 目标对象确实属于该型号（名称或 COSPAR 能对上）
+- quote 仍然逐字复制，不得改写
+
+如果原文只是报道某次发射、或只提到个别卫星，不得套用到其他卫星。
+
 只输出 JSON，不要任何解释。`;
 
 const SCHEMA_HINT = `输出格式：
@@ -89,11 +104,15 @@ export async function extractField(
   // page plus the instructions comfortably inside it.
   const text = req.pageText.slice(0, 40_000);
 
-  const user = `对象：${req.objectName}${req.cosparId ? `（COSPAR ${req.cosparId}）` : ""}${
+  const user = `目标对象：${req.objectName}${req.cosparId ? `（COSPAR ${req.cosparId}）` : ""}${
     req.noradId ? `（NORAD ${req.noradId}）` : ""
   }
 要抽取的字段：${req.field}
 字段含义：${req.fieldHint}
+
+注意：下级原文可能描述的是**整个型号/星座**而非这一颗卫星。
+若原文明确给出了适用于整个型号的参数，且该对象属于该型号，可以采用（见系统提示）。
+若原文只涉及其他个体、或根本未提及该参数，返回 null。
 
 网页原文（来源 ${req.sourceUrl}）：
 """

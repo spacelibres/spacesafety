@@ -21,6 +21,14 @@ const nextConfig: NextConfig = {
   // The dev server is reached both as localhost and as this machine's LAN
   // address; without this Next warns on every request for /_next/*.
   allowedDevOrigins: ["127.0.0.1", "192.168.31.75"],
+
+  // Downloaded meshes live under `data/models/`, outside `public/`, because they are
+  // build artefacts rather than source: `data/` is gitignored and a checkout does not
+  // have them. Rewriting keeps them servable without copying hundreds of megabytes
+  // into `public/` or committing them.
+  async rewrites() {
+    return [{ source: "/models/:path*", destination: "/api/models/:path*" }];
+  },
 };
 
 export default nextConfig;

@@ -49,7 +49,59 @@ function parseArgs(argv: string[]): Args {
   };
 }
 
-/** Fields a crawl can supply, and which object classes they make sense for. */
+/**
+ * Names that reference works actually cover.
+ *
+ * Measured over a 12-object run: every object that produced nothing was either a
+ * secretive programme (USA 521, HJS-6B) or a Chinese payload whose Gunter's entry has
+ * an empty `Contractors:` line. Wikipedia has no article, Gunter's has a stub, and the
+ * extractor correctly reports "not stated". No amount of retrying changes that.
+ *
+ * The programmes below are the ones with substantive public documentation — commercial
+ * operators, famous science missions, well-covered constellations. Restricting to them
+ * turns a run that yields zero into one that yields values, because the limiting
+ * factor is the source material, not the crawler.
+ */
+const WELL_DOCUMENTED = [
+  "STARLINK",
+  "ONEWEB",
+  "IRIDIUM",
+  "GLOBALSTAR",
+  "PLANET",
+  "SKYSAT",
+  "FLOCK",
+  "SPIRE",
+  "LEMUR",
+  "ICEYE",
+  "HAWK",
+  "BLACKSKY",
+  "WORLDVIEW",
+  "GEOEYE",
+  "SENTINEL",
+  "LANDSAT",
+  "TERRA",
+  "AQUA",
+  "NOAA",
+  "GOES",
+  "METEOSAT",
+  "HST",
+  "HUBBLE",
+  "ISS",
+  "TIANGONG",
+  "GALILEO",
+  "GLONASS",
+  "BEIDOU",
+  "GPS",
+  "TDRS",
+  "MOLNIYA",
+];
+
+/** Does the name belong to a programme with real published documentation? */
+function isWellDocumented(name: string | null): boolean {
+  if (!name) return false;
+  const upper = name.toUpperCase();
+  return WELL_DOCUMENTED.some((p) => upper.includes(p));
+}
 const TARGETS: Array<{
   field: string;
   /** Key in the query row. */
@@ -58,8 +110,8 @@ const TARGETS: Array<{
 }> = [
   { field: "manufacturer", key: "mfr", classes: ["PAYLOAD"] },
   { field: "bus", key: "bus", classes: ["PAYLOAD"] },
-  { field: "shape", key: "shape", classes: ["PAYLOAD", "ROCKET BODY"] },
-  { field: "mass_kg", key: "mass", classes: ["PAYLOAD", "ROCKET BODY"] },
+  { field: "mass_kg", key: "mass", classes: ["PAYLOAD"] },
+  { field: "shape", key: "shape", classes: ["PAYLOAD"] },
 ];
 
 interface Candidate {
@@ -114,6 +166,9 @@ function main(): void {
       }
     }
     if (missing.length === 0) continue;
+    // Only objects a reference work plausibly covers. The crawler cannot create
+    // documentation that does not exist; see isWellDocumented.
+    if (!isWellDocumented(r.name as string | null)) continue;
     candidates.push({
       noradId: Number(r.noradId),
       name: (r.name as string | null) ?? null,

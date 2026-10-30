@@ -750,6 +750,55 @@ table.data td.is-absent {
   color: var(--text-faint);
 }
 
+/* ------------------------------------------------------- 3D model library */
+
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+.model-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev-1);
+}
+/* A fixed aspect ratio keeps the grid from reflowing while previews load. */
+.model-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: var(--bg-elev-2);
+  border-radius: 2px;
+}
+.model-thumb-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg-elev-2),
+    var(--bg-elev-2) 8px,
+    var(--bg-elev-1) 8px,
+    var(--bg-elev-1) 16px
+  );
+}
+.model-meta {
+  min-height: 34px;
+}
+.model-name {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--text);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.model-sub {
+  margin-top: 2px;
+}
+
 .banner {
   display: flex;
   align-items: center;

@@ -77,42 +77,79 @@ const FIELD_HINTS: Record<string, string> = {
 };
 
 /**
- * Sites likely to describe an object.
+ * Strip a constellation's sequence number to get the programme name.
  *
- * Two strategies, because the sources differ in kind. Wikipedia has a search API,
- * so its page for an object is found rather than guessed. Gunter's uses a
- * predictable per-series path, so a guess costs one 404 and needs no API. The
- * remaining domains are only reachable once a specific article URL is known, which
- * is what the Wikipedia result usually supplies in its reference list.
+ * `STARLINK-38128` → `STARLINK`, `ONEWEB-0123` → `ONEWEB`. Reference works cover the
+ * programme, not the individual satellite: no site has a page for STARLINK-38128, but
+ * several state that Starlink satellites are built by SpaceX on the Starlink bus.
+ * Searching the full catalogue name finds nothing.
+ */
+function programmeName(name: string): string {
+  return name
+    .replace(/\s*[-_\s]?\d+[A-Z]?$/i, "")
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .trim();
+}
+
+/**
+ * Pages likely to describe an object.
+ *
+ * Three strategies, tried in order of how often they succeed:
+ *
+ *   1. Wikipedia search API — the only source with a search endpoint that returns a
+ *      title, so the page is found rather than guessed. Searched by programme name:
+ *      the individual catalogue number never has an article, the constellation does.
+ *   2. Gunter's Space Page — predictable per-series path (`doc_sdat/<slug>.htm`), so a
+ *      guess costs one 404. Its pages state operator, contractor and mass in a table.
+ *   3. The programme page again on Gunter's, since it files a whole constellation under
+ *      one slug (`hjs`, `hawk-15a`) rather than one per satellite.
  */
 async function candidateUrls(c: Candidate): Promise<string[]> {
   const urls: string[] = [];
   const name = c.name ?? "";
   if (!name) return urls;
 
-  // Wikipedia: search by the object's own name, which is how its article would be
-  // titled. `srsearch` with `srlimit=1` returns the best match.
-  try {
-    const q = encodeURIComponent(`${name} satellite`);
-    const res = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${q}&srlimit=1&format=json`,
-      { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "spacesafety/0.1 (catalogue research)" } },
-    );
-    if (res.ok) {
+  const programme = programmeName(name);
+
+  const wikiSearch = async (query: string): Promise<void> => {
+    try {
+      const res = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=1&format=json`,
+        {
+          signal: AbortSignal.timeout(15_000),
+          headers: { "User-Agent": "spacesafety/0.1 (catalogue research; contact via github)" },
+        },
+      );
+      if (!res.ok) return;
       const j = (await res.json()) as { query?: { search?: Array<{ title: string }> } };
       const title = j.query?.search?.[0]?.title;
       if (title) {
         urls.push(`https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`);
       }
+    } catch {
+      // Best-effort; the URL guesses below may still hit.
     }
-  } catch {
-    // Search is best-effort: a failure falls through to the URL guesses below.
+  };
+
+  // The exact object first (some programmes do have a per-satellite entry), then the
+  // programme. Two searches cost two cheap API calls and find far more than one.
+  await wikiSearch(`${name} satellite`);
+  if (programme && programme.toLowerCase() !== name.toLowerCase()) {
+    await wikiSearch(`${programme} satellite constellation`);
   }
 
-  // Gunter's Space Page: `/doc_sdat/<slug>.htm`, tried for the exact object and for
-  // its series (`hawk-15a` → `hawk`), since the page covers the family.
-  const slug = name.toLowerCase().replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "");
-  if (slug) {
+  const toSlug = (s: string): string =>
+    s
+      .replace(/\([^)]*\)/g, " ")
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^a-z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+
+  for (const candidate of [name, programme]) {
+    const slug = toSlug(candidate);
+    if (!slug) continue;
     urls.push(`https://space.skyrocket.de/doc_sdat/${slug}.htm`);
     const series = slug.replace(/-\d+[a-z]?$/, "");
     if (series && series !== slug) {
@@ -120,7 +157,7 @@ async function candidateUrls(c: Candidate): Promise<string[]> {
     }
   }
 
-  return urls;
+  return [...new Set(urls)];
 }
 
 async function crawlOne(
@@ -145,7 +182,11 @@ async function crawlOne(
 
   // The series page describes several satellites; focus on the paragraph naming this
   // one so the model does not read its neighbour's mass.
+  // The programme page lists many satellites in one table. Passing the object's own
+  // name lets the model pick its row; without it the extractor sees a table of twenty
+  // STARLINK entries and has no way to know which mass belongs to this one.
   const text = focusOn(page.text, c.name ?? "", 12_000);
+  void c;
 
   for (const field of fields) {
     const hint = FIELD_HINTS[field];

@@ -95,11 +95,11 @@ export default async function CataloguePage({
                     <tr>
                       <th className="num">{t.t("catalogue.norad")}</th>
                       <th>{t.t("column.name")}</th>
-                      <th>{t.t("catalogue.cospar")}</th>
+                      <th>{t.t("catalogue.constellation")}</th>
+                      <th>{t.t("catalogue.regime")}</th>
                       <th>{t.t("column.objectClass")}</th>
                       <th>{t.t("column.country")}</th>
                       <th className="num">{t.t("column.mass")}</th>
-                      <th className="num">{t.t("column.hardBodyRadius")}</th>
                       <th className="num">{t.t("catalogue.inclination")}</th>
                     </tr>
                   </thead>
@@ -110,16 +110,18 @@ export default async function CataloguePage({
                         <td>
                           <Link href={`/catalogue/${o.noradId}`}>{o.name ?? "—"}</Link>
                         </td>
-                        <td className="mono-sm muted">{o.cosparId ?? "—"}</td>
+                        <td className="muted">{o.constellation ?? "—"}</td>
+                        <td>
+                          <span className={`chip ${o.regime === "LEO" ? "true" : "false"}`}>
+                            {o.regime ?? "—"}
+                          </span>
+                        </td>
                         <td className="muted">{o.objectClass ?? "—"}</td>
                         <td className="muted">{o.country ?? "—"}</td>
                         <td className="num">
                           {o.massKg === null
                             ? "—"
                             : o.massKg.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                        </td>
-                        <td className="num">
-                          {o.hardBodyRadiusM === null ? "—" : o.hardBodyRadiusM.toFixed(3)}
                         </td>
                         <td className="num">
                           {o.inclinationDeg === null ? "—" : o.inclinationDeg.toFixed(2)}

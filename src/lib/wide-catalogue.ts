@@ -20,14 +20,13 @@
 import { getDb } from "@/db";
 
 /** The three catalogues, in the order the UI displays them. */
-export const SOURCE_IDS = ["spacetrack", "spacebook", "discos", "keeptrack"] as const;
+export const SOURCE_IDS = ["spacetrack", "spacebook", "discos"] as const;
 export type SourceId = (typeof SOURCE_IDS)[number];
 
 export const SOURCE_LABELS: Record<SourceId, { short: string; long: string }> = {
   spacetrack: { short: "Space-Track", long: "Space-Track（美国太空军）" },
   spacebook: { short: "Spacebook", long: "Spacebook（AGI/STK + ComSpoc）" },
   discos: { short: "DISCOS", long: "ESA DISCOSweb（欧空局）" },
-  keeptrack: { short: "KeepTrack", long: "KeepTrack（keeptrack.space）" },
 };
 
 /** Every field the wide table carries. Must match the build script's FIELDS. */
@@ -86,6 +85,12 @@ export interface WideListRow {
   hardBodyRadiusM: number | null;
   inclinationDeg: number | null;
   decayDate: string | null;
+  /** Named fleet from `object_classification`, e.g. `Starlink`. */
+  constellation: string | null;
+  /** Orbit regime: LEO / MEO / GEO / HEO / UNKNOWN. */
+  regime: string | null;
+  /** Role group, e.g. `communication`. */
+  purposeGroup: string | null;
   /** Number of fields where the sources do not agree, for the list's badge. */
   disagreementCount: number;
 }
@@ -132,7 +137,7 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
   const where: string[] = [];
   const params: unknown[] = [];
   if (options.noradId !== undefined) {
-    where.push("norad_id = ?");
+    where.push("catalogue_wide.norad_id = ?");
     params.push(options.noradId);
   }
   if (options.nameContains) {
@@ -142,7 +147,7 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
 
   const rows = sqlite
     .prepare(
-      `SELECT norad_id AS noradId,
+      `SELECT catalogue_wide.norad_id AS noradId,
               COALESCE(
                 name__spacetrack,
                 name__spacebook,
@@ -155,6 +160,9 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
               hard_body_radius_m__spacebook AS hardBodyRadiusM,
               inclination_deg__spacetrack AS inclinationDeg,
               decay_date__spacetrack AS decayDate,
+              cls.constellation AS constellation,
+              cls.regime AS regime,
+              cls.purpose_group AS purposeGroup,
               -- How many fields the sources actively disagree about. Computed in
               -- SQL because doing it in JS would mean reading every claim of every
               -- row, which is exactly what the wide layout exists to avoid.
@@ -168,8 +176,9 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
                    AND decay_date__spacetrack <> decay_date__discos)
               ) AS disagreementCount
          FROM wide.catalogue_wide
+         LEFT JOIN object_classification cls ON cls.norad_id = catalogue_wide.norad_id
         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-        ORDER BY norad_id
+        ORDER BY catalogue_wide.norad_id
         LIMIT ? OFFSET ?`,
     )
     .all(...params, limit, offset) as Array<WideListRow & { disagreementCount: number }>;
