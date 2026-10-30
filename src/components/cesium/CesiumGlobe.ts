@@ -161,6 +161,14 @@ export class CesiumGlobe {
   private shells = new Map<string, string>();
   private pickHandler: import("cesium").ScreenSpaceEventHandler | null = null;
   private disposed = false;
+  /**
+   * Set immediately before the Cesium widget is torn down.
+   *
+   * Separate from `disposed` because the two answer different questions:
+   * `disposed` means "this globe must not be used again", this one means "the
+   * widget - which cannot report its own state, see `dispose` - is already gone".
+   */
+  private viewerDestroyed = false;
 
   private constructor(
     cesium: CesiumModule,
@@ -708,6 +716,21 @@ export class CesiumGlobe {
     this.tracks.length = 0;
     this.points = null;
     this.grid = null;
-    if (!this.viewer.isDestroyed()) this.viewer.destroy();
+    // `viewer.isDestroyed()` cannot guard this call: Cesium implements it as
+    // `return false;`, so it always reports the widget as alive and a second
+    // destroy() throws `DeveloperError: This object was destroyed`. React runs
+    // the effect cleanup on unmount and again under StrictMode, so calling this
+    // twice is the normal path, not an edge case. `viewerDestroyed` is the real
+    // guard; the catch covers a destroy that throws part-way and must not abandon
+    // the rest of the cleanup.
+    if (!this.viewerDestroyed) {
+      this.viewerDestroyed = true;
+      try {
+        this.viewer.destroy();
+      } catch {
+        // A partially constructed viewer can throw mid-destroy. It is unusable
+        // either way, and the canvas it owned is already detached.
+      }
+    }
   }
 }

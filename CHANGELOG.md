@@ -12,6 +12,58 @@
 
 ---
 
+## [0.1.41] - 2026-10-30
+
+修复地球组件销毁时报 `DeveloperError: This object was destroyed`。
+
+### 根因
+
+`CesiumGlobe.dispose()` 用 `viewer.isDestroyed()` 当守卫：
+
+```ts
+if (!this.viewer.isDestroyed()) this.viewer.destroy();
+```
+
+**这个守卫永远不生效。** Cesium 的实现是：
+
+```js
+CesiumWidget.prototype.isDestroyed = function () {
+  return false;
+};
+```
+
+它永远返回 `false`，所以第二次 `destroy()` 必定抛 `DeveloperError`。
+
+而 React 在卸载时调用 effect 清理函数，StrictMode 下会完整跑两遍 mount/unmount——
+**第二次调用是正常路径，不是边界情况。**
+
+### 修复
+
+新增 `viewerDestroyed` 字段，在调用 `destroy()` 前置位。它和 `disposed` 回答的是不同问题：
+
+| 字段 | 含义 |
+|---|---|
+| `disposed` | 这个 globe 不能再被使用 |
+| `viewerDestroyed` | Cesium 控件已拆除（它自己不会报告） |
+
+`destroy()` 外面包了 try/catch：部分构造的 viewer 会在销毁中途抛异常，
+不能因此中断后面的清理。
+
+### 验证
+
+用浏览器跑完整生命周期：首页挂载 → 跳到 /catalogue（卸载）→ 回首页（重新挂载）。
+这条路径会触发两次清理。结果：**控制台错误数 0**（修复前每次切回都报错）。
+
+`npx tsc --noEmit`、`npm run check`、`npm run check:css` 全部通过。
+
+### 已知问题
+
+- 修复过程中我的 `edit_file` 又误删了 `CesiumGlobe.ts` 的 220 行（从 713 行变成 496 行），
+  已用 `git checkout` 恢复后再用 `perl` 精确替换。这已是同类问题第五次，
+  涉及超过 200 行的文件不再用整块替换。
+
+---
+
 ## [0.1.40] - 2026-10-30
 
 修复「卫星编目」分组点不开。
