@@ -222,7 +222,7 @@ function main(): void {
   for (const r of db
     .prepare(
       `SELECT norad_id, name, owner, apogee, perigee
-         FROM satcat WHERE norad_id >= 270000`,
+         FROM satcat WHERE name LIKE '%Analyst Sat%'`,
     )
     .all() as Array<Record<string, unknown>>) {
     sbsup.set(Number(r.norad_id), {

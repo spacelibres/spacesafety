@@ -199,15 +199,26 @@ function loadSpacebook(): SourceLoad {
  * elements, so it cannot be joined to a catalogue number at all. `satcat` is the
  * table that already has them joined, and is where the wide build reads from.
  *
- * ## Why the filter is `norad_id >= 270000` and not "everything in satcat"
+ * ## Why the filter looks at the name and not just the number
  *
  * `satcat.source_snapshot` is the same string for all 72,310 rows, so it cannot
- * tell an analyst object from an ordinary one. The provisional-number block is the
- * distinguishing feature that was verified against this capture: exactly 429 rows
- * have `norad_id >= 270000`, and all 429 of them are named `N - Analyst Sat`, have
- * no international designator, and carry elements. Reading the whole table instead
- * put 71,881 duplicated rows into this source and made every ordinary object look
- * as if a fifth catalogue also claimed it.
+ * tell an analyst object from an ordinary one. The first version of this loader
+ * filtered on `norad_id >= 270000`, which was wrong: analyst objects sit in three
+ * separate provisional blocks, and that filter captured only one of them.
+ *
+ *   block      count   captured by `>= 270000`
+ *   80000s       683   no   <- all missed
+ *   270000s      401   yes
+ *   290000s       28   no   <- all missed
+ *
+ * The result was 429 of 1,112 analyst objects in the wide table. The other 683
+ * then appeared as "KeepTrack-only" objects named `UNKNOWN` or
+ * `TBA - TO BE ASSIGNED`, because KeepTrack also holds them without a name while
+ * Spacebook does hold `N - Analyst Sat` for each.
+ *
+ * All 1,112 rows whose name contains `Analyst Sat` are exactly the analyst objects:
+ * verified that every such row has no international designator, and that no row
+ * outside these three blocks has the name.
  */
 function loadSpacebookSupplemental(): SourceLoad {
   const label = "Spacebook 分析目标";
@@ -229,7 +240,7 @@ function loadSpacebookSupplemental(): SourceLoad {
       `SELECT norad_id, name, intl_id, object_type, owner, launch_site, launch_date,
               decay_date, period, inclination, apogee, perigee, rcs_size
          FROM satcat
-        WHERE norad_id >= 270000`,
+        WHERE name LIKE '%Analyst Sat%'`,
     )
     .all() as Array<Record<string, unknown>>;
   db.close();

@@ -24,7 +24,7 @@
 | Spacebook | 71,088 |
 | DISCOS | 71,176 |
 | KeepTrack | 34,110 |
-| Spacebook 分析目标 | 429 |
+| Spacebook 分析目标 | 1,112 |
 | **并集 = 宽表行数** | **72,401**（157 列） |
 
 ## 两个曾导致编目不全的缺陷
@@ -44,18 +44,63 @@
 （本次抓取为 270000 以上）并命名 `N - Analyst Sat`。它们**有真实轨道根数，没有国际编号**。
 
 它们出现在 Spacebook 的交会报告和公开 CDM 里，宽表漏掉它们后会显示「CDM 指向一个查不到的对象」。
-`satcat` 表里有这 429 个，但宽表只读 `satcat-details-csv`，而该 CSV 并不包含它们。
+`satcat` 表里有这些对象，但宽表只读 `satcat-details-csv`，而该 CSV 并不包含它们。
 
 **筛选条件是 `norad_id >= 270000`**，不是「`satcat` 里的全部」：
 `satcat.source_snapshot` 对全部 72,310 行都是同一个字符串，无法区分。
-实测 `norad_id >= 270000` 恰好 429 行，且全部满足 `名称含 Analyst Sat`、无国际编号、有轨道根数。
+当时用 `norad_id >= 270000` 筛出 429 行，且全部满足 `名称含 Analyst Sat`、无国际编号、有轨道根数，
+但没有验证这个号段是否是唯一的。详见下文第 3 条。
 若改为读全表，会引入 71,881 行重复，让每个普通对象看起来都有第五个来源认领。
 
-### 3. 只在 DISCOS 里的对象
+### 3. 分析型目标的号段不止一个
+
+第一版 `sbsup` 只筛 `norad_id >= 270000`，得到 429 个，当时以为就是全部。
+实测后错了：分析型目标分布在三个预留号段。
+
+| 号段 | 数量 | 旧筛选是否命中 |
+|---|---|---|
+| 80000–89999 | 683 | **否** |
+| 270000–279999 | 401 | 是 |
+| 290000–299999 | 28 | **否** |
+| 合计 | **1,112** | 只拿到 429 |
+
+漏掉的 683 个的症状很能骗人：它们在宽表里显示为「**仅 KeepTrack 有数据**」，
+名字是 `UNKNOWN` 或 `TBA - TO BE ASSIGNED`，看上去像 KeepTrack 独有了一批未知目标。
+实际上 Spacebook 有它们的完整身份（`81008 - Analyst Sat`），只是宽表没读。
+
+筛选条件已改为 `name LIKE '%Analyst Sat%'`：已验证全表 1,112 行满足该名称，
+且它们均无国际编号；三个号段之外没有该名称的行。
+
+### 4. 分析型目标与 KeepTrack 是同一批对象
+
+修正后，「仅 KeepTrack」从 682 降为 **0**：这 682 个全部是分析型目标，
+KeepTrack 存了编号但没有身份，Spacebook 存了身份。
+两边是同一批对象的两面，不是两批不同的目标。
+
+### 5. Spacebook 没有独有对象，DISCOS 只有 1 个
+
+| 来源 | 独有对象数 |
+|---|---|
+| spacetrack | 6（均为 2026 年新发射，Spacebook/DISCOS 尚未同步）|
+| spacebook | 0 |
+| discos | 1（NORAD 69475，CZ-5 上面级）|
+| keeptrack | 0（682 个已全部归为分析型目标）|
+
+### 6. 只在 DISCOS 里的对象
 
 DISCOS 有个别带编目号、Space-Track 从未收录的对象（如 NORAD 69475，CZ-5 上面级）。
 它们在宽表里，却不在分类表里——按编号能查到，任何分类统计里都看不到。
 分类脚本的 `universe` 现已并入 `discos_objects`。
+
+## 核对工具
+
+- `npx tsx tools/catalogue-source-overlap.ts` —— 各源覆盖数、被几个源同时收录、单源对象样本
+- `npx tsx tools/keeptrack-only-explained.ts` —— 682 个「仅 KeepTrack」是否都是分析型目标
+- `npx tsx tools/keeptrack-only-wide.ts` —— 从宽表看仅 KeepTrack 有值的对象，以及是哪一列让它算作有值
+
+**统计口径很重要。** 判断「某源有没有这个对象」必须看**该源的全部列**，
+而不是只看 `name` 或 `inclination`。第一次用部分列统计时报出 90 个「四源全空」，
+而 Spacebook 实际上持有它们的名字，只是名字在没被检查的列上。
 
 ## 表结构
 
