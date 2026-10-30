@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import type { OrbitalElements } from "@/lib/core/kinematics";
+import { useTranslator } from "@/lib/i18n/client";
 
 export interface ElementSample {
   tMs: number;
@@ -26,6 +27,7 @@ type MetricKey = (typeof METRICS)[number]["key"];
  * switcher underneath.
  */
 export function ElementsChart({ series }: { series: ElementSample[] }) {
+  const t = useTranslator();
   const [metric, setMetric] = useState<MetricKey>("smaAltitudeKm");
   const meta = METRICS.find((m) => m.key === metric)!;
 
@@ -57,9 +59,9 @@ export function ElementsChart({ series }: { series: ElementSample[] }) {
   if (!chart) {
     return (
       <div className="empty">
-        Not enough states to plot orbital elements.
+        {t.t("chart.notEnoughStates")}
         <br />
-        Supported formats: OCM and OEM.
+        {t.t("chart.supportedFormats")}
       </div>
     );
   }
@@ -75,7 +77,7 @@ export function ElementsChart({ series }: { series: ElementSample[] }) {
         className="sparkline"
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`${meta.label} over time`}
+        aria-label={t.t("chart.elementsOverTime", { metric: meta.label })}
       >
         {[max, (max + min) / 2, min].map((v, i) => (
           <g key={i}>

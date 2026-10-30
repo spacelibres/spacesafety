@@ -41,14 +41,14 @@ export async function GET(
   const relative = normalize(path.join("/")).replace(/^\/+/, "");
 
   if (relative.includes("..") || !ALLOWED.test(relative)) {
-    return NextResponse.json({ error: "不允许的文件" }, { status: 400 });
+    return NextResponse.json({ error: "not an allowed file" }, { status: 400 });
   }
 
   const full = join(ROOT, relative);
   const rootAbs = join(process.cwd(), ROOT);
   const fullAbs = join(process.cwd(), full);
   if (!fullAbs.startsWith(rootAbs)) {
-    return NextResponse.json({ error: "路径越界" }, { status: 400 });
+    return NextResponse.json({ error: "path escapes the models root" }, { status: 400 });
   }
 
   let size: number;
@@ -57,7 +57,7 @@ export async function GET(
     if (!st.isFile()) throw new Error("not a file");
     size = st.size;
   } catch {
-    return NextResponse.json({ error: "文件不存在" }, { status: 404 });
+    return NextResponse.json({ error: "file not found" }, { status: 404 });
   }
 
   const stream = Readable.toWeb(createReadStream(fullAbs)) as ReadableStream;

@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import ts from "typescript";
 
 import { LOCALES, type Locale, validateMessages } from "../src/lib/i18n";
 import { allTables } from "../src/lib/i18n/registry";
@@ -330,47 +331,94 @@ function checkVersion(): void {
 /**
  * Find user-visible text that bypasses the dictionary.
  *
- * The heuristic looks for a JSX text node or a `placeholder`/`title`/`aria-label`
- * attribute with letter content. It deliberately ignores data attributes and
- * class names, and it skips the i18n module itself.
+ * ## Why this parses instead of matching lines
+ *
+ * The previous version scanned `.tsx` files line by line for `>Text<` and for
+ * `placeholder`/`title`/`aria-label` attributes. That misses every string that is
+ * not a JSX text node: label tables, `Record<string, string>` maps, anything in a
+ * `.ts` module. It reported "ok" while `/browse` rendered 载荷 PAYLOAD,
+ * 空间碎片 DEBRIS and 未分类 UNKNOWN in all six languages, `/catalogue` rendered
+ * its whole field-coverage table in Chinese, and `/statistics` rendered 低轨 LEO.
+ * 85 lines of Chinese copy lived in `src/app` and `src/components` alone.
+ *
+ * So: parse each file with the TypeScript compiler and look at what is actually a
+ * string — `StringLiteral`, template tokens, JSX text. Comments are not strings
+ * and stay free to be written in any language the author likes, which is why
+ * every module in this repository carries Chinese commentary.
+ *
+ * ## The one exemption
+ *
+ * `src/lib/sources/` is ingest tooling: it talks to upstream APIs and to a
+ * language model, and its strings are prompts and diagnostics that never reach a
+ * reader. Nothing there renders.
  */
 function checkHardcodedText(): void {
   const offenders: string[] = [];
+  const CJK = /[\u4e00-\u9fff]/;
+  /** A JSX text node worth flagging: starts like a word, has letter content. */
+  const WORDY = /^[A-Z][A-Za-z][^<>{}]{2,}$/;
+
   const walk = (dir: string): void => {
     for (const name of readdirSync(dir)) {
-      if (name === "node_modules" || name === ".next") continue;
+      if (name === "node_modules" || name === ".next" || name === ".next-audit") continue;
       const full = join(dir, name);
       if (statSync(full).isDirectory()) {
         walk(full);
         continue;
       }
-      if (!/\.tsx$/.test(name)) continue;
+      if (!/\.tsx?$/.test(name)) continue;
+      // The dictionary itself is where the translations live.
       if (full.includes(join("lib", "i18n"))) continue;
+      const ingest = full.includes(join("src", "lib", "sources"));
+
       const text = readFileSync(full, "utf8");
-      text.split("\n").forEach((line, index) => {
-        // JSX text nodes: `>Some words<`, but not `>{expr}<` or `> <`.
-        const jsx = line.match(/>\s*([A-Z][A-Za-z][^<>{}]{2,})\s*</);
-        if (jsx) offenders.push(`${relative(ROOT, full)}:${index + 1}  ${jsx[1].trim()}`);
-        const attr = line.match(/(placeholder|title|aria-label)="([A-Za-z][^"]{2,})"/);
-        if (attr) offenders.push(`${relative(ROOT, full)}:${index + 1}  ${attr[1]}="${attr[2]}"`);
-      });
+      const sf = ts.createSourceFile(
+        full,
+        text,
+        ts.ScriptTarget.ESNext,
+        true,
+        name.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+      );
+      const where = (node: ts.Node): string => {
+        const { line } = sf.getLineAndCharacterOfPosition(node.getStart());
+        return `${relative(ROOT, full)}:${line + 1}`;
+      };
+
+      const visit = (node: ts.Node): void => {
+        if (!ingest && (ts.isStringLiteralLike(node) || ts.isJsxText(node))) {
+          const value = ts.isJsxText(node) ? node.text.trim() : node.text;
+          if (value && CJK.test(value)) {
+            offenders.push(`${where(node)}  "${value.slice(0, 40)}" — 文案必须来自字典`);
+          }
+        }
+        if (ts.isJsxText(node) && WORDY.test(node.text.trim())) {
+          offenders.push(`${where(node)}  "${node.text.trim().slice(0, 40)}" — JSX 里写死了英文`);
+        }
+        if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer)) {
+          const attr = node.name.getText(sf);
+          if (/^(placeholder|title|aria-label)$/.test(attr) && /^[A-Za-z][^"]{2,}$/.test(node.initializer.text)) {
+            offenders.push(`${where(node)}  ${attr}="${node.initializer.text.slice(0, 40)}"`);
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(sf);
     }
   };
-  const appDir = join(ROOT, "src", "app");
-  const compDir = join(ROOT, "src", "components");
-  if (existsSync(appDir)) walk(appDir);
-  if (existsSync(compDir)) walk(compDir);
+
+  walk(join(ROOT, "src"));
 
   if (offenders.length) {
     fail(
       "i18n-hardcoded",
       `${offenders.length} hard-coded string(s) bypass the dictionary:\n    ${offenders
-        .slice(0, 20)
-        .join("\n    ")}${offenders.length > 20 ? `\n    … ${offenders.length - 20} more` : ""}`,
+        .slice(0, 25)
+        .join("\n    ")}${offenders.length > 25 ? `\n    … ${offenders.length - 25} more` : ""}`,
     );
+    return;
   }
+  notes.push("i18n-hardcoded: every string under src/ comes from the dictionary");
 }
-
 
 // --- 8. VI compliance ---------------------------------------------------------
 /**

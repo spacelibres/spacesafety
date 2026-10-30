@@ -12,6 +12,74 @@
 
 ---
 
+## [0.1.46] - 2026-10-30
+
+把「所有界面文案必须来自字典」变成真的能拦住的规则，并修掉它查出来的文案。
+
+### 两个漏检口，一起堵
+
+**一、硬编码检查只认 JSX 文本节点。** 旧实现在 `.tsx` 里按行匹配 `>Text<` 和
+`placeholder|title|aria-label`，于是下面这些全部通过：
+
+- `/browse`：载荷 PAYLOAD、空间碎片 DEBRIS、未分类 UNKNOWN —— 六语种下都是中文
+- `/catalogue`：整张字段覆盖表的字段名与来源名（在 `.ts` 模块里）
+- `/statistics`：低轨 LEO、地球同步 GEO …… 以及「其他 N 项」「合计」
+- `src/lib/wide-catalogue.ts`：26 个字段名 + 5 个来源全名
+
+实测 `locale=en` 渲染：`/browse` 85 个中文字符、`/catalogue` 98 个、`/statistics` 89 个。
+
+现在改为用 TypeScript 编译器解析每个 `src/**/*.ts(x)`，检查真正的字符串节点
+（`StringLiteral`、模板字符串、`JSXText`）。注释不是字符串，因此中文注释照写不误 ——
+本仓库的注释本来就是中文。
+
+**二、`npm test` 的套件清单是手写的。** `event-feeds` 与 `feed-combination` 两个套件
+写好了、给了自己的 `npm run test:*`，却从未进入 `tests/run-all.ts`，45 条断言在
+`CONTRIBUTING.md` §7 称为强制的门槛之外。其中正好包含本项目最贵的两条教训：
+「缺失的 Pc 必须保持 NULL 而不是写成 0」「缺失的解体位置必须是 NULL 而不是 `0,0`」。
+现在改为扫描 `tests/*.test.ts`，套件从 35 个变成 **38 个**。
+
+### 顺带查出来的（旧检查看不见）
+
+- `AccuracyPanels.tsx`、`Charts2.tsx` 里有 6 处**英文**硬编码（跨行 JSX 文本）：
+  「Not enough uploads to evaluate prediction accuracy.」「Not enough states to plot
+  orbital elements.」等；另有 4 个面板标题由 `labelFor()` 拼英文，`Radial`/`InTrack`/
+  `CrossTrack` 直接写死。
+- `api/models/[...path]/route.ts`、`api/v1/catalogue/choice/route.ts`、`src/db/store.ts`
+  把中文错误串返回给 API 客户端。
+
+### 改法
+
+- 新增 58 个键 × 6 语种（369 → **427**）：`field.*`（18）、`classValue.*`（4）、
+  `classDetail.*`（7）、`regime.*`（5）、`purpose.*`（7）、`accuracy.*`（9）、
+  `chart.*`（3）、`statistics.otherCount` / `statistics.total`，以及
+  `catalogue.sourceSupplemental`。
+- 标签表改为**键表**：`FIELD_LABEL_KEYS`、`SOURCE_LABEL_KEYS`、`VALUE_LABEL_KEYS`、
+  `REGIME_KEYS`、`PURPOSE_KEYS`。类型是 `keyof MessageTable`，所以写错键名是 `tsc`
+  错误 —— 间接查找 `t.t(FIELD_LABEL_KEYS[field])` 是键使用检查看不见的，只能靠类型兜住。
+- API 错误串改成英文，与官方 API 的错误信封一致（`RBAC: access denied` 等）。
+
+### 新增测试：`tests/i18n-copy.test.ts`
+
+无数据面板（`AccuracyPanels`、`ElementsChart` 的空状态）在本库无轨迹时任何页面都不会
+渲染，浏览器审计也看不到。新增 `tools/i18n-copy-probe.ts` 在六语种下渲染它们
+（`react-dom/server` 在 `react-server` 条件下无法加载，所以渲染放进子进程，
+沿用 `tools/chart-probe.ts` 的做法），测试断言：六语种都有内容、非英语语种不出现
+英文原文、每个非英语语种与英文不同、拉丁语种不出现中文、中日语种确实出现中日文。
+
+### 验证
+
+- `npx tsc --noEmit` 通过；`npm test` **38 个套件全过**；`npm run check` 全过
+  （含新规则 `i18n-hardcoded: every string under src/ comes from the dictionary`）。
+- 浏览器实测 `locale=en`：`/catalogue`、`/browse`、`/statistics` 中文字符数
+  **98 → 0、85 → 0、89 → 0**；`locale=zh-CN` 仍正常显示中文（199/189/276）。
+- `tests/i18n-copy.test.ts` **17 passed**。
+
+### 已知问题
+
+- 硬编码检查只能绝对禁止**中文**字面量（这是可判定的）。英文文案仍靠 JSX 文本节点
+  启发式 + 上面的渲染测试兜底，因为 `"SMA"`、`role="img"`、「OCM」这类技术标识必须
+  允许写死，而判断「这是文案还是标识」需要语义。
+
 ## [0.1.45] - 2026-10-30
 
 修正编目页「合并可用」列：它不是并集，是三个来源取最大值；并把两个来源从统计里补回来。

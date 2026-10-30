@@ -1,32 +1,36 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
+import type { MessageTable } from "@/lib/i18n/messages/en";
 import { getTranslator } from "@/lib/i18n/registry";
 import { statistics, type Bucket, type CrossTab } from "@/lib/statistics";
 
 export const dynamic = "force-dynamic";
 
-const REGIME_LABELS: Record<string, string> = {
-  LEO: "低轨 LEO",
-  MEO: "中轨 MEO",
-  GEO: "地球同步 GEO",
-  HEO: "大椭圆 HEO",
-  UNKNOWN: "未知",
+/**
+ * Dictionary key for each regime and purpose value.
+ *
+ * Keys, because this page is rendered in six languages and the same words label
+ * the browse filters. Values with no key (a launch year, a country code) are
+ * technical identifiers and render as-is.
+ */
+const REGIME_KEYS: Record<string, keyof MessageTable> = {
+  LEO: "regime.LEO",
+  MEO: "regime.MEO",
+  GEO: "regime.GEO",
+  HEO: "regime.HEO",
+  UNKNOWN: "regime.UNKNOWN",
 };
 
-const PURPOSE_LABELS: Record<string, string> = {
-  communication: "通信",
-  navigation: "导航",
-  "earth-observation": "对地观测",
-  meteorology: "气象",
-  science: "科学",
-  military: "军事",
-  technology: "技术试验",
+const PURPOSE_KEYS: Record<string, keyof MessageTable> = {
+  communication: "purpose.communication",
+  navigation: "purpose.navigation",
+  "earth-observation": "purpose.earthObservation",
+  meteorology: "purpose.meteorology",
+  science: "purpose.science",
+  military: "purpose.military",
+  technology: "purpose.technology",
 };
-
-function regimeLabel(v: string): string {
-  return REGIME_LABELS[v] ?? v;
-}
 
 /** A proportional bar rendered as a div; no chart library needed. */
 function Bar({ share, tone = "accent" }: { share: number; tone?: "accent" | "muted" }) {
@@ -38,7 +42,7 @@ function Bar({ share, tone = "accent" }: { share: number; tone?: "accent" | "mut
   );
 }
 
-function BucketTable({
+async function BucketTable({
   title,
   buckets,
   total,
@@ -51,6 +55,7 @@ function BucketTable({
   labelFn?: (v: string) => string;
   limit?: number;
 }) {
+  const t = await getTranslator();
   const shown = buckets.slice(0, limit);
   const rest = buckets.slice(limit);
   const restCount = rest.reduce((a, b) => a + b.count, 0);
@@ -72,9 +77,7 @@ function BucketTable({
           ))}
           {rest.length > 0 && (
             <tr className="stat-rest">
-              <td className="stat-label">
-                其他 {rest.length} 项
-              </td>
+              <td className="stat-label">{t.t("statistics.otherCount", { count: rest.length })}</td>
               <td className="stat-bar-cell">
                 <Bar share={total ? restCount / total : 0} tone="muted" />
               </td>
@@ -88,7 +91,7 @@ function BucketTable({
   );
 }
 
-function CrossTable({
+async function CrossTable({
   title,
   tab,
   labelFn,
@@ -97,6 +100,7 @@ function CrossTable({
   tab: CrossTab;
   labelFn?: (v: string) => string;
 }) {
+  const t = await getTranslator();
   return (
     <div className="stat-card stat-card-wide">
       <h3 className="stat-title">{title}</h3>
@@ -110,7 +114,7 @@ function CrossTable({
                   {labelFn ? labelFn(c) : c}
                 </th>
               ))}
-              <th className="num">合计</th>
+              <th className="num">{t.t("statistics.total")}</th>
             </tr>
           </thead>
           <tbody>
@@ -126,7 +130,7 @@ function CrossTable({
               </tr>
             ))}
             <tr className="stat-cross-total">
-              <td>合计</td>
+              <td>{t.t("statistics.total")}</td>
               {tab.columnTotals.map((v, i) => (
                 <td key={i} className="num">
                   {v.toLocaleString()}
@@ -181,7 +185,7 @@ export default async function StatisticsPage() {
             title={t.t("statistics.byRegime")}
             buckets={s.regime}
             total={s.total}
-            labelFn={regimeLabel}
+            labelFn={(v) => t.t(REGIME_KEYS[v] ?? v)}
           />
           <BucketTable
             title={t.t("statistics.byClass")}
@@ -192,7 +196,7 @@ export default async function StatisticsPage() {
             title={t.t("statistics.byPurpose")}
             buckets={s.purpose}
             total={s.total}
-            labelFn={(v) => PURPOSE_LABELS[v] ?? v}
+            labelFn={(v) => t.t(PURPOSE_KEYS[v] ?? v)}
           />
           <BucketTable
             title={t.t("statistics.byCountry")}
@@ -221,7 +225,7 @@ export default async function StatisticsPage() {
               <tbody>
                 {s.massByRegime.map((m) => (
                   <tr key={m.regime}>
-                    <td className="stat-label">{regimeLabel(m.regime)}</td>
+                    <td className="stat-label">{t.t(REGIME_KEYS[m.regime] ?? m.regime)}</td>
                     <td className="stat-num">{m.count.toLocaleString()}</td>
                     <td className="stat-num">{Math.round(m.medianKg).toLocaleString()}</td>
                     <td className="stat-num">
@@ -238,13 +242,13 @@ export default async function StatisticsPage() {
         <CrossTable
           title={t.t("statistics.constellationByRegime")}
           tab={s.constellationByRegime}
-          labelFn={regimeLabel}
+          labelFn={(v) => t.t(REGIME_KEYS[v] ?? v)}
         />
 
         <CrossTable
           title={t.t("statistics.classByRegime")}
           tab={s.classByRegime}
-          labelFn={regimeLabel}
+          labelFn={(v) => t.t(REGIME_KEYS[v] ?? v)}
         />
 
         <div className="stat-card stat-card-wide">

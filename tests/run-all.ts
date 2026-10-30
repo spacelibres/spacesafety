@@ -1,47 +1,41 @@
 /**
  * Test runner: executes each test file in its own process so a crash or
  * `process.exit` in one suite cannot mask another.
+ *
+ * ## Why the list is discovered rather than written out
+ *
+ * It used to be a hand-maintained array. Two suites — `event-feeds` and
+ * `feed-combination` — were written, given their own `npm run test:*` scripts,
+ * and then never added to it, so 45 assertions were outside the gate that
+ * `CONTRIBUTING.md` §7 calls mandatory. Among them were the two that protect the
+ * project's most expensive historical mistake: a missing Pc must stay NULL
+ * rather than be written as 0, and a missing fragmentation site must stay NULL
+ * rather than become `0,0` — a real coordinate in the Gulf of Guinea. A suite now
+ * runs the moment its file exists, so forgetting to wire one is impossible.
  */
 
 import { spawnSync } from "node:child_process";
+import { readdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const SUITES = [
-  "tests/alfano.test.ts",
-  "tests/screening.test.ts",
-  "tests/ephemeris.test.ts",
-  "tests/ocm.test.ts",
-  "tests/shells.test.ts",
-  "tests/legacy-formats.test.ts",
-  "tests/optical.test.ts",
-  "tests/accuracy.test.ts",
-  "tests/mtls.test.ts",
-  "tests/prefilter.test.ts",
-  "tests/determinism.test.ts",
-  "tests/time-windows.test.ts",
-  "tests/pool.test.ts",
-  "tests/thread-memory.test.ts",
-  "tests/chart-axes.test.ts",
-  "tests/tle-sgp4.test.ts",
-  "tests/ocm-source.test.ts",
-  "tests/source-policy.test.ts",
-  "tests/dual-feed.test.ts",
-  "tests/worker-companion.test.ts",
-  "tests/worker-companion-pool.test.ts",
-  "tests/catalog-policy.test.ts",
-  "tests/api.test.ts",
-  "tests/spacebook.test.ts",
-  "tests/sources.test.ts",
-  "tests/spacebook-auth.test.ts",
-  "tests/discos.test.ts",
-  "tests/paged-crawl.test.ts",
-  "tests/analysis.test.ts",
-  "tests/forecast-baseline.test.ts",
-  "tests/master-merge.test.ts",
-  "tests/physics.test.ts",
-  "tests/catalogue.test.ts",
-  "tests/supplement.test.ts",
-  "tests/wide-query.test.ts",
-];
+const TESTS = dirname(fileURLToPath(import.meta.url));
+
+/** Every `*.test.ts` directly under `tests/`, in a stable order. */
+function suites(): string[] {
+  return readdirSync(TESTS)
+    .filter((name) => name.endsWith(".test.ts"))
+    .filter((name) => statSync(join(TESTS, name)).isFile())
+    .sort()
+    .map((name) => join("tests", name));
+}
+
+const SUITES = suites();
+
+if (SUITES.length === 0) {
+  console.log("No test suites found under tests/");
+  process.exit(1);
+}
 
 let failed = 0;
 for (const suite of SUITES) {

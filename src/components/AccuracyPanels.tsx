@@ -2,6 +2,8 @@
 
 import type { AccuracyReport } from "@/lib/core/accuracy-report";
 import { chi2Cdf1 } from "@/lib/core/accuracy";
+import { useTranslator } from "@/lib/i18n/client";
+import type { Translator } from "@/lib/i18n";
 
 /**
  * Prediction-accuracy panels, mirroring the official object page:
@@ -9,13 +11,13 @@ import { chi2Cdf1 } from "@/lib/core/accuracy";
  * Mahalanobis CDF against a chi-squared(k=1) reference.
  */
 export function AccuracyPanels({ report }: { report: AccuracyReport }) {
+  const t = useTranslator();
   if (report.samples.length === 0) {
     return (
       <div className="empty">
-        Not enough uploads to evaluate prediction accuracy.
+        {t.t("accuracy.notEnough")}
         <br />
-        Upload at least two trajectories for this object: the newest becomes the
-        reference, earlier ones become predictions.
+        {t.t("accuracy.needTwo")}
       </div>
     );
   }
@@ -31,7 +33,7 @@ export function AccuracyPanels({ report }: { report: AccuracyReport }) {
 
   return (
     <div className="grid-2">
-      <Panel title={`${labelFor(report.axis)} Prediction Error at ${report.horizonHours}h`}>
+      <Panel title={t.t("accuracy.panelError", { axis: labelFor(t, report.axis), hours: report.horizonHours })}>
         <ErrorTimeline
           points={report.samples.map((s) => ({ x: s.madeAtMs, y: s.errorM }))}
           sigma1={sigma1}
@@ -40,11 +42,11 @@ export function AccuracyPanels({ report }: { report: AccuracyReport }) {
         />
       </Panel>
 
-      <Panel title={`${labelFor(report.axis)} Prediction Error CDF at ${report.horizonHours}h`}>
+      <Panel title={t.t("accuracy.panelErrorCdf", { axis: labelFor(t, report.axis), hours: report.horizonHours })}>
         <CdfChart points={report.errorCdf} axisLabel="Position Error (m)" symmetric />
       </Panel>
 
-      <Panel title={`${labelFor(report.axis)} Mahalanobis Distance at ${report.horizonHours}h`}>
+      <Panel title={t.t("accuracy.panelMahalanobis", { axis: labelFor(t, report.axis), hours: report.horizonHours })}>
         <ErrorTimeline
           points={report.samples
             .filter((s) => s.mahalanobis !== null)
@@ -56,7 +58,7 @@ export function AccuracyPanels({ report }: { report: AccuracyReport }) {
         />
       </Panel>
 
-      <Panel title={`${labelFor(report.axis)} Mahalanobis CDF at ${report.horizonHours}h`}>
+      <Panel title={t.t("accuracy.panelMahalanobisCdf", { axis: labelFor(t, report.axis), hours: report.horizonHours })}>
         <CdfChart
           points={report.mahaCdf}
           axisLabel="1D Mahalanobis distance"
@@ -90,8 +92,15 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function labelFor(axis: string): string {
-  return axis === "R" ? "Radial" : axis === "T" ? "InTrack" : "CrossTrack";
+/**
+ * Translate an RTN axis code.
+ *
+ * The code itself (`R`/`T`/`N`) is a technical identifier and stays as it is;
+ * the word beside it is copy and comes from the dictionary.
+ */
+function labelFor(t: Translator, axis: string): string {
+  const key = axis === "R" ? "accuracy.axisRadial" : axis === "T" ? "accuracy.axisInTrack" : "accuracy.axisCrossTrack";
+  return t.t(key);
 }
 
 /** Error over the sequence of predictions, with ±1σ and ±3σ bands. */
@@ -108,6 +117,7 @@ function ErrorTimeline({
   axisLabel: string;
   nonNegative?: boolean;
 }) {
+  const t = useTranslator();
   const W = 560;
   const H = 210;
   const PAD = { l: 52, r: 14, t: 14, b: 30 };
@@ -172,7 +182,7 @@ function ErrorTimeline({
       ))}
 
       <text x={W / 2} y={H - 8} textAnchor="middle" fill="#6b6b6b" fontSize="9.5">
-        Prediction sequence
+        {t.t("accuracy.sequenceAxis")}
       </text>
       <text
         x={PAD.l - 38}
@@ -200,6 +210,7 @@ function CdfChart({
   reference?: (x: number) => number;
   symmetric?: boolean;
 }) {
+  const t = useTranslator();
   const W = 560;
   const H = 210;
   const PAD = { l: 46, r: 14, t: 14, b: 30 };
@@ -268,7 +279,7 @@ function CdfChart({
         textAnchor="middle"
         transform={`rotate(-90 ${PAD.l - 34} ${PAD.t + innerH / 2})`}
       >
-        Fraction
+        {t.t("accuracy.fractionAxis")}
       </text>
     </svg>
   );

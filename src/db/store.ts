@@ -122,8 +122,8 @@ export function isOrbitsAttached(sqlite: Database.Database): boolean {
 export function orbitsTable(sqlite: Database.Database, table: string): string {
   if (!isOrbitsAttached(sqlite)) {
     throw new Error(
-      `查询 ${table} 需要星历库，但 ${ORBITS_SCHEMA} 未挂载；` +
-        `请设置 SPACE_SAFETY_ORBIT_DB 或先运行 npm run master:split`,
+      `${table} lives in the orbits database, but ${ORBITS_SCHEMA} is not attached; ` +
+        "set SPACE_SAFETY_ORBIT_DB or run `npm run master:split` first",
     );
   }
   return `${ORBITS_SCHEMA}.${table}`;

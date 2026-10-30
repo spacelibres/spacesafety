@@ -18,6 +18,18 @@
  */
 
 import { getDb } from "@/db";
+import type { MessageTable } from "@/lib/i18n/messages/en";
+
+/**
+ * A dictionary key, checked at compile time.
+ *
+ * The label maps below are looked up indirectly (`t.t(FIELD_LABEL_KEYS[field])`),
+ * which the key-usage check in `tools/check.ts` cannot see — it reads literal
+ * `t.t("…")` calls. Typing the value as a key of the reference table moves the
+ * verification to the compiler, so a typo fails `tsc` instead of rendering the
+ * key name into a table cell.
+ */
+type MessageKey = keyof MessageTable;
 
 /** The catalogues, in the order the UI displays them. Must match the build script's SOURCES. */
 export const SOURCE_IDS = [
@@ -29,12 +41,20 @@ export const SOURCE_IDS = [
 ] as const;
 export type SourceId = (typeof SOURCE_IDS)[number];
 
-export const SOURCE_LABELS: Record<SourceId, { short: string; long: string }> = {
-  spacetrack: { short: "Space-Track", long: "Space-Track（美国太空军）" },
-  spacebook: { short: "Spacebook", long: "Spacebook（AGI/STK + ComSpoc）" },
-  discos: { short: "DISCOS", long: "ESA DISCOSweb（欧空局）" },
-  keeptrack: { short: "KeepTrack", long: "KeepTrack（keeptrack.space）" },
-  "sbsup": { short: "SB 分析目标", long: "Spacebook 分析型目标（无编目号）" },
+/**
+ * Dictionary key for each source's display name.
+ *
+ * A key, not the text: these labels render in five places and every one of them
+ * has to follow the reader's language. A `Record<SourceId, …>` rather than a list
+ * so that a source added to the build script fails to compile here instead of
+ * quietly disappearing from the tables.
+ */
+export const SOURCE_LABEL_KEYS: Record<SourceId, MessageKey> = {
+  spacetrack: "catalogue.sourceSpaceTrack",
+  spacebook: "catalogue.sourceSpacebook",
+  discos: "catalogue.sourceDiscos",
+  keeptrack: "catalogue.sourceKeepTrack",
+  sbsup: "catalogue.sourceSupplemental",
 };
 
 /** Every field the wide table carries. Must match the build script's FIELDS. */
@@ -301,10 +321,10 @@ export function wideStats(): WideStats {
  * cost 40 seconds of recomputation.
  */
 export function setFieldChoice(noradId: number, field: WideField, source: SourceId | null): void {
-  if (!wideReady()) throw new Error("宽表未挂载");
-  if (!(WIDE_FIELDS as readonly string[]).includes(field)) throw new Error(`未知字段：${field}`);
+  if (!wideReady()) throw new Error("the wide catalogue is not attached");
+  if (!(WIDE_FIELDS as readonly string[]).includes(field)) throw new Error(`unknown field: ${field}`);
   if (source !== null && !(SOURCE_IDS as readonly string[]).includes(source)) {
-    throw new Error(`未知来源：${source}`);
+    throw new Error(`unknown source: ${source}`);
   }
   const { sqlite } = getDb();
   sqlite
@@ -312,32 +332,39 @@ export function setFieldChoice(noradId: number, field: WideField, source: Source
     .run(source, noradId);
 }
 
-/** Human-readable field names, for the UI. */
-export const FIELD_LABELS: Record<WideField, string> = {
-  name: "名称",
-  cospar_id: "COSPAR 编号",
-  object_class: "目标分类",
-  country: "发射国",
-  launch_site: "发射场",
-  launch_date: "发射日期",
-  decay_date: "再入日期",
-  inclination_deg: "倾角 (°)",
-  period_min: "周期 (min)",
-  apogee_km: "远地点 (km)",
-  perigee_km: "近地点 (km)",
-  rcs_size: "RCS 分级",
-  mass_kg: "质量 (kg)",
-  hard_body_radius_m: "硬体半径 (m)",
-  cross_section_avg_m2: "横截面积均值 (m²)",
-  cross_section_max_m2: "横截面积最大 (m²)",
-  cross_section_min_m2: "横截面积最小 (m²)",
-  span_m: "翼展 (m)",
-  diameter_m: "直径 (m)",
-  ballistic_coefficient: "弹道系数",
-  shape: "形状",
-  manufacturer: "制造商",
-  bus: "平台型号",
-  orbit_type: "轨道类型",
-  dry_mass_kg: "干重 (kg)",
-  length_m: "长度 (m)",
+/**
+ * Dictionary key for each wide field's display name.
+ *
+ * Keyed by `WideField` so a field added to the build script cannot be rendered
+ * without a label. The reuses below are deliberate: a name shown in a table
+ * header and the same name shown in the coverage list must be one string, or the
+ * two drift apart in five languages at once.
+ */
+export const FIELD_LABEL_KEYS: Record<WideField, MessageKey> = {
+  name: "column.name",
+  cospar_id: "column.cospar",
+  object_class: "column.objectClass",
+  country: "column.country",
+  launch_site: "field.launchSite",
+  launch_date: "field.launchDate",
+  decay_date: "field.decayDate",
+  inclination_deg: "catalogue.inclination",
+  period_min: "catalogue.period",
+  apogee_km: "field.apogee",
+  perigee_km: "field.perigee",
+  rcs_size: "field.rcsSize",
+  mass_kg: "column.mass",
+  hard_body_radius_m: "column.hardBodyRadius",
+  cross_section_avg_m2: "field.crossSectionAvg",
+  cross_section_max_m2: "field.crossSectionMax",
+  cross_section_min_m2: "field.crossSectionMin",
+  span_m: "field.span",
+  diameter_m: "field.diameter",
+  ballistic_coefficient: "field.ballisticCoefficient",
+  shape: "field.shape",
+  manufacturer: "field.manufacturer",
+  bus: "field.bus",
+  orbit_type: "field.orbitType",
+  dry_mass_kg: "field.dryMass",
+  length_m: "field.length",
 };

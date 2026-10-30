@@ -4,32 +4,17 @@ import { getTranslator } from "@/lib/i18n/registry";
 import { Topbar } from "@/components/Shell";
 import {
   countWideObjects,
-  FIELD_LABELS,
+  FIELD_LABEL_KEYS,
   listWideObjects,
   SOURCE_IDS,
+  SOURCE_LABEL_KEYS,
   wideCatalogueAvailable,
   wideStats,
-  type SourceId,
 } from "@/lib/wide-catalogue";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
-
-/**
- * Dictionary key for each source's column header.
- *
- * Keyed by `SourceId` rather than listed per column, so adding a sixth source to
- * the build script fails to compile here instead of vanishing from the table —
- * which is exactly how KeepTrack's contribution went missing from these figures.
- */
-const SOURCE_LABEL_KEYS: Record<SourceId, string> = {
-  spacetrack: "catalogue.sourceSpaceTrack",
-  spacebook: "catalogue.sourceSpacebook",
-  discos: "catalogue.sourceDiscos",
-  keeptrack: "catalogue.sourceKeepTrack",
-  sbsup: "catalogue.sourceSupplemental",
-};
 
 export default async function CataloguePage({
   searchParams,
@@ -192,7 +177,7 @@ export default async function CataloguePage({
                         n ? `${((n / stats.objects) * 100).toFixed(1)}%` : "—";
                       return (
                         <tr key={c.field}>
-                          <td className="muted">{FIELD_LABELS[c.field]}</td>
+                          <td className="muted">{t.t(FIELD_LABEL_KEYS[c.field])}</td>
                           {SOURCE_IDS.map((s) => (
                             <td key={s} className="num muted">
                               {pct(c.values[s])}

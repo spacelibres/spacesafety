@@ -29,7 +29,7 @@ interface Body {
 export async function PATCH(request: Request): Promise<NextResponse> {
   if (!wideCatalogueAvailable()) {
     return NextResponse.json(
-      { error: "宽表未构建；先运行 npx tsx tools/build-wide-catalogue.ts" },
+      { error: "wide catalogue not built; run `npx tsx tools/build-wide-catalogue.ts`" },
       { status: 503 },
     );
   }
@@ -38,23 +38,23 @@ export async function PATCH(request: Request): Promise<NextResponse> {
   try {
     body = (await request.json()) as Body;
   } catch {
-    return NextResponse.json({ error: "请求体不是合法 JSON" }, { status: 400 });
+    return NextResponse.json({ error: "request body is not valid JSON" }, { status: 400 });
   }
 
   const noradId = Number(body.norad_id);
   if (!Number.isInteger(noradId) || noradId <= 0) {
-    return NextResponse.json({ error: "norad_id 必须是正整数" }, { status: 400 });
+    return NextResponse.json({ error: "norad_id must be a positive integer" }, { status: 400 });
   }
 
   const field = String(body.field ?? "");
   if (!(WIDE_FIELDS as readonly string[]).includes(field)) {
-    return NextResponse.json({ error: `未知字段：${field}` }, { status: 400 });
+    return NextResponse.json({ error: `unknown field: ${field}` }, { status: 400 });
   }
 
   const raw = body.source;
   if (raw !== null && !(SOURCE_IDS as readonly string[]).includes(String(raw))) {
     return NextResponse.json(
-      { error: `source 必须是 ${SOURCE_IDS.join(" / ")} 之一，或 null` },
+      { error: `source must be one of ${SOURCE_IDS.join(" / ")} or null` },
       { status: 400 },
     );
   }

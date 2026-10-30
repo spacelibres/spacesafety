@@ -4,10 +4,10 @@ import { notFound } from "next/navigation";
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
 import {
-  FIELD_LABELS,
+  FIELD_LABEL_KEYS,
   getWideObject,
   SOURCE_IDS,
-  SOURCE_LABELS,
+  SOURCE_LABEL_KEYS,
   wideCatalogueAvailable,
   type WideField,
 } from "@/lib/wide-catalogue";
@@ -114,7 +114,7 @@ export default async function CatalogueObjectPage({
                     <tr>
                       <th>{t.t("catalogue.field")}</th>
                       {SOURCE_IDS.map((s) => (
-                        <th key={s}>{SOURCE_LABELS[s].short}</th>
+                        <th key={s}>{t.t(SOURCE_LABEL_KEYS[s])}</th>
                       ))}
                       <th>{t.t("catalogue.chosen")}</th>
                     </tr>
@@ -124,7 +124,7 @@ export default async function CatalogueObjectPage({
                       const cmp = object.fields[field];
                       return (
                         <tr key={field}>
-                          <td className="muted">{FIELD_LABELS[field]}</td>
+                          <td className="muted">{t.t(FIELD_LABEL_KEYS[field])}</td>
                           {SOURCE_IDS.map((s) => {
                             const value = cmp.values[s];
                             const isChosen = cmp.chosen === s;
@@ -142,7 +142,7 @@ export default async function CatalogueObjectPage({
                           <td>
                             {cmp.chosen ? (
                               <span className={`chip ${cmp.disagrees ? "false" : "true"}`}>
-                                {SOURCE_LABELS[cmp.chosen].short}
+                                {t.t(SOURCE_LABEL_KEYS[cmp.chosen])}
                               </span>
                             ) : (
                               <span className="muted">—</span>

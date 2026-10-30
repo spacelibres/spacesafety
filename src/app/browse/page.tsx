@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
 import { browse, type BrowseFilter, type FacetName } from "@/lib/browse";
+import type { MessageTable } from "@/lib/i18n/messages/en";
 import { getTranslator } from "@/lib/i18n/registry";
 
 export const dynamic = "force-dynamic";
@@ -15,43 +16,50 @@ const FACETS: Array<{ key: FacetName; labelKey: string }> = [
   { key: "purpose", labelKey: "browse.purpose" },
 ];
 
-/** Human labels for the orbit regimes and purpose groups. */
-const VALUE_LABELS: Record<string, Record<string, string>> = {
+/**
+ * Dictionary key for each facet value.
+ *
+ * A key rather than the text: this page renders in six languages, and the same
+ * orbit-regime and purpose words also appear on the statistics page. Facets with
+ * no entry (country codes, constellation names) render their raw value, which is
+ * a technical identifier and stays untranslated.
+ */
+const VALUE_LABEL_KEYS: Record<string, Record<string, keyof MessageTable>> = {
   objectClass: {
-    PAYLOAD: "载荷 PAYLOAD",
-    "ROCKET BODY": "火箭残骸 ROCKET BODY",
-    DEBRIS: "空间碎片 DEBRIS",
-    UNKNOWN: "未分类 UNKNOWN",
+    PAYLOAD: "classValue.payload",
+    "ROCKET BODY": "classValue.rocketBody",
+    DEBRIS: "classValue.debris",
+    UNKNOWN: "classValue.unknown",
   },
   classDetail: {
-    "PAYLOAD FRAGMENT": "载荷解体碎片",
-    "ROCKET FRAGMENT": "火箭解体碎片",
-    "PAYLOAD DEBRIS": "载荷碎片",
-    "ROCKET DEBRIS": "火箭碎片",
-    "PAYLOAD MISSION RELATED": "载荷任务相关物",
-    "ROCKET MISSION RELATED": "火箭任务相关物",
-    "OTHER MISSION RELATED": "其他任务相关物",
+    "PAYLOAD FRAGMENT": "classDetail.payloadFragment",
+    "ROCKET FRAGMENT": "classDetail.rocketFragment",
+    "PAYLOAD DEBRIS": "classDetail.payloadDebris",
+    "ROCKET DEBRIS": "classDetail.rocketDebris",
+    "PAYLOAD MISSION RELATED": "classDetail.payloadMissionRelated",
+    "ROCKET MISSION RELATED": "classDetail.rocketMissionRelated",
+    "OTHER MISSION RELATED": "classDetail.otherMissionRelated",
   },
   regime: {
-    LEO: "低轨 LEO",
-    MEO: "中轨 MEO",
-    GEO: "地球同步 GEO",
-    HEO: "大椭圆 HEO",
-    UNKNOWN: "未知",
+    LEO: "regime.LEO",
+    MEO: "regime.MEO",
+    GEO: "regime.GEO",
+    HEO: "regime.HEO",
+    UNKNOWN: "regime.UNKNOWN",
   },
   purpose: {
-    communication: "通信",
-    navigation: "导航",
-    "earth-observation": "对地观测",
-    meteorology: "气象",
-    science: "科学",
-    military: "军事",
-    technology: "技术试验",
+    communication: "purpose.communication",
+    navigation: "purpose.navigation",
+    "earth-observation": "purpose.earthObservation",
+    meteorology: "purpose.meteorology",
+    science: "purpose.science",
+    military: "purpose.military",
+    technology: "purpose.technology",
   },
 };
 
-function label(facet: FacetName, value: string): string {
-  return VALUE_LABELS[facet]?.[value] ?? value;
+function labelKey(facet: FacetName, value: string): keyof MessageTable | undefined {
+  return VALUE_LABEL_KEYS[facet]?.[value];
 }
 
 export default async function BrowsePage({
@@ -140,7 +148,12 @@ export default async function BrowsePage({
                         href={href({ [f.key]: active ? undefined : v.value, page: undefined })}
                         className={`facet-item${active ? " active" : ""}`}
                       >
-                        <span className="facet-label">{label(f.key, v.value)}</span>
+                        <span className="facet-label">
+                          {(() => {
+                            const key = labelKey(f.key, v.value);
+                            return key ? t.t(key) : v.value;
+                          })()}
+                        </span>
                         <span className="facet-count">{v.count.toLocaleString()}</span>
                       </Link>
                     );
