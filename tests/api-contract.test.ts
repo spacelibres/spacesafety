@@ -192,6 +192,111 @@ async function main(): Promise<void> {
     assert.equal(pluralNoFilter.body.error_type, "bad_request");
   });
 
+  // ------------------------------------------------------- reference_frame
+  // Documented on GET /api/v1/trajectory/:id: `original` (default) · `itrf` ·
+  // `eme2000`. The other two mean the same ephemeris in another frame, so the
+  // states are transformed and re-serialised.
+  const t0 = Date.parse("2026-12-01T00:00:00Z");
+  const oemLines = [
+    "CCSDS_OEM_VERS = 2.0",
+    "CREATION_DATE = 2026-10-30T00:00:00",
+    "ORIGINATOR = CONTRACT-TEST",
+    "META_START",
+    "OBJECT_NAME = FRAME-TEST",
+    "OBJECT_ID = 2026-001A",
+    "CENTER_NAME = EARTH",
+    "REF_FRAME = EME2000",
+    "TIME_SYSTEM = UTC",
+    `START_TIME = ${new Date(t0).toISOString().replace("Z", "")}`,
+    `STOP_TIME = ${new Date(t0 + 7 * 60_000).toISOString().replace("Z", "")}`,
+    "META_STOP",
+  ];
+  for (let i = 0; i < 8; i += 1) {
+    const iso = new Date(t0 + i * 60_000).toISOString().replace("Z", "");
+    oemLines.push(`${iso} ${(7000 + i).toFixed(3)} ${(0.1 * i).toFixed(3)} 0.2 0.001 7.5 0.001`);
+  }
+  const oemText = oemLines.join("\n");
+
+  const trajId = "aaaaaaaa-0000-4000-8000-00000000fram".replace("fram", "f000");
+  db.insert(schema.trajectories)
+    .values({
+      id: trajId,
+      objectId: "o1",
+      operatorId: me,
+      uploadType: "definitive",
+      stateSource: "operator_ephemeris",
+      screenedStatus: "screened",
+      fileFormat: "oem",
+      startAt: new Date(t0).toISOString(),
+      endAt: new Date(t0 + 7 * 60_000).toISOString(),
+      pointCount: 8,
+      uploadedAt: now,
+      createdAt: now,
+      seq: 1,
+    } as never)
+    .run();
+  db.insert(schema.trajectoryFiles).values({ trajectoryId: trajId, fileText: oemText }).run();
+
+  const trajHandler = (await import("../src/app/api/v1/trajectory/[id]/route")).GET;
+  const callTraj = async (path: string) => {
+    const res = await trajHandler(
+      new Request(`http://localhost${path}`, { headers: { "x-space-safety-operator": me } }),
+      { params: Promise.resolve({ id: trajId }) },
+    );
+    return { status: res.status, headers: res.headers, body: await res.text() };
+  };
+
+  const original = await callTraj(`/api/v1/trajectory/${trajId}`);
+  check("reference_frame=original 原样返回上传文件", () => {
+    assert.equal(original.status, 200);
+    assert.equal(original.body, oemText);
+    assert.equal(original.headers.get("x-reference-frame"), "original");
+  });
+
+  const asItrf = await callTraj(`/api/v1/trajectory/${trajId}?reference_frame=itrf`);
+  check("reference_frame=itrf 返回 ITRF 文件", () => {
+    assert.equal(asItrf.status, 200);
+    assert.equal(asItrf.headers.get("x-reference-frame"), "itrf");
+    assert.match(asItrf.body, /REF_FRAME = ITRF/);
+  });
+
+  const asEme = await callTraj(`/api/v1/trajectory/${trajId}?reference_frame=eme2000`);
+  check("reference_frame=eme2000 返回 EME2000 文件", () => {
+    assert.equal(asEme.status, 200);
+    assert.match(asEme.body, /REF_FRAME = EME2000/);
+  });
+
+  const { normaliseTrajectory } = await import("../src/lib/api/validate-trajectory");
+  check("两种帧的产物都能被自家解析器读回，且 |r| 不变", () => {
+    const mag = (v: readonly number[]) => Math.hypot(v[0], v[1], v[2]);
+    const source = normaliseTrajectory(oemText, { enforceFutureWindow: false }).states[0];
+    for (const frame of ["itrf", "eme2000"] as const) {
+      const body = frame === "itrf" ? asItrf.body : asEme.body;
+      const back = normaliseTrajectory(body, { enforceFutureWindow: false });
+      assert.equal(back.states.length, 8, `${frame} 状态数`);
+      const ratio = mag(back.states[0].position) / mag(source.position);
+      assert.ok(Math.abs(ratio - 1) < 1e-6, `${frame} |r| 比 ${ratio}`);
+    }
+  });
+
+  check("eme2000 与源文件逐点一致（源本就是 EME2000）", () => {
+    const source = normaliseTrajectory(oemText, { enforceFutureWindow: false }).states;
+    const back = normaliseTrajectory(asEme.body, { enforceFutureWindow: false }).states;
+    for (let i = 0; i < source.length; i += 1) {
+      const d = Math.hypot(
+        back[i].position[0] - source[i].position[0],
+        back[i].position[1] - source[i].position[1],
+        back[i].position[2] - source[i].position[2],
+      );
+      assert.ok(d < 1e-6, `第 ${i} 个状态差 ${d} km`);
+    }
+  });
+
+  const badFrame = await callTraj(`/api/v1/trajectory/${trajId}?reference_frame=moon`);
+  check("非法的 reference_frame 返回 400", () => {
+    assert.equal(badFrame.status, 400);
+  });
+
   // --------------------------------------------------------- screened_status
   check("screened_status 覆盖官方文档的 6 个取值", () => {
     const expected = [

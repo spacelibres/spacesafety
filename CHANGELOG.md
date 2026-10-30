@@ -12,6 +12,49 @@
 
 ---
 
+## [0.1.52] - 2026-10-30
+
+实现 `GET /api/v1/trajectory/:id?reference_frame=` —— 官方文档化的参数，我们之前直接忽略。
+
+### 缺口
+
+`api__get-a-trajectory-file.md` 明确写了三个取值：
+
+> `reference_frame` — `original` (default) · `itrf` · `eme2000`
+
+我们只返回上传的原始字节，`?reference_frame=itrf` 被静默忽略 —— 客户端以为拿到了 ITRF
+数据，实际拿到的是 EME2000，**不会报错，只会算错**。
+
+### 改法
+
+- `frames-rigorous.ts` 新增 `j2000StateToItrf` / `j2000CovToItrf` / `transpose3`：
+  已有的是 ITRF→J2000，这次补反向。速度**不能只旋转**：旋转坐标系里的速度要减掉
+  `ω × r`（赤道上约 0.47 km/s 的差），代码里显式写了这一步。
+- 新增 `src/lib/orbit/oem-write.ts`：把归一化后的状态重新序列化成 CCSDS OEM (KVN)。
+  协方差段用与筛查内核相反的同一套块对角约定（地球自转项是确定性修正、不是随机变量，
+  不进协方差）—— 这条约定写在代码注释与本文里，不留隐含。
+- 路由：`original` 直接返回原始字节；`itrf`/`eme2000` 解析后重写，响应头带
+  `x-reference-frame` 标明实际帧；非法取值返回 400。
+
+### 验证
+
+`tests/api-contract.test.ts` 扩到 **16 passed**，其中 7 条针对本项：
+
+- `original` 返回的字节与上传文件逐字相同；
+- `itrf` / `eme2000` 的产物分别带 `REF_FRAME = ITRF` / `EME2000`；
+- **产物能被自家解析器读回**（我们写出的文件必须是能读回来的文件）；
+- 帧转换保持 `|r|` 相对误差 < 1e-6 —— 换的只是表达，不是轨道；
+- 源文件本就是 EME2000 时，`eme2000` 输出与其逐点差 < 1e-6 km；
+- 非法帧返回 400。
+
+`npx tsc --noEmit`、`npm test`（39 套件）、`npm run check` 全过。
+
+### 已知边界
+
+CCSDS OEM 的协方差段在入库时就被忽略（`fromOem` 明确不解析，README 也写着"协方差段暂
+忽略"），所以 OEM 来源的轨迹转帧后不带协方差 —— 那不是本次引入的丢失。OCM / Modified ITC
+来源的轨迹带协方差，转帧时一并变换。
+
 ## [0.1.51] - 2026-10-30
 
 按官方快照补齐三个 API 契约缺口：弃用端点、复数路径、两个缺失的状态值。

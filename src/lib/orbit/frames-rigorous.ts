@@ -207,6 +207,73 @@ export function itrfStateToJ2000(
   };
 }
 
+/**
+ * The inverse transform: J2000 state into ITRF.
+ *
+ * The rotation is the transpose of `itrfToJ2000Matrix`, and the Earth-rotation
+ * term that `itrfStateToJ2000` *adds* is *subtracted* here — a velocity in a
+ * rotating frame is not simply a rotated inertial velocity.
+ *
+ * Needed by `GET /api/v1/trajectory/:id?reference_frame=itrf`, which the vendor
+ * documents: a client asks for the same trajectory expressed in another frame.
+ */
+export function j2000StateToItrf(
+  position: Vec3,
+  velocity: Vec3,
+  ms: number,
+): { position: Vec3; velocity: Vec3 } {
+  const A = transpose3(itrfToJ2000Matrix(ms));
+  const r = applyMat(A, position);
+  const vRotated = applyMat(A, velocity);
+
+  // Inverse of the `ω × r` correction: subtract it after rotating.
+  return {
+    position: r,
+    velocity: [
+      vRotated[0] + OMEGA_EARTH * r[1],
+      vRotated[1] - OMEGA_EARTH * r[0],
+      vRotated[2],
+    ],
+  };
+}
+
+/**
+ * Transform a 6x6 covariance from J2000 to ITRF.
+ *
+ * Same reasoning as `itrfCovToJ2000`: the frame rotation acts identically on
+ * position and velocity, so the transform is block-diagonal, and the `ω × r`
+ * term is a deterministic correction rather than a random variable, so it does
+ * not enter the covariance.
+ */
+export function j2000CovToItrf(cov: number[], ms: number): number[] {
+  const A = transpose3(itrfToJ2000Matrix(ms));
+  const out = new Array<number>(36).fill(0);
+
+  for (let i = 0; i < 2; i += 1) {
+    const oi = i * 3;
+    for (let j = 0; j < 2; j += 1) {
+      const oj = j * 3;
+      for (let a = 0; a < 3; a += 1) {
+        for (let b = 0; b < 3; b += 1) {
+          let sum = 0;
+          for (let x = 0; x < 3; x += 1) {
+            for (let y = 0; y < 3; y += 1) {
+              sum += A[a * 3 + x] * cov[(oi + x) * 6 + (oj + y)] * A[b * 3 + y];
+            }
+          }
+          out[(oi + a) * 6 + (oj + b)] = sum;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Transpose of a row-major 3x3. A rotation's inverse is its transpose. */
+export function transpose3(m: Mat3): Mat3 {
+  return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
+}
+
 function applyMat(m: Mat3, v: Vec3): Vec3 {
   return [
     m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
