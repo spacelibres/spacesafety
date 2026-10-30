@@ -275,6 +275,28 @@ function checkReferencedKeys(): void {
 }
 
 // --- 6. version consistency ---------------------------------------------------
+/**
+ * Versions recorded with no tag of their own, and why.
+ *
+ * The rule is "one commit, one version, in four places at once". These three
+ * broke it in ways that cannot be repaired honestly:
+ *
+ *   0.1.0   the baseline entry, written before the repository had a version
+ *           history to tag; there is no commit that is "the 0.1.0 release"
+ *   0.1.15  its work was committed together with 0.1.16
+ *   0.1.17  its work was committed together with 0.1.18
+ *
+ * Retro-tagging any of them would put a tag on a commit that also carries a
+ * different version's changes — a worse lie than an explained gap. They stay in
+ * the CHANGELOG; deleting history to satisfy a check is not a fix either. Every
+ * other version, past or future, must have both an entry and a tag.
+ */
+const UNTAGGED_BY_DESIGN = new Map([
+  ["0.1.0", "baseline entry, no corresponding commit"],
+  ["0.1.15", "committed together with 0.1.16"],
+  ["0.1.17", "committed together with 0.1.18"],
+]);
+
 function checkVersion(): void {
   const read = (file: string): string | null => {
     if (!existsSync(join(ROOT, file))) return null;
@@ -295,36 +317,57 @@ function checkVersion(): void {
     }
   }
 
+  // Every entry, not only the newest. Checking the first line alone let four
+  // tagged releases ship without an entry and two entries exist with no tag,
+  // while `npm run check` reported "version: ok" throughout.
   const changelog = read("CHANGELOG.md") ?? "";
-  const first = changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m);
+  const documented = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1]);
+  const first = documented[0];
   if (!first) {
     fail("version", "CHANGELOG.md has no versioned entry");
-  } else if (first[1] !== version) {
-    fail("version", `CHANGELOG.md newest entry ${first[1]} != package.json ${version}`);
+  } else if (first !== version) {
+    fail("version", `CHANGELOG.md newest entry ${first} != package.json ${version}`);
   }
+  const duplicates = documented.filter((v, i) => documented.indexOf(v) !== i);
+  if (duplicates.length) fail("version", `CHANGELOG.md repeats ${[...new Set(duplicates)].join(", ")}`);
 
+  let tags: string[] = [];
   try {
-    const tag = execFileSync("git", ["describe", "--tags", "--abbrev=0"], {
-      cwd: ROOT,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
-    const tagged = execFileSync("git", ["rev-list", "-n", "1", tag], {
-      cwd: ROOT,
-      encoding: "utf8",
-    }).trim();
-    if (tag.replace(/^v/, "") !== version) {
-      fail("version", `git tag ${tag} != package.json ${version}`);
-    } else if (tagged !== head) {
-      // Expected while a release is being prepared; worth stating, not failing.
-      notes.push(`version: HEAD is ahead of ${tag} (tag it once this commit passes)`);
-    }
+    tags = execFileSync("git", ["tag", "--list", "v*"], { cwd: ROOT, encoding: "utf8" })
+      .split("\n")
+      .map((t) => t.trim().replace(/^v/, ""))
+      .filter(Boolean);
   } catch {
-    notes.push("version: no git tag found yet");
+    notes.push("version: not a git working tree; skipped tag comparison");
   }
 
-  notes.push(`version: ${version}`);
+  if (tags.length) {
+    const tagged = new Set(tags);
+    const documentedSet = new Set(documented);
+    const tagWithoutEntry = tags.filter((t) => !documentedSet.has(t));
+    const entryWithoutTag = documented.filter((v) => !tagged.has(v) && !UNTAGGED_BY_DESIGN.has(v));
+    if (tagWithoutEntry.length) {
+      fail("version", `${tagWithoutEntry.length} tag(s) have no CHANGELOG entry: ${tagWithoutEntry.join(", ")}`);
+    }
+    if (entryWithoutTag.length) {
+      fail("version", `${entryWithoutTag.length} CHANGELOG entr(y/ies) have no tag: ${entryWithoutTag.join(", ")}`);
+    }
+    // The tag for the current release must also be the one on HEAD.
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+    if (!tagged.has(version)) {
+      notes.push(`version: HEAD is not tagged v${version} yet (tag it once this commit passes)`);
+    } else {
+      const taggedAt = execFileSync("git", ["rev-list", "-n", "1", `v${version}`], {
+        cwd: ROOT,
+        encoding: "utf8",
+      }).trim();
+      if (taggedAt !== head) {
+        notes.push(`version: HEAD is ahead of v${version} (tag it once this commit passes)`);
+      }
+    }
+  }
+
+  notes.push(`version: ${version} (${documented.length} entries, ${tags.length} tags)`);
 }
 
 // --- 7. hard-coded UI text ----------------------------------------------------
