@@ -6,14 +6,30 @@ import {
   countWideObjects,
   FIELD_LABELS,
   listWideObjects,
-  SOURCE_LABELS,
+  SOURCE_IDS,
   wideCatalogueAvailable,
   wideStats,
+  type SourceId,
 } from "@/lib/wide-catalogue";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
+
+/**
+ * Dictionary key for each source's column header.
+ *
+ * Keyed by `SourceId` rather than listed per column, so adding a sixth source to
+ * the build script fails to compile here instead of vanishing from the table —
+ * which is exactly how KeepTrack's contribution went missing from these figures.
+ */
+const SOURCE_LABEL_KEYS: Record<SourceId, string> = {
+  spacetrack: "catalogue.sourceSpaceTrack",
+  spacebook: "catalogue.sourceSpacebook",
+  discos: "catalogue.sourceDiscos",
+  keeptrack: "catalogue.sourceKeepTrack",
+  sbsup: "catalogue.sourceSupplemental",
+};
 
 export default async function CataloguePage({
   searchParams,
@@ -65,8 +81,7 @@ export default async function CataloguePage({
             <div className="filters">
               <span className="count">{t.t("catalogue.sources")}</span>
               <span className="count muted">
-                {SOURCE_LABELS.spacetrack.long} · {SOURCE_LABELS.spacebook.long} ·{" "}
-                {SOURCE_LABELS.discos.long}
+                {SOURCE_IDS.map((s) => t.t(SOURCE_LABEL_KEYS[s])).join(" · ")}
               </span>
             </div>
 
@@ -163,24 +178,30 @@ export default async function CataloguePage({
                   <thead>
                     <tr>
                       <th>{t.t("catalogue.field")}</th>
-                      <th className="num">{t.t("catalogue.sourceSpaceTrack")}</th>
-                      <th className="num">{t.t("catalogue.sourceSpacebook")}</th>
-                      <th className="num">{t.t("catalogue.sourceDiscos")}</th>
+                      {SOURCE_IDS.map((s) => (
+                        <th key={s} className="num">
+                          {t.t(SOURCE_LABEL_KEYS[s])}
+                        </th>
+                      ))}
                       <th className="num">{t.t("catalogue.union")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {stats.coverage.map((c) => {
-                      const union = Math.max(c.spacetrack, c.spacebook, c.discos);
                       const pct = (n: number) =>
                         n ? `${((n / stats.objects) * 100).toFixed(1)}%` : "—";
                       return (
                         <tr key={c.field}>
                           <td className="muted">{FIELD_LABELS[c.field]}</td>
-                          <td className="num muted">{pct(c.spacetrack)}</td>
-                          <td className="num muted">{pct(c.spacebook)}</td>
-                          <td className="num muted">{pct(c.discos)}</td>
-                          <td className="num">{pct(union)}</td>
+                          {SOURCE_IDS.map((s) => (
+                            <td key={s} className="num muted">
+                              {pct(c.values[s])}
+                            </td>
+                          ))}
+                          {/* The union comes from SQL, not from the largest cell:
+                              the sources cover different objects, so a maximum
+                              understates the catalogue badly. */}
+                          <td className="num">{pct(c.union)}</td>
                         </tr>
                       );
                     })}

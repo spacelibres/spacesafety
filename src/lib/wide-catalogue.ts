@@ -1,20 +1,20 @@
 /**
- * Reading the three-source wide catalogue.
+ * Reading the five-source wide catalogue.
  *
  * ## Why a separate query module
  *
  * The wide table has a shape unlike anything else in the schema: every field is
- * four columns (`__spacetrack`, `__spacebook`, `__discos`, `__chosen`) and the
- * field list is data, not code. Writing that out into Drizzle's typed schema would
- * produce 105 hand-maintained column definitions that must be kept in step with a
- * build script; reading it generically keeps the two from drifting.
+ * six columns — one per source plus `__chosen` — and the field list is data, not
+ * code. Writing that out into Drizzle's typed schema would produce 156
+ * hand-maintained column definitions that must be kept in step with a build
+ * script; reading it generically keeps the two from drifting.
  *
  * ## What a caller gets
  *
  * Not a flat row. A field the sources disagree about is only meaningful with all
- * of its claims together, so each field is returned as a small object carrying the
- * three values and which one is currently chosen. A page can then render one row
- * per object and still show three sources per cell.
+ * of its claims together, so each field is returned as a small object carrying
+ * every source's value and which one is currently chosen. A page can then render
+ * one row per object and still show five sources per cell.
  */
 
 import { getDb } from "@/db";
@@ -105,8 +105,17 @@ export interface WideListRow {
 
 export interface WideStats {
   objects: number;
-  /** Per field: how many objects have a value from each source. */
-  coverage: Array<{ field: WideField; spacetrack: number; spacebook: number; discos: number }>;
+  /**
+   * Per field: how many objects carry a value from each source, and how many
+   * carry one from at least one source.
+   *
+   * `union` must be computed as an OR over every source. It is *not* the largest
+   * single-source count: the sources cover different objects, so `max()` silently
+   * reports a fraction of what the catalogue actually holds. It did — the table
+   * showed 50.4% for decay dates that 97.3% of objects have, and 17.5% for
+   * diameters that 41.5% have, hiding KeepTrack's entire contribution.
+   */
+  coverage: Array<{ field: WideField; values: Record<SourceId, number>; union: number }>;
 }
 
 function wideReady(): boolean {
@@ -131,9 +140,9 @@ export interface ListOptions {
 /**
  * The list view: one summary row per object.
  *
- * Reads only the `__chosen` columns (plus a disagreement count computed from the
- * three name sources) so the page can serve 71 000 objects without materialising
- * 105 columns per row.
+ * Reads only the `__chosen` columns (plus a disagreement count over four
+ * compared fields) so the page can serve 72 000 objects without materialising
+ * 156 columns per row.
  */
 export function listWideObjects(options: ListOptions = {}): WideListRow[] {
   if (!wideReady()) return [];
@@ -213,7 +222,7 @@ export function countWideObjects(): number {
 }
 
 /**
- * One object, with every field's three values.
+ * One object, with every field's values from every source.
  *
  * Returns null when the object is not in the wide build, so the caller can tell
  * "no such object" apart from "object exists but nothing is known about it".
@@ -255,31 +264,31 @@ export function getWideObject(noradId: number): WideRow | null {
   return { noradId: row.noradId, fields };
 }
 
-/** Coverage per field per source, for the catalogue overview page. */
+/** Coverage per field per source, plus the union across all five, for the catalogue page. */
 export function wideStats(): WideStats {
   if (!wideReady()) return { objects: 0, coverage: [] };
   const { sqlite } = getDb();
 
   const objects = countWideObjects();
-  const selects = WIDE_FIELDS.map(
-    (f) =>
-      `SUM(CASE WHEN ${f}__spacetrack IS NOT NULL AND ${f}__spacetrack <> '' THEN 1 ELSE 0 END) AS st_${f},
-       SUM(CASE WHEN ${f}__spacebook IS NOT NULL AND ${f}__spacebook <> '' THEN 1 ELSE 0 END) AS sb_${f},
-       SUM(CASE WHEN ${f}__discos IS NOT NULL AND ${f}__discos <> '' THEN 1 ELSE 0 END) AS ds_${f}`,
-  ).join(",\n");
+  const filled = (f: WideField, s: SourceId): string =>
+    `CASE WHEN "${f}__${s}" IS NOT NULL AND "${f}__${s}" <> '' THEN 1 ELSE 0 END`;
 
-  const row = sqlite.prepare(`SELECT ${selects} FROM wide.catalogue_wide`).get() as Record<
-    string,
-    number
-  >;
+  const selects = WIDE_FIELDS.map((f) => {
+    const perSource = SOURCE_IDS.map((s) => `SUM(${filled(f, s)}) AS "${f}__${s}"`).join(",\n       ");
+    // The union is an OR over the sources, not the largest single count: the
+    // sources hold different objects, so the maximum understates the catalogue.
+    const union = `SUM(CASE WHEN ${SOURCE_IDS.map((s) => filled(f, s)).join(" OR ")} THEN 1 ELSE 0 END) AS "${f}__union"`;
+    return `${perSource},\n       ${union}`;
+  }).join(",\n       ");
+
+  const row = sqlite.prepare(`SELECT ${selects} FROM wide.catalogue_wide`).get() as Record<string, number>;
 
   return {
     objects,
     coverage: WIDE_FIELDS.map((f) => ({
       field: f,
-      spacetrack: row[`st_${f}`] ?? 0,
-      spacebook: row[`sb_${f}`] ?? 0,
-      discos: row[`ds_${f}`] ?? 0,
+      values: Object.fromEntries(SOURCE_IDS.map((s) => [s, row[`${f}__${s}`] ?? 0])) as Record<SourceId, number>,
+      union: row[`${f}__union`] ?? 0,
     })),
   };
 }

@@ -74,14 +74,59 @@ check("keeptrack_object 存在（第四数据源）", () => {
   assert.ok(baseTables.has("keeptrack_object"), "keeptrack_object 缺失");
 });
 
-check("宽表含四个来源的列", () => {
+check("宽表含五个来源的列", () => {
   const cols = (sqlite.prepare("PRAGMA wide.table_info(catalogue_wide)").all() as Array<{ name: string }>).map(
     (c) => c.name,
   );
-  for (const src of ["spacetrack", "spacebook", "discos", "keeptrack"]) {
+  for (const src of ["spacetrack", "spacebook", "discos", "keeptrack", "sbsup"]) {
     assert.ok(
       cols.some((c) => c.endsWith(`__${src}`)),
       `缺少 __${src} 列——该来源在页面会整列消失`,
+    );
+  }
+});
+
+/**
+ * Coverage must be counted as an OR over all five sources.
+ *
+ * The catalogue page used to print `Math.max()` of three sources as the
+ * "combined" figure. The sources hold *different objects*, so that is not a union
+ * at all: it reported 17.5% for diameter where 41.5% of objects have one, and
+ * 50.4% for decay dates where 97.3% do — understating the catalogue while looking
+ * perfectly reasonable. These assertions fail if the union is ever taken from the
+ * widest single column instead of from the data.
+ */
+check("覆盖率的并集按 OR 计算，不等于单源最大值", () => {
+  const sources = ["spacetrack", "spacebook", "discos", "keeptrack", "sbsup"];
+  const fields = ["diameter_m", "decay_date", "inclination_deg", "name"];
+  for (const field of fields) {
+    const counts = sources.map(
+      (s) =>
+        (
+          sqlite
+            .prepare(
+              `SELECT COUNT(*) AS n FROM wide.catalogue_wide
+                WHERE "${field}__${s}" IS NOT NULL AND "${field}__${s}" <> ''`,
+            )
+            .get() as { n: number }
+        ).n,
+    );
+    const union = (
+      sqlite
+        .prepare(
+          `SELECT COUNT(*) AS n FROM wide.catalogue_wide
+            WHERE ${sources
+              .map((s) => `("${field}__${s}" IS NOT NULL AND "${field}__${s}" <> '')`)
+              .join(" OR ")}`,
+        )
+        .get() as { n: number }
+    ).n;
+    const widest = Math.max(...counts);
+    assert.ok(
+      union > widest,
+      `${field}: 并集 ${union} 应严格大于单源最大 ${widest}（${sources
+        .map((s, i) => `${s}=${counts[i]}`)
+        .join(", ")}）`,
     );
   }
 });
