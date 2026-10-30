@@ -21,16 +21,16 @@
 | 数据 | 表 | 行数 | 最新一行 | 主键 | 消费方 |
 |---|---|---:|---|---|---|
 | 公开发布的 CDM | `space_track_cdm_public` | 3,164 | TCA 2026-11-01 | `cdm_id` | `/conjunctions`、`/api/v1/cdm?source=public` |
-| 再入预测（TIP）| `space_track_tip` | 26,189 | 2026-11-04 | `norad_id`+`msg_epoch` | 仅入库 |
-| 再入记录（合并四源）| `space_track_decay` | 143,386 | 2026-12-28 | `norad_id`+`msg_epoch` | 仅入库 |
-| 空间天气（逐日）| `space_weather` | 25,232 | 2026-10-30 | `day` | 仅入库 |
-| 地球定向参数（逐日）| `earth_orientation` | 23,678 | 2026-10-29 | `mjd` | 仅入库 |
-| 解体事件 | `discos_fragmentation` | 673 | 2026-03-29 | `discos_id` | 仅入库 |
-| 各国在轨/再入数量 | `space_track_boxscore` | 122 | 快照 | `country` | 仅入库 |
+| 再入预测（TIP）| `space_track_tip` | 26,189 | 2026-11-04 | `norad_id`+`msg_epoch` | `/reentry` |
+| 再入记录（合并四源）| `space_track_decay` | 143,386 | 2026-12-28 | `norad_id`+`msg_epoch` | `/reentry` |
+| 空间天气（逐日）| `space_weather` | 25,232 | 2026-10-30 | `day` | `/environment` |
+| 地球定向参数（逐日）| `earth_orientation` | 23,678 | 2026-10-29 | `mjd` | `/environment` |
+| 解体事件 | `discos_fragmentation` | 673 | 2026-03-29 | `discos_id` | `/launches` |
+| 各国在轨/再入数量 | `space_track_boxscore` | 122 | 快照 | `country` | `/launches` |
 | KeepTrack 交会告警 | `keeptrack_conjunction` | 10 | 2026-11-03 | `id` | `/screening/socrates` |
-| KeepTrack 发射统计 | `keeptrack_launch_stat` | 4,069 | 2026-10-30 | `kind`+`key1`+`key2` | 仅入库 |
-| KeepTrack 再入预测 | `keeptrack_reentry` | 14 | 2026-10-30 | `norad_id` | 仅入库 |
-| KeepTrack 待发射 | `keeptrack_upcoming_launch` | 100 | 2026-12-31 | `id` | 仅入库 |
+| KeepTrack 发射统计 | `keeptrack_launch_stat` | 4,069 | 2026-10-30 | `kind`+`key1`+`key2` | `/launches` |
+| KeepTrack 再入预测 | `keeptrack_reentry` | 14 | 2026-10-30 | `norad_id` | `/reentry` |
+| KeepTrack 待发射 | `keeptrack_upcoming_launch` | 100 | 2026-12-31 | `id` | `/launches` |
 
 `npm run data:inventory` 对每张表断言四件事：**无重复主键**、**时间列无空值**、
 **逐日序列无缺口**、**物体编号 100% 能在编目表里解析**。当前 11 张表全部通过。
@@ -127,6 +127,16 @@ boxscore 是文件生成时刻的快照，会比编目文件多算几个刚拿�
 风险带几乎全是"高"是因为该源只发布达到报告门槛（Pc ≥ 1e-4）的交会，
 所以筛选在这里主要区分「有 Pc」与「没有 Pc」，页面上也这么写了。
 
+### 页面 `/reentry`、`/environment`、`/launches`
+
+| 页面 | 数据 | 关键口径 |
+|---|---|---|
+| `/reentry` | TIP（26,189）+ 再入记录（143,386）+ KeepTrack 再入（14）| 只列**时刻仍在未来**的预测；「最近再入」只取 `msg_type='Historical'`，按物体去重取最新消息；历年统计按物体而非消息计数 |
+| `/environment` | 空间天气（25,232）+ EOP（23,678）| 两组序列各自显示覆盖区间与缺口数（当前均为 0）；页面明写"尚未接进传播" |
+| `/launches` | 待发射（100）+ 发射统计（4,069）+ boxscore（122）+ 解体事件（673）| boxscore 的 `ALL` 行单列，不进国家列表；解体事件缺坐标即为空，成员数不展示 |
+
+三个页面的每个数字都来自 `npm run data:inventory` 校验过的表，且都标注了来源与口径。
+
 ### API `GET /api/v1/cdm?source=public`
 
 **这是扩展，不在官方契约里。** 官方语义（`/v1/cdm` 只返回调用方运营方的、
@@ -144,9 +154,9 @@ boxscore 是文件生成时刻的快照，会比编目文件多算几个刚拿�
 |---|---|---|---|
 | 1 | `discos_fragmentation.member_count` 恒为 0 | 上游不提供聚合计数：关系里只有链接，`meta.pagination` 无 `total` | 逐事件翻完所属物体（673 次分页遍历）或等 DISCOS 给 `meta.count`；当前把它当"未知"，不展示 |
 | 2 | EOP 与空间天气没有消费者 | 下载入库 25,232 + 23,678 行，传播链路没接 | 属于轨道侧改动，本轮不做 |
-| 3 | TIP / decay / 发射类数据没有页面 | 143,386 + 26,189 + 4,069 + 100 行仅入库 | 新建再入 / 空间环境 / 发射页面（你说过先不做）|
+| 3 | ~~TIP / decay / 发射类数据没有页面~~ | **已完成**：`/reentry`、`/environment`、`/launches` 三个页面接上全部 11 个数据集 | — |
 | 4 | 公开 CDM 无法再筛查 | 无协方差、无运营方申报，设计上就不该当自主筛查输入 | 无（保持两条链路分开）|
-| 5 | KeepTrack 四类 feeds 仅入库 | 3 个表共 4,183 行 | 同第 3 条 |
+| 5 | ~~KeepTrack 四类 feeds 仅入库~~ | **已完成**：交会告警在 `/screening/socrates`，再入在 `/reentry`，发射统计与待发射在 `/launches` | — |
 
 ---
 

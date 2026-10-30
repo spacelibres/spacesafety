@@ -88,7 +88,7 @@ const DOMAINS: Domain[] = [
       meaning: "被预测的再入时刻（不是消息发出的时刻，那是 msg_epoch）。",
     },
     key: ["norad_id", "msg_epoch"],
-    consumer: null,
+    consumer: "app/reentry（页面）",
   },
   {
     id: "decay",
@@ -104,7 +104,7 @@ const DOMAINS: Domain[] = [
         "`'Historical'` 才是既成事实——同一物体可能两者都有。",
     },
     key: ["norad_id", "msg_epoch"],
-    consumer: null,
+    consumer: "app/reentry（页面）",
   },
   {
     id: "space-weather",
@@ -114,7 +114,7 @@ const DOMAINS: Domain[] = [
     endpoint: "spacebook-spaceweather",
     time: { column: "day", meaning: "观测日的 UTC 日期，逐日一行。" },
     key: ["day"],
-    consumer: null,
+    consumer: "app/environment（页面）",
   },
   {
     id: "eop",
@@ -124,7 +124,7 @@ const DOMAINS: Domain[] = [
     endpoint: "spacebook-eop",
     time: { column: "mjd", meaning: "修正儒略日，逐日一行。" },
     key: ["mjd"],
-    consumer: null,
+    consumer: "app/environment（页面）",
   },
   {
     id: "fragmentation",
@@ -138,7 +138,7 @@ const DOMAINS: Domain[] = [
         "解体日期。DISCOS 只给日期（`1979-12-15`），不给时刻，因此按日期存、不补零点。",
     },
     key: ["discos_id"],
-    consumer: null,
+    consumer: "app/launches（页面）",
   },
   {
     id: "boxscore",
@@ -151,7 +151,7 @@ const DOMAINS: Domain[] = [
       meaning: "无时间列：文件生成时刻的快照，权威方自报的分组统计。",
     },
     key: ["country"],
-    consumer: null,
+    consumer: "app/launches（页面）",
   },
   {
     id: "keeptrack-conjunction",
@@ -171,7 +171,7 @@ const DOMAINS: Domain[] = [
     endpoint: "keeptrack-feeds",
     time: { column: "fetched_at", meaning: "抓取时刻（上游未给时间列）。" },
     key: ["kind", "key1", "key2"],
-    consumer: null,
+    consumer: "app/launches（页面）",
   },
   {
     id: "keeptrack-reentry",
@@ -181,7 +181,7 @@ const DOMAINS: Domain[] = [
     endpoint: "keeptrack-feeds",
     time: { column: "decay_epoch", meaning: "被预测的再入时刻。" },
     key: ["norad_id"],
-    consumer: null,
+    consumer: "app/reentry（页面）",
   },
   {
     id: "keeptrack-upcoming-launch",
@@ -191,7 +191,7 @@ const DOMAINS: Domain[] = [
     endpoint: "keeptrack-feeds",
     time: { column: "net", meaning: "计划发射时刻（No Earlier Than）。" },
     key: ["id"],
-    consumer: null,
+    consumer: "app/launches（页面）",
   },
 ];
 

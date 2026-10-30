@@ -55,6 +55,9 @@ const NAV: NavEntry[] = [
   { href: "/trajectories", labelKey: "nav.trajectories", icon: "orbit" },
   { href: "/conjunctions", labelKey: "nav.conjunctions", icon: "alert" },
   { href: "/screening/socrates", labelKey: "nav.socrates", icon: "alert" },
+  { href: "/reentry", labelKey: "nav.reentry", icon: "descent" },
+  { href: "/environment", labelKey: "nav.environment", icon: "globe" },
+  { href: "/launches", labelKey: "nav.launches", icon: "launch" },
   { href: "/keys", labelKey: "nav.keys", icon: "key" },
   // The official sidebar ends with these two; keeping the order lets a reader
   // compare this layout with the reference screenshots entry for entry.
@@ -73,6 +76,9 @@ const ICONS: Record<string, string> = {
     "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M4 12c0-4.4 3.6-8 8-8M20 12c0 4.4-3.6 8-8 8",
   alert: "M12 3l9 16H3zM12 9v5M12 17v.5",
   key: "M14 7a4 4 0 1 1-3.5 6L4 19.5V21H2v-3l8-7A4 4 0 0 1 14 7z",
+  descent: "M4 5h9M4 9h7M20 4l-9 9M14 4h6v6M6 20l3-3M4 22l1-1",
+  globe: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c3 3 4.5 6 4.5 9s-1.5 6-4.5 9c-3-3-4.5-6-4.5-9s1.5-6 4.5-9",
+  launch: "M12 2.5c2 2.5 3.2 5.8 3.2 9.2L12 15l-3.2-3.3c0-3.4 1.2-6.7 3.2-9.2zM8.8 11.7L6 15l2.6 1.4M15.2 11.7L18 15l-2.6 1.4M12 15v4.5",
 };
 
 export function Icon({ name }: { name: string }) {

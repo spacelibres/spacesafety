@@ -60,6 +60,7 @@
 | G18 | SOCKS5 分支会把压缩字节当正文 | 该分支 `decodeBody()` 解码并删除 `content-encoding` / `content-length` | 解码器单测覆盖；**代理链路本身未端到端实测**（本机无代理节点）|
 | G19 | 11 个数据集、226,637 行入库后无人读取 | 逐表断言 + 清单文档；公开 CDM 接到 `/conjunctions` 与 `/api/v1/cdm?source=public` | `npm run data:inventory`（11 表全过）；`docs/DATA-INVENTORY.md` |
 | G20 | 公开 CDM 按消息逐行展示，把历史最坏 Pc 当当前风险 | 按「物体对 + TCA 60 s 内」折叠：3,164 条消息 → 509 个交会，只显示最新估计并标出消息数 | `tests/cdm-cluster.test.ts` 8 条 |
+| G21 | 9 个事件/环境/发射数据集无页面 | 新建 `/reentry`、`/environment`、`/launches` 三个页面，侧栏加入口；`data:inventory` 报 0 个无消费方 | `npm run audit:viewport`（17 页 × 7 视口，含新页）；`tests/event-feeds-ui.test.ts` 12 条 |
 
 ---
 
@@ -77,7 +78,7 @@
 | P9 | 同一批 OMM 记录取三种编码 | `omm/kvn` 304 MB/日（服务端不压缩）+ `omm/json` 87 + `omm/xml` 48 = 439 MB/日，占全部 68%。kvn/xml 只用于验证"字段集与格式无关" | 把 `spacebook-omm-kvn` 的 `refreshMinutes` 120 → 1440 即降到约 365 MB/日；属数据节奏决策，等确认 |
 | P10 | 8 个 Spacebook 端点不压缩 | `omm/kvn`、`omm/xml`、`entity/tle`、`xp-tle`、两个 csv、`eop`、`weather` 不发 `content-encoding`（kvn 连 `br` 也不行）| 客户端无解法；能省的只有 P9 的重复取数 |
 | P11 | EOP 与空间天气无消费者 | 25,232 + 23,678 行仅入库，传播链路没接 EOP | 属轨道侧改动，按你的要求本轮不做 |
-| P12 | 再入 / 发射 / 解体事件没有页面 | 143,386 + 26,189 + 4,183 + 673 行仅入库 | 需要新页面（已确认本轮不新建）|
+| P12 | ~~再入 / 发射 / 解体事件没有页面~~ | **已完成**：`/reentry`、`/environment`、`/launches` | — |
 | P13 | `discos_fragmentation.member_count` 恒为 0 | 上游只给关系链接，`meta.pagination` 无 `total`，`discos_objects` 无反向关系 | 逐事件分页遍历（673 次）或等 DISCOS 提供计数；当前按"未知"处理 |
 | P8 | 条件请求目前省 0 字节 | 实测 Spacebook / Space-Track / DISCOS **都不发** `ETag` / `Last-Modified`，多数还带 `cache-control: no-store`。机制已就绪且无副作用，去掉反而会丢掉将来 CDN 支持时的收益 | 无客户端解法：没有 validator，就无法在传输前判断内容是否变化。当前的省法是 gzip + 节奏 + 同哈希不重建、不重算 |
 
