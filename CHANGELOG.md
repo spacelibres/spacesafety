@@ -12,6 +12,62 @@
 
 ---
 
+## [0.1.39] - 2026-10-30
+
+修复全站侧边栏塌陷，并修正 `tools/vi.ts` 的两个缺陷。
+
+### 修复：侧边栏在所有页面塌陷
+
+症状：侧边栏文字竖排成一列、图标变成方块或丢失、首页正文几乎空白。
+**但所有路由都返回 200**——所以看上去像“服务没启动”。
+
+根因：`globals.css` 引用了 **8 个从未定义的 CSS 变量**。CSS 对未定义的 `var()`
+不报错，只静默丢弃整条声明：
+
+| 变量 | 后果 |
+|---|---|
+| `--sidebar-w` | 侧边栏无宽度，退化为内容宽 193px |
+| `--bg-elev-1` / `--bg-elev-2` | 悬停背景、斑马纹全部透明 |
+| `--bg-label` | 表标背景透明 |
+| `--ok` / `--bad` | 状态色继承父元素 |
+| `--operator-ephemeris` / `--spacex-optical` | 两种星历源颜色无法区分 |
+
+**为何会出现：** 两套命名。`tools/vi.ts` 生成 `--bg-elev2`，`globals.css` 要的是
+`--bg-elev-2`。这个不一致从 v0.1.1 就存在，一直靠浏览器回退显示。
+
+修复：在生成器里补上别名，让 token 文件继续是命名的唯一来源。
+
+### 修复：`tools/vi.ts` 自身已无法运行
+
+- 导入路径写成 `../../src/lib/vi/palette`（多一层），`npm run vi` 直接报
+  `Cannot find module`。所以生成器长期没被实际执行过，token 文件是手改的旧版本。
+- `block()` 先输出 `${selector} {` 再用正则剥掉。当首行内容变化时正则不再匹配，
+  在 `[data-theme="light"] {` 后多出一个 `{`，**整个样式表编译失败，全站 500**。
+  改为直接返回声明行，花括号由调用方写入。
+
+### 新增：`npm run check:css`
+
+校验所有 `var(--x)` 引用都有定义，未定义时指出首次引用所在行。
+
+已验证它能拦住问题：把 `--sidebar-w` 改名后，脚本报
+`--sidebar-w  首次引用 globals.css 附近第 62 行`。
+
+### 验证
+
+- `npx tsc --noEmit`、`npm run check`、`npm run check:css` 全部通过。
+- 浏览器实测：侧边栏宽 208px（此前 193px）、9 个 SVG 图标全部渲染、
+  首页正文从 239 字符恢复到 10,075 字符。
+- `/`、`/catalogue`、`/browse`、`/statistics`、`/models`、`/objects`、`/trajectories` 均 200。
+
+### 已知问题
+
+- 我曾试图把变量校验加进 `tools/check.ts`，两次用 `edit_file` 改这个 461 行的文件都
+  误删了 142 行。两次都用 `git checkout` 恢复。最终做成独立脚本 `tools/check-css-tokens.ts`，
+  不再动 `check.ts`。
+- 编目库状态未变：72,401 行 × 157 列，定稿见 `docs/CATALOGUE-FINAL.md`。
+
+---
+
 ## [0.1.38] - 2026-10-30
 
 **卫星编目库定稿。** 权威说明写在 `docs/CATALOGUE-FINAL.md`。
