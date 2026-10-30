@@ -20,13 +20,14 @@
 import { getDb } from "@/db";
 
 /** The three catalogues, in the order the UI displays them. */
-export const SOURCE_IDS = ["spacetrack", "spacebook", "discos"] as const;
+export const SOURCE_IDS = ["spacetrack", "spacebook", "discos", "keeptrack"] as const;
 export type SourceId = (typeof SOURCE_IDS)[number];
 
 export const SOURCE_LABELS: Record<SourceId, { short: string; long: string }> = {
   spacetrack: { short: "Space-Track", long: "Space-Track（美国太空军）" },
   spacebook: { short: "Spacebook", long: "Spacebook（AGI/STK + ComSpoc）" },
   discos: { short: "DISCOS", long: "ESA DISCOSweb（欧空局）" },
+  keeptrack: { short: "KeepTrack", long: "KeepTrack（keeptrack.space）" },
 };
 
 /** Every field the wide table carries. Must match the build script's FIELDS. */
@@ -137,7 +138,7 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
   const where: string[] = [];
   const params: unknown[] = [];
   if (options.noradId !== undefined) {
-    where.push("catalogue_wide.norad_id = ?");
+    where.push("norad_id = ?");
     params.push(options.noradId);
   }
   if (options.nameContains) {
@@ -147,7 +148,7 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
 
   const rows = sqlite
     .prepare(
-      `SELECT catalogue_wide.norad_id AS noradId,
+      `SELECT norad_id AS noradId,
               COALESCE(
                 name__spacetrack,
                 name__spacebook,
@@ -176,9 +177,9 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
                    AND decay_date__spacetrack <> decay_date__discos)
               ) AS disagreementCount
          FROM wide.catalogue_wide
-         LEFT JOIN object_classification cls ON cls.norad_id = catalogue_wide.norad_id
+         LEFT JOIN cls.object_classification cls ON cls.norad_id = catalogue_wide.norad_id
         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-        ORDER BY catalogue_wide.norad_id
+        ORDER BY norad_id
         LIMIT ? OFFSET ?`,
     )
     .all(...params, limit, offset) as Array<WideListRow & { disagreementCount: number }>;

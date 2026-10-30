@@ -12,6 +12,45 @@
 
 ---
 
+## [0.1.30] - 2026-10-30
+
+修复编目页 KeepTrack 来源消失。
+
+### 问题
+
+用户在 `/catalogue/<norad>` 上看不到 KeepTrack 列，只剩 Space-Track / Spacebook / DISCOS。
+
+### 原因
+
+数据一直都在：
+
+| 项 | 状态 |
+|---|---|
+| `keeptrack_object` | 35 175 行 |
+| 宽表 `__keeptrack` 列 | 26 列 |
+| `manufacturer__keeptrack` | 24 039 |
+| `shape__keeptrack` | 21 452 |
+
+但 `src/lib/wide-catalogue.ts` 里的 `SOURCE_IDS` **被改回了三项**，
+页面靠遍历这个常量渲染列，于是 KeepTrack 整列消失。
+
+这是 v0.1.27 批量修改时误伤的——每次改多个文件都该用 TS 类型把它卡住。
+当时 `SOURCE_LABELS` 也缺了 KeepTrack 项，而 `Record<SourceId, …>` 本应在
+`SOURCE_IDS` 包含 keeptrack 时报错，但两项同时缺失，类型反而自洽了。
+
+### 修复
+
+- `SOURCE_IDS` 恢复为四项
+- `SOURCE_LABELS` 补上 `keeptrack`
+
+### 验证
+
+- `tsc --noEmit` 无错误；`npm run check` 全过
+- `/catalogue/44713` 表头包含 `KeepTrack`
+- 截图：VANGUARD 1（NORAD 5）四源并列正常，质量 1.5 三源互证（Spacebook/DISCOS/KeepTrack）
+
+---
+
 ## [0.1.29] - 2026-10-30
 
 三维模型库改为完全本地化，消除运行时对 GitHub 的依赖。
