@@ -44,6 +44,14 @@ data/reference/*
 *.tsbuildinfo
 /tmp/
 
+# 数据库文件。`data/*` 已经忽略，但脚本里一处相对的 ATTACH 路径曾在仓库
+# 根目录凭空建出一个 0 字节的 catalogue-wide.sqlite 并被提交，所以这里再兜一层：
+# 任何位置的 sqlite 文件都不属于代码仓库。
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
 # 生成物：星座快照由 `npm run build:snapshot` 从 TLE 重新生成（12 MB），
 # Cesium 的运行时资源由 `npm install` 后的拷贝脚本填充。两者都不进版本库，
 # 否则每次构建都会产生一个无法审阅的巨大 diff。
@@ -61,5 +69,3 @@ data/reference/*
 .idea/
 .vscode/
 *.swp
-.tmp-shots/
-.cache/

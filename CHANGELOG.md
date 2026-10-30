@@ -83,6 +83,10 @@ npx tsx tools/catalogue-source-overlap.ts
 - 硬体半径在轨缺口 1,539 个（1,111 无身份 + 428 上游无模型），**现有四源无法补齐**。
   要补只能引入新的模型数据源。
 - 轨道类型 UNKNOWN 522 个，同上。
+- **仓库根目录被误提交了一个 0 字节的 `catalogue-wide.sqlite`。** 原因是核查脚本里的
+  相对 ATTACH 路径写错，在项目根目录凭空建出了这个文件，而 `.gitignore` 只忽略了
+  `data/*`，没有忽略任意位置的 sqlite。已移除并补上 `*.sqlite` 规则——
+  `npm run check` 的 `no-secrets` 规则当场拦住了它，这正是该规则存在的意义。
 
 ---
 
