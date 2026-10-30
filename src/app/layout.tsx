@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <I18nProvider locale={locale}>
           <div className="app">
-            <Sidebar />
+            <Sidebar theme={theme} />
             <div className="main">{children}</div>
           </div>
         </I18nProvider>

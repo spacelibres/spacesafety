@@ -159,8 +159,12 @@ export function defaultChartTheme(mode: ThemeMode = "dark"): ChartTheme {
  * component that renders it needs the mode and must re-render when it changes.
  * Only client components may call this: it subscribes to a DOM observer.
  */
-export function useThemeMode(): ThemeMode {
-  const [mode, setMode] = useState<ThemeMode>(() => currentMode());
+export function useThemeMode(serverMode: ThemeMode): ThemeMode {
+  // `serverMode` is the mode the server rendered for this request. Seeding state
+  // with it keeps the first client render identical to the HTML; deriving the
+  // initial value from `document` instead produced a mismatch that left the logo
+  // on the dark master while the CSS variables around it were already light.
+  const [mode, setMode] = useState<ThemeMode>(serverMode);
   useEffect(() => onThemeChange(setMode), []);
   return mode;
 }

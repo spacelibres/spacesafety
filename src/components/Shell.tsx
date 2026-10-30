@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useTranslator } from "@/lib/i18n/client";
-import { logoFor, useThemeMode } from "@/lib/vi/theme-bridge";
+import { logoFor, useThemeMode, type ThemeMode } from "@/lib/vi/theme-bridge";
 
 import { PreferenceDock } from "./PreferenceDock";
 
@@ -91,12 +91,12 @@ export function Icon({ name }: { name: string }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ theme }: { theme: ThemeMode }) {
   const pathname = usePathname();
   const t = useTranslator();
   // The logo's planet is recoloured per theme (VI §2), so the asset follows the
   // same attribute the rest of the page keys off.
-  const brandMode = useThemeMode();
+  const brandMode = useThemeMode(theme);
   const [clock, setClock] = useState("");
 
   /**

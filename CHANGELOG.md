@@ -12,6 +12,43 @@
 
 ---
 
+## [0.1.57] - 2026-10-30
+
+修掉 0.1.55 引入的一个确定性错误：**浅色主题下侧栏仍加载深色 logo**。
+
+### 症状
+
+`--text-faint` 等 CSS 变量已经切到浅色主题的值（`#697179`），侧栏的 `<img>` 却还是
+`/vi/horizontal-primary-dark.svg` —— 页面一半是浅色，标志却来自深色母版（星球用
+`#FF3733` 而不是 `#E00400`）。VI 要求「全彩母版按主题重着色星球」「切换必须覆盖整页」，
+这一条不满足。
+
+### 原因
+
+`useThemeMode()` 用 `document.documentElement.dataset.theme` 求初始值。服务端渲染时没有
+`document`，因此 SSR 输出的是深色母版；客户端 hydrate 时读到的是浅色，两边的首帧不一致。
+实测这一不一致没有被后续 effect 纠正过来 —— 于是 CSS 变量（服务端直出）是浅色，React 状态
+（客户端求值）停在深色。
+
+### 改法
+
+主题本来就是**服务端**决定的（`layout.tsx` 里的 `currentTheme()`），所以让它传下来：
+`<Sidebar theme={theme} />` → `useThemeMode(serverMode)`，用服务端的答案作为 state 的
+初始值。首帧与 HTML 完全一致，之后 `onThemeChange` 再跟随切换（含"跟随系统"时由 OS 触发
+的那一次）。
+
+### 验证（浏览器实测，三种情形）
+
+| 情形 | `data-theme` | logo | 星球色 | `--text-faint` |
+|---|---|---|---|---|
+| cookie `theme=dark` | dark | `horizontal-primary-dark.svg` | `#FF3733` | `#7E8388` |
+| cookie `theme=light` | light | `horizontal-primary-light.svg` | `#E00400` | `#697179` |
+| 无 cookie（跟随系统） | light | `horizontal-primary-light.svg` | — | `#697179` |
+
+星球色取自实际请求到的 SVG 内容，不是读代码推断的。
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check`、`npm run check:css` 全过。
+
 ## [0.1.56] - 2026-10-30
 
 按 VI §9.4 的可读性要求修正色系：**三个 token 低于 4.5:1 的底线**，且 `legibleOn` 只往
