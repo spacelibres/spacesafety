@@ -518,6 +518,28 @@ table.data a:hover {
   border-color: var(--accent);
   color: var(--text);
 }
+/* A button with a text label rather than an icon. `.filter-btn` is a fixed 34px
+   square sized for a 13px glyph, so a two-character label wrapped onto two lines. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
 .filter-group {
   display: inline-flex;
   border: 1px solid var(--border-strong);
@@ -637,6 +659,81 @@ table.data a:hover {
   text-align: center;
   color: var(--text-faint);
   font-size: 12.5px;
+}
+
+/* ------------------------------------------------- catalogue additions */
+
+/* Breadcrumb under a page title. Kept on its own line: putting it inline with the
+   h1 made it wrap one character per line at 1600px, because the flex row had
+   already been filled by the count on the right. */
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.crumb a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.crumb a:hover {
+  color: var(--text);
+}
+.crumb-sep {
+  opacity: 0.5;
+}
+
+/* A block of page content separated from the previous one. */
+.section + .section {
+  margin-top: 28px;
+}
+.section-head {
+  margin-bottom: 10px;
+}
+.section-head .page-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* Pager under a table. */
+.pager {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* The three-source comparison table. Fixed layout so the three value columns are
+   equal width regardless of content length; without it a long date string in one
+   source column squeezed the other two to nothing. */
+table.data.wide {
+  table-layout: fixed;
+}
+table.data.wide th:first-child,
+table.data.wide td:first-child {
+  width: 22%;
+}
+table.data.wide th:last-child,
+table.data.wide td:last-child {
+  width: 130px;
+}
+/* The value currently in use. Weight, not colour alone: the source is also named
+   in the last column, and colour-only emphasis is lost on a colour-blind reader. */
+table.data td.is-chosen {
+  color: var(--text);
+  font-weight: 600;
+}
+table.data td.is-absent {
+  color: var(--text-faint);
+}
+
+.footnote {
+  margin-top: 20px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
 }
 
 .banner {

@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Topbar } from "@/components/Shell";
+import { getTranslator } from "@/lib/i18n/registry";
 import {
   FIELD_LABELS,
   getWideObject,
   SOURCE_IDS,
   SOURCE_LABELS,
   wideCatalogueAvailable,
-  type SourceId,
   type WideField,
 } from "@/lib/wide-catalogue";
 
@@ -53,8 +53,7 @@ const PHYSICAL: WideField[] = [
 function format(v: string | number | null, field: WideField): string {
   if (v === null || v === "") return "—";
   if (typeof v === "string") return v;
-  const decimals =
-    field === "inclination_deg" ? 3 : field === "mass_kg" || field === "dry_mass_kg" ? 1 : 4;
+  const decimals = field === "inclination_deg" ? 3 : field === "mass_kg" ? 1 : 4;
   return v.toFixed(decimals).replace(/\.?0+$/, "");
 }
 
@@ -64,6 +63,7 @@ export default async function CatalogueObjectPage({
   params: Promise<{ norad: string }>;
 }) {
   const { norad } = await params;
+  const t = await getTranslator();
   const noradId = Number(norad);
 
   if (!wideCatalogueAvailable() || !Number.isFinite(noradId)) notFound();
@@ -76,46 +76,47 @@ export default async function CatalogueObjectPage({
     object.fields.name.values.discos ??
     `NORAD ${noradId}`;
 
-  const sections: Array<{ heading: string; fields: WideField[] }> = [
-    { heading: "身份", fields: PRIMARY },
-    { heading: "轨道", fields: ORBIT },
-    { heading: "物理模型", fields: PHYSICAL },
+  const sections: Array<{ idKey: string; heading: string; fields: WideField[] }> = [
+    { idKey: "identity", heading: t.t("catalogue.sectionIdentity"), fields: PRIMARY },
+    { idKey: "orbit", heading: t.t("catalogue.sectionOrbit"), fields: ORBIT },
+    { idKey: "physical", heading: t.t("catalogue.sectionPhysical"), fields: PHYSICAL },
   ];
 
-  const totalDisagreements = Object.values(object.fields).filter((f) => f.disagrees).length;
+  const disagreements = Object.values(object.fields).filter((f) => f.disagrees).length;
 
   return (
     <>
-      <Topbar section="编目数据库" />
+      <Topbar section={t.t("nav.catalogue")} />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">{title}</h1>
+          <div>
+            <h1 className="page-title">{title}</h1>
+            <div className="crumb">
+              <Link href="/catalogue">{t.t("nav.catalogue")}</Link>
+              <span className="crumb-sep">/</span>
+              <span className="mono">{noradId}</span>
+            </div>
+          </div>
           <span className="count">
-            NORAD {noradId} · {totalDisagreements} 个字段三源不一致
+            {t.t("catalogue.disagreements", { count: disagreements })}
           </span>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <Link href="/catalogue" className="filter-btn">
-            ← 返回编目列表
-          </Link>
-        </div>
-
         {sections.map((section) => (
-          <div key={section.heading} style={{ marginBottom: 28 }}>
-            <h2 className="page-title" style={{ fontSize: 15, marginBottom: 10 }}>
-              {section.heading}
-            </h2>
+          <div key={section.idKey} className="section">
+            <div className="page-head section-head">
+              <h2 className="page-title">{section.heading}</h2>
+            </div>
             <div className="card">
-              <div className="table-wrap" style={{ borderTop: "none" }}>
-                <table className="data">
+              <div className="table-wrap">
+                <table className="data wide">
                   <thead>
                     <tr>
-                      <th style={{ width: 180 }}>字段</th>
+                      <th>{t.t("catalogue.field")}</th>
                       {SOURCE_IDS.map((s) => (
                         <th key={s}>{SOURCE_LABELS[s].short}</th>
                       ))}
-                      <th style={{ width: 130 }}>当前采用</th>
+                      <th>{t.t("catalogue.chosen")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -130,11 +131,9 @@ export default async function CatalogueObjectPage({
                             return (
                               <td
                                 key={s}
-                                className="mono-sm"
-                                style={{
-                                  fontWeight: isChosen ? 600 : 400,
-                                  opacity: value === null ? 0.35 : 1,
-                                }}
+                                className={`mono-sm${isChosen ? " is-chosen" : ""}${
+                                  value === null ? " is-absent" : ""
+                                }`}
                               >
                                 {format(value, field)}
                               </td>
@@ -143,7 +142,7 @@ export default async function CatalogueObjectPage({
                           <td>
                             {cmp.chosen ? (
                               <span className={`chip ${cmp.disagrees ? "false" : "true"}`}>
-                                {SOURCE_LABELS[cmp.chosen as SourceId].short}
+                                {SOURCE_LABELS[cmp.chosen].short}
                               </span>
                             ) : (
                               <span className="muted">—</span>
@@ -159,9 +158,7 @@ export default async function CatalogueObjectPage({
           </div>
         ))}
 
-        <p className="muted" style={{ fontSize: 12 }}>
-          三个来源的值原样保留，互不覆盖。「当前采用」为默认建议，可按对象逐字段更改。
-        </p>
+        <p className="footnote">{t.t("catalogue.footnote")}</p>
       </div>
     </>
   );

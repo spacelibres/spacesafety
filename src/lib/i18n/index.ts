@@ -25,7 +25,7 @@
 
 export const LOCALES = ["zh-CN", "en", "es", "fr", "de", "ja"] as const;
 export type Locale = (typeof LOCALES)[number];
-export const DEFAULT_LOCALE: Locale = "en";
+export const DEFAULT_LOCALE: Locale = "zh-CN";
 
 /** Language names for the switcher, each written in its own language. */
 export const LOCALE_LABELS: Record<Locale, string> = {

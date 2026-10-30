@@ -56,7 +56,7 @@ catalogue_wide (
 | country | **spacetrack** | 71,198 | 0 | 0 | |
 | launch_site | **spacetrack** | 71,198 | 0 | 0 | |
 | launch_date | **spacetrack** | 71,198 | 0 | 0 | |
-| decay_date | **spacetrack** | 35,740 | 36,497 | 34,729 | 实测；DISCOS 为预测 |
+| decay_date | **spacetrack** | 35,740 | 36,497 | 34,729 | 实测；DISCOS 为预测；**Spacebook 的 GCAT DecayDate 不可当再入用**，见下 |
 | inclination_deg | **spacetrack** | 69,073 | 69,852 | 0 | 当前轨道 |
 | period_min | **spacetrack** | 69,086 | 0 | 0 | |
 | apogee_km | **spacetrack** | 69,086 | 0 | 0 | |
@@ -91,6 +91,21 @@ catalogue_wide (
 两源在 38,426 个共有对象上**只有 27 条差异（0.07%）**，所以这个选择对绝大多数对象没有影响。
 
 如需切换，改 `tools/build-wide-catalogue.ts` 中 `mass_kg` 一行即可，无需重新下载。
+
+### 再入日期的三个值，含义都不同
+
+这是三源并列最必要的例子。以 **ISS（NORAD 25544）** 为证：
+
+| 源 | 值 | 实际含义 |
+|---|---|---|
+| Space-Track `DECAY` | 空 | 在轨，未再入 — **正确** |
+| DISCOS `predDecayDate` | 2026-05-12 | 预测再入 |
+| Spacebook `GCAT DecayDate` | 1998 Dec 6 2347:02 | **ZARYA 舱段发射后分离时刻**，不是再入 |
+
+Spacebook 这个值来自 GCAT 的发射记录，对多舱段组合体（ISS、天宫）记录的是舱段分离时间。
+若只用 Spacebook，ISS 会被标成 1998 年就已再入。
+
+**结论：`decay_date` 默认取 Space-Track；另外两个值保留但需按其真实含义解读。**
 
 ---
 

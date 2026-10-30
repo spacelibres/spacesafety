@@ -169,8 +169,14 @@ function loadDiscos(): SourceLoad {
   const out = new Map<number, Row>();
   for (const item of doc.data) {
     const a = item.attributes;
-    const norad = Number(a.satno);
-    if (!Number.isFinite(norad)) continue;
+    // DISCOS carries 22 516 objects with no `satno` at all — recently launched
+    // payloads it has catalogued before Space-Track assigned a number. `Number(null)`
+    // is 0, so without this guard every one of them was written to NORAD 0 and
+    // collapsed into a single nameless row.
+    const raw = a.satno;
+    if (raw === null || raw === undefined || String(raw).trim() === "") continue;
+    const norad = Number(raw);
+    if (!Number.isFinite(norad) || norad <= 0) continue;
     out.set(
       norad,
       new Map<string, string | number | null>([

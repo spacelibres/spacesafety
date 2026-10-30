@@ -61,3 +61,4 @@ data/reference/*
 .idea/
 .vscode/
 *.swp
+.tmp-shots/
