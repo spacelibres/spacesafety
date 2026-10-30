@@ -39,6 +39,7 @@ const SUITES = [
   "tests/master-merge.test.ts",
   "tests/physics.test.ts",
   "tests/catalogue.test.ts",
+  "tests/supplement.test.ts",
 ];
 
 let failed = 0;
