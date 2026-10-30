@@ -490,7 +490,11 @@ export const paginationTokens = sqliteTable(
 );
 
 export type OperatorRow = typeof operators.$inferSelect;
-export type ObjectRow = typeof objects.$inferSelect;
+export type DiscosObjectRow = typeof discosObjects.$inferSelect;
+export type MasterObjectRow = typeof masterObject.$inferSelect;
+export type MasterElementSetRow = typeof masterElementSet.$inferSelect;
+export type DerivedStateRow = typeof derivedState.$inferSelect;
+export type MasterConflictRow = typeof masterConflict.$inferSelect;
 export type TrajectoryRow = typeof trajectories.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type CdmRow = typeof cdms.$inferSelect;
@@ -549,6 +553,197 @@ export const discosObjects = sqliteTable(
   (t) => [
     index("discos_objects_norad_idx").on(t.noradId),
     index("discos_objects_name_idx").on(t.name),
+  ],
+);
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The unified database: three layers, never mixed.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Everything above this point is a *source-specific* table — one per provider,
+ * each faithful to what that provider said. They are the evidence.
+ *
+ * The tables below are ours. They are the result of merging the evidence, and they
+ * are split into three layers because mixing them is how a database becomes
+ * untrustworthy: a computed summary gets quoted as an observation, and nobody can
+ * tell later which it was.
+ *
+ *   L1  observed      `master_object` + `master_element_set`
+ *                     Facts a provider observed. No arithmetic applied.
+ *
+ *   L2  derived       `derived_state`
+ *                     Positions, phases, cross-checks we computed. Always
+ *                     regenerate-able from L1 + the code that produced them.
+ *
+ *   L3  conflicting   `master_conflict`
+ *                     Where sources disagree and the merge could not decide by
+ *                     rule. Left unresolved on purpose rather than silently
+ *                     picking a winner.
+ *
+ * The rule for a consumer: **read L1 when you need a fact, L2 when you need a
+ * number you know was computed, L3 to know what is still uncertain.**
+ */
+
+/**
+ * L1 — one row per physical object, merged from every source.
+ *
+ * Field-level precedence (each justified by measurement, see docs/ANALYSIS.md):
+ *
+ *   name        SATCAT/`entity-tle` — the operator-facing short name
+ *               (`STARLINK-1008`). DISCOS carries aliases (`Starlink 1008`,
+ *               `OneWeb 0010 (ChusigSat)`) which are kept in `alias_names`, not
+ *               promoted, because 66 436 of 71 175 names differ and the DISCOS
+ *               form is a display variant rather than a different identity.
+ *
+ *   objectClass DISCOS — 10 classes against SATCAT's 3. Measured: 988 objects
+ *               SATCAT calls UNKNOWN are a known Payload in DISCOS, and 606 that
+ *               SATCAT calls DEBRIS are Payloads. The finer source is more
+ *               useful *and* more correct.
+ *
+ *   mass/area   DISCOS only — no other source has them.
+ *
+ *   noradId     either — the join key; verified consistent across sources.
+ *
+ * A field that disagrees beyond tolerance is recorded in `master_conflict`, not
+ * overwritten.
+ */
+export const masterObject = sqliteTable(
+  "master_object",
+  {
+    noradId: integer("norad_id").primaryKey(),
+    /** Canonical operator-facing name. */
+    name: text("name").notNull(),
+    /** Every name any source uses, `|`-separated, for search. */
+    aliasNames: text("alias_names"),
+    cosparId: text("cospar_id"),
+    /** DISCOS class where known, else the SATCAT type. */
+    objectClass: text("object_class"),
+    /** The coarse SATCAT type, kept because screening policy reads it. */
+    satcatType: text("satcat_type"),
+    owner: text("owner"),
+    launchDate: text("launch_date"),
+    /** Non-null once the object has re-entered. */
+    decayDate: text("decay_date"),
+    /** kg; DISCOS. Null when the object was never declared. */
+    massKg: real("mass_kg"),
+    /** m²; DISCOS mean projected area. */
+    crossSectionAvgM2: real("cross_section_avg_m2"),
+    crossSectionMaxM2: real("cross_section_max_m2"),
+    crossSectionMinM2: real("cross_section_min_m2"),
+    shape: text("shape"),
+    /** Lifecycle status from the supplemental feed. */
+    status: text("status"),
+    /**
+     * Whether the object is believed to be able to manoeuvre.
+     * Derived from `objectClass` by one rule, recorded rather than re-derived so
+     * two consumers cannot apply it differently.
+     */
+    maneuverable: integer("maneuverable", { mode: "boolean" }).notNull().default(false),
+    /** Which sources contributed to this row. */
+    sources: text("sources").notNull(),
+    /** How many of the four identity sources knew the object. */
+    sourceCount: integer("source_count").notNull().default(0),
+    /** Start of the published covariance arc, if any. */
+    covarianceStart: text("covariance_start"),
+    covarianceStop: text("covariance_stop"),
+    /** Bumped whenever the merge writes this row, so a rebuild is detectable. */
+    mergedAt: text("merged_at").notNull(),
+  },
+  (t) => [
+    index("master_object_name_idx").on(t.name),
+    index("master_object_class_idx").on(t.objectClass),
+    index("master_object_status_idx").on(t.status),
+  ],
+);
+
+/**
+ * L1 — the element set we treat as canonical for each object.
+ *
+ * This is a *selection*, not a computation: one of the source-specific element
+ * sets is pointed at, chosen by the precedence in `registry.ts` (operator
+ * ephemeris > Space-Track > Spacebook). The bytes are not copied; the source rows
+ * remain the evidence.
+ */
+export const masterElementSet = sqliteTable(
+  "master_element_set",
+  {
+    noradId: integer("norad_id").primaryKey(),
+    sourceId: text("source_id").notNull(),
+    /** The `trajectories.id` that won. */
+    trajectoryId: text("trajectory_id").notNull(),
+    epoch: text("epoch"),
+    /** Hours of arc covered by the winning trajectory. */
+    arcHours: real("arc_hours"),
+    /** Covariance at the epoch, km, when the source states one. */
+    sigmaKm: real("sigma_km"),
+    /** Every source that also holds this object, for cross-checking. */
+    alternatives: text("alternatives"),
+    selectedAt: text("selected_at").notNull(),
+  },
+  (t) => [index("master_element_source_idx").on(t.sourceId)],
+);
+
+/**
+ * L2 — numbers we computed. Never an input.
+ *
+ * Every row states the method that produced it and the inputs it read, so a row
+ * can always be regenerated or invalidated. If `method` or `inputHash` no longer
+ * matches the current code and inputs, the row is stale rather than wrong — and
+ * the reader can tell.
+ */
+export const derivedState = sqliteTable(
+  "derived_state",
+  {
+    noradId: integer("norad_id").notNull(),
+    /** `orbit-summary` | `source-agreement` | `phase-offset` | `coverage`. */
+    kind: text("kind").notNull(),
+    /** Which source the number came from, when it is source-specific. */
+    sourceId: text("source_id"),
+    /** Free-form but stable field name. */
+    field: text("field").notNull(),
+    valueNum: real("value_num"),
+    valueText: text("value_text"),
+    unit: text("unit"),
+    /** How it was produced, e.g. `sgp4@epoch` or `sample-at-joint-epoch`. */
+    method: text("method").notNull(),
+    /** Hash of the inputs, so a changed input invalidates the row. */
+    inputHash: text("input_hash"),
+    computedAt: text("computed_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.noradId, t.kind, t.sourceId, t.field] }),
+    index("derived_norad_idx").on(t.noradId, t.kind),
+  ],
+);
+
+/**
+ * L3 — unresolved disagreements between sources.
+ *
+ * Written by the merge, never deleted automatically: a conflict that stops being
+ * detected is resolved, not forgotten, and the history of having disagreed is
+ * evidence in itself.
+ */
+export const masterConflict = sqliteTable(
+  "master_conflict",
+  {
+    id: text("id").primaryKey(),
+    noradId: integer("norad_id").notNull(),
+    /** `name` | `object-class` | `inclination` | `decay-date` | ... */
+    field: text("field").notNull(),
+    /** Serialized `{ sourceId: value }` of what each source claims. */
+    claimsJson: text("claims_json").notNull(),
+    /** The value the merge chose, or null when it refused to choose. */
+    chosenValue: text("chosen_value"),
+    /** `tolerance` | `undecidable` | `manual`. */
+    resolution: text("resolution").notNull(),
+    /** Why, in a sentence a reviewer can check. */
+    reason: text("reason"),
+    detectedAt: text("detected_at").notNull(),
+  },
+  (t) => [
+    index("conflict_norad_idx").on(t.noradId),
+    index("conflict_field_idx").on(t.field),
   ],
 );
 

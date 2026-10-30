@@ -528,6 +528,77 @@ CREATE TABLE IF NOT EXISTS discos_objects (
 );
 CREATE INDEX IF NOT EXISTS discos_objects_norad_idx ON discos_objects(norad_id);
 CREATE INDEX IF NOT EXISTS discos_objects_name_idx ON discos_objects(name);
+
+-- L1: observed, merged. One row per physical object.
+CREATE TABLE IF NOT EXISTS master_object (
+  norad_id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  alias_names TEXT,
+  cospar_id TEXT,
+  object_class TEXT,
+  satcat_type TEXT,
+  owner TEXT,
+  launch_date TEXT,
+  decay_date TEXT,
+  mass_kg REAL,
+  cross_section_avg_m2 REAL,
+  cross_section_max_m2 REAL,
+  cross_section_min_m2 REAL,
+  shape TEXT,
+  status TEXT,
+  maneuverable INTEGER NOT NULL DEFAULT 0,
+  sources TEXT NOT NULL,
+  source_count INTEGER NOT NULL DEFAULT 0,
+  covariance_start TEXT,
+  covariance_stop TEXT,
+  merged_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS master_object_name_idx ON master_object(name);
+CREATE INDEX IF NOT EXISTS master_object_class_idx ON master_object(object_class);
+CREATE INDEX IF NOT EXISTS master_object_status_idx ON master_object(status);
+
+-- L1: which source's element set is canonical for each object.
+CREATE TABLE IF NOT EXISTS master_element_set (
+  norad_id INTEGER PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  trajectory_id TEXT NOT NULL,
+  epoch TEXT,
+  arc_hours REAL,
+  sigma_km REAL,
+  alternatives TEXT,
+  selected_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS master_element_source_idx ON master_element_set(source_id);
+
+-- L2: computed numbers. Never an input.
+CREATE TABLE IF NOT EXISTS derived_state (
+  norad_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  source_id TEXT,
+  field TEXT NOT NULL,
+  value_num REAL,
+  value_text TEXT,
+  unit TEXT,
+  method TEXT NOT NULL,
+  input_hash TEXT,
+  computed_at TEXT NOT NULL,
+  PRIMARY KEY (norad_id, kind, source_id, field)
+);
+CREATE INDEX IF NOT EXISTS derived_norad_idx ON derived_state(norad_id, kind);
+
+-- L3: unresolved disagreements.
+CREATE TABLE IF NOT EXISTS master_conflict (
+  id TEXT PRIMARY KEY,
+  norad_id INTEGER NOT NULL,
+  field TEXT NOT NULL,
+  claims_json TEXT NOT NULL,
+  chosen_value TEXT,
+  resolution TEXT NOT NULL,
+  reason TEXT,
+  detected_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS conflict_norad_idx ON master_conflict(norad_id);
+CREATE INDEX IF NOT EXISTS conflict_field_idx ON master_conflict(field);
 `;
 
 /**
