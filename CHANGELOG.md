@@ -12,6 +12,87 @@
 
 ---
 
+## [0.1.42] - 2026-10-30
+
+把 72,401 个对象分成载荷 / 火箭残骸 / 空间碎片，并修好筛选没生效的问题。
+
+### 问题一：分类从未进入分类表
+
+`object_classification` 表**根本没有 `object_class` 这一列**。对象身份只以四个原始列
+存在宽表里，所以「哪些是真实卫星、哪些是碎片、哪些是火箭残骸」在结构化的分类维度里
+根本答不了——它从来没被分类过。
+
+### 问题二：DISCOS 的 9 种细分分类全被丢弃
+
+各源的分类粒度不同，而**细的那部分才最有用**：
+
+| 源 | 分类值 |
+|---|---|
+| Space-Track | 4 种：PAYLOAD · ROCKET BODY · DEBRIS · UNKNOWN |
+| DISCOS | 9 种：还包括 Payload Fragmentation Debris、Rocket Fragmentation Debris、Rocket Mission Related Object 等 |
+
+简单的 `UPPER()` 合并会丢掉「这块碎片来自载荷还是来自火箭»——而这正是交会报告要回答的。
+新建 `src/lib/sources/object-class.ts` 保留两层：
+
+- `objectClass` 宽粒度：PAYLOAD · ROCKET BODY · DEBRIS · UNKNOWN
+- `classDetail` 源站自己的细分术语
+
+### 问题三：界面只读 Space-Track 的原始列
+
+三处都把 `object_class__spacetrack` 写死了：
+
+| 位置 | 后果 |
+|---|---|
+| `wide-catalogue.ts` 列表查询 | 1,112 个分析型目标、2 个 DISCOS 独有对象显示空 |
+| `browse.ts` 列表与分面 | 同上，且分面里根本没有「目标分类」这个维度 |
+| `statistics.ts` 分类统计 | 同两行对象不计入任何分类 |
+
+同一段 SQL 里 `cospar_id`、`inclination_deg`、`decay_date` 也都是单源读写，一并改为 COALESCE。
+
+### 问题四：筛选完全没生效
+
+`browse/page.tsx` 把 4 个筛选参数逐项列举后传给 `browse()`。新加的 `objectClass` 和
+`classDetail` 加进了 `FACETS`、进了 SQL、URL 也带了，**但页面没传给查询函数**，
+所以每种筛选都返回全部 72,401 行。改为遍历 `FACETS` 读取。
+
+### 结果
+
+| 分类 | 数量 | 占比 |
+|---|---|---|
+| DEBRIS 空间碎片 | 35,883 | 49.6% |
+| PAYLOAD 真实卫星载荷 | 28,643 | 39.6% |
+| ROCKET BODY 火箭残骸 | 6,556 | 9.1% |
+| UNKNOWN 未分类 | 1,319 | 1.8% |
+
+细分（DISCOS 贡献 60,463 个，Space-Track 补 619 个）：
+
+| 细分 | 数量 |
+|---|---|
+| 载荷解体碎片 | 15,680 |
+| 火箭解体碎片 | 11,228 |
+| 火箭任务相关物 | 4,128 |
+| 载荷任务相关物 | 4,115 |
+| 载荷碎片 | 317 |
+| 火箭碎片 | 241 |
+
+### 验证
+
+- 浏览器实测四种筛选，每种只返回对应分类（修复前全部返回混合结果）：
+  `PAYLOAD` → 只有 PAYLOAD；`DEBRIS` → 只有 DEBRIS；`ROCKET BODY`、`UNKNOWN` 同理。
+- `/browse` 左侧分面出现「目标分类」与「分类细分」两组，计数正确。
+- `/statistics` 「按目标分类」与「星座 × 轨道类型」交叉表均包含分析型目标。
+- `npx tsc --noEmit`、`npm run check`（6 语种 × 369 键）、`npm run test:wide` 18 项全部通过。
+
+### 已知问题
+
+- 1,319 个 UNKNOWN：各源都不给分类，不靠名称猜测。
+- 分类表新增三列需要迁移。已对现有库执行 `ALTER TABLE`，迁移前备份在
+  `/tmp/cat-backup.sqlite`。
+- 我在 SQL 模板字符串里误用了 `--` 注释，它把后面的反引号也注释掉了，导致语法错误。
+  已改为 `/* */`。
+
+---
+
 ## [0.1.41] - 2026-10-30
 
 修复地球组件销毁时报 `DeveloperError: This object was destroyed`。

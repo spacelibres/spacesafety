@@ -159,21 +159,32 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
               COALESCE(
                 name__spacetrack,
                 name__spacebook,
-                name__discos
+                name__discos,
+                name__keeptrack,
+                name__sbsup
               ) AS name,
-              cospar_id__spacetrack AS cosparId,
-              object_class__spacetrack AS objectClass,
-              country__spacetrack AS country,
+              /* These were previously read from Space-Track alone, so the 1,112
+                 analyst objects (present only in sbsup) and the DISCOS-only rows
+                 showed a blank identity, inclination and decay date even though
+                 the catalogue held the values. COALESCE across the sources that
+                 actually populate each field, in preference order. */
+              COALESCE(cospar_id__spacetrack, cospar_id__spacebook,
+                       cospar_id__discos, cospar_id__sbsup) AS cosparId,
+              COALESCE(object_class__spacetrack, object_class__discos,
+                       object_class__sbsup) AS objectClass,
+              COALESCE(country__spacetrack, country__sbsup) AS country,
               COALESCE(mass_kg__discos, mass_kg__spacebook) AS massKg,
               hard_body_radius_m__spacebook AS hardBodyRadiusM,
-              inclination_deg__spacetrack AS inclinationDeg,
-              decay_date__spacetrack AS decayDate,
+              COALESCE(inclination_deg__spacetrack, inclination_deg__spacebook,
+                       inclination_deg__sbsup) AS inclinationDeg,
+              COALESCE(decay_date__spacetrack, decay_date__spacebook,
+                       decay_date__discos) AS decayDate,
               cls.constellation AS constellation,
               cls.regime AS regime,
               cls.purpose_group AS purposeGroup,
-              -- How many fields the sources actively disagree about. Computed in
-              -- SQL because doing it in JS would mean reading every claim of every
-              -- row, which is exactly what the wide layout exists to avoid.
+              /* How many fields the sources actively disagree about. Computed in
+                 SQL because doing it in JS would mean reading every claim of
+                 every row, which is exactly what the wide layout exists to avoid. */
               (
                 (object_class__spacetrack IS NOT NULL AND object_class__discos IS NOT NULL) +
                 (mass_kg__discos IS NOT NULL AND mass_kg__spacebook IS NOT NULL

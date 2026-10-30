@@ -36,6 +36,8 @@
 
 import Database from "better-sqlite3";
 
+import { chooseClassification, type ObjectClass } from "../src/lib/sources/object-class";
+
 export type OrbitRegime = "LEO" | "MEO" | "GEO" | "HEO" | "UNKNOWN";
 
 export interface Classification {
@@ -55,6 +57,12 @@ export interface Classification {
   regimeBasis: "computed" | "stated" | "unknown";
   /** Manufacturer's bus, when known. */
   bus: string | null;
+  /** Broad role, normalised across sources. */
+  objectClass: ObjectClass;
+  /** Source's finer term, when it has one. */
+  classDetail: string | null;
+  /** Which catalogue supplied the classification; null for an unresolved UNKNOWN. */
+  classSource: string | null;
 }
 
 /**
@@ -146,12 +154,25 @@ CREATE TABLE IF NOT EXISTS object_classification (
   regime        TEXT NOT NULL,
   regime_basis  TEXT NOT NULL,
   bus           TEXT,
+  -- What the object is: PAYLOAD / ROCKET BODY / DEBRIS / UNKNOWN.
+  --
+  -- These three columns did not exist. The identity was stored only as four raw
+  -- columns in the wide table, so "which of the 72,401 objects are satellites,
+  -- which are fragments, which are spent stages" could not be answered from the
+  -- classification table at all — the object class had never been classified.
+  object_class  TEXT NOT NULL DEFAULT 'UNKNOWN',
+  -- The source's own finer term (DISCOS separates payload fragments from rocket
+  -- fragments, and mission-related objects from break-up debris). Null when the
+  -- source does not distinguish.
+  class_detail  TEXT,
+  class_source  TEXT,
   computed_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS cls_country_idx ON object_classification(country);
 CREATE INDEX IF NOT EXISTS cls_constellation_idx ON object_classification(constellation);
 CREATE INDEX IF NOT EXISTS cls_regime_idx ON object_classification(regime);
 CREATE INDEX IF NOT EXISTS cls_purpose_idx ON object_classification(purpose_group);
+CREATE INDEX IF NOT EXISTS cls_class_idx ON object_classification(object_class);
 `;
 
 function main(): void {
@@ -248,6 +269,20 @@ function main(): void {
     ds.set(Number(r.norad_id), { name: (r.name as string) ?? null });
   }
 
+  /**
+   * DISCOS object class, keyed by NORAD.
+   *
+   * The only source that separates payload fragments from rocket fragments and
+   * mission-related objects from break-up debris, so it decides `classDetail`
+   * whenever it has an opinion.
+   */
+  const dsClass = new Map<number, string>();
+  for (const r of db
+    .prepare("SELECT norad_id, object_class FROM discos_objects WHERE norad_id > 0 AND object_class IS NOT NULL")
+    .all() as Array<Record<string, unknown>>) {
+    dsClass.set(Number(r.norad_id), String(r.object_class));
+  }
+
   const universe = new Set<number>([
     ...st.keys(),
     ...gcat.keys(),
@@ -258,6 +293,7 @@ function main(): void {
 
   const rows: Classification[] = [];
   const regimeBasis = { computed: 0, stated: 0, unknown: 0 };
+  const classCounts = new Map<string, number>();
 
   for (const norad of universe) {
     const s = st.get(norad);
@@ -300,6 +336,15 @@ function main(): void {
     }
     regimeBasis[basis] += 1;
 
+    // Space-Track is asked at all only because it is the authority on whether an
+    // object is a payload; DISCOS wins whenever it has a finer term, which
+    // `chooseClassification` handles internally.
+    const classification = chooseClassification([
+      { source: "discos", raw: dsClass.get(norad) ?? null },
+      { source: "spacetrack", raw: s?.cls ?? null },
+    ]);
+    classCounts.set(classification.objectClass, (classCounts.get(classification.objectClass) ?? 0) + 1);
+
     rows.push({
       noradId: norad,
       country: s?.country ?? p?.country ?? null,
@@ -310,25 +355,38 @@ function main(): void {
       regime,
       regimeBasis: basis,
       bus: g?.bus ?? k?.bus ?? null,
+      objectClass: classification.objectClass,
+      classDetail: classification.classDetail,
+      classSource: classification.classSource,
     });
   }
 
   const now = new Date().toISOString();
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO object_classification
-       (norad_id, country, constellation, operator, purpose, purpose_group, regime, regime_basis, bus, computed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (norad_id, country, constellation, operator, purpose, purpose_group, regime, regime_basis, bus,
+        object_class, class_detail, class_source, computed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   db.transaction((list: Classification[]) => {
     db.prepare("DELETE FROM object_classification").run();
     for (const c of list) {
-      stmt.run(c.noradId, c.country, c.constellation, c.operator, c.purpose, c.purposeGroup, c.regime, c.regimeBasis, c.bus, now);
+      stmt.run(
+        c.noradId, c.country, c.constellation, c.operator, c.purpose, c.purposeGroup,
+        c.regime, c.regimeBasis, c.bus,
+        c.objectClass, c.classDetail, c.classSource, now,
+      );
     }
   })(rows);
 
   // ------------------------------------------------------------- report
   console.log(`  对象        ${rows.length}`);
   console.log(`  轨道判定    computed ${regimeBasis.computed}  stated ${regimeBasis.stated}  unknown ${regimeBasis.unknown}`);
+  const classLine = [...classCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${v}`)
+    .join("  ");
+  console.log(`  目标分类    ${classLine}`);
 
   const show = (label: string, sql: string) => {
     console.log(`\n  ${label}`);

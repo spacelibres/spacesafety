@@ -60,6 +60,8 @@ export const zhCN: MessageTable = {
   "nav.browse": "分类浏览",
   "browse.title": "按分类浏览",
   "browse.objects": "个对象",
+  "browse.objectClass": "目标分类",
+  "browse.classDetail": "分类细分",
   "browse.regime": "轨道类型",
   "browse.constellation": "星座",
   "browse.country": "国家/地区",

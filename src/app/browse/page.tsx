@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
-import { browse, type FacetName } from "@/lib/browse";
+import { browse, type BrowseFilter, type FacetName } from "@/lib/browse";
 import { getTranslator } from "@/lib/i18n/registry";
 
 export const dynamic = "force-dynamic";
 
 const FACETS: Array<{ key: FacetName; labelKey: string }> = [
+  { key: "objectClass", labelKey: "browse.objectClass" },
+  { key: "classDetail", labelKey: "browse.classDetail" },
   { key: "regime", labelKey: "browse.regime" },
   { key: "constellation", labelKey: "browse.constellation" },
   { key: "country", labelKey: "browse.country" },
@@ -15,6 +17,21 @@ const FACETS: Array<{ key: FacetName; labelKey: string }> = [
 
 /** Human labels for the orbit regimes and purpose groups. */
 const VALUE_LABELS: Record<string, Record<string, string>> = {
+  objectClass: {
+    PAYLOAD: "载荷 PAYLOAD",
+    "ROCKET BODY": "火箭残骸 ROCKET BODY",
+    DEBRIS: "空间碎片 DEBRIS",
+    UNKNOWN: "未分类 UNKNOWN",
+  },
+  classDetail: {
+    "PAYLOAD FRAGMENT": "载荷解体碎片",
+    "ROCKET FRAGMENT": "火箭解体碎片",
+    "PAYLOAD DEBRIS": "载荷碎片",
+    "ROCKET DEBRIS": "火箭碎片",
+    "PAYLOAD MISSION RELATED": "载荷任务相关物",
+    "ROCKET MISSION RELATED": "火箭任务相关物",
+    "OTHER MISSION RELATED": "其他任务相关物",
+  },
   regime: {
     LEO: "低轨 LEO",
     MEO: "中轨 MEO",
@@ -45,20 +62,25 @@ export default async function BrowsePage({
   const t = await getTranslator();
   const sp = await searchParams;
 
-  const result = browse({
-    regime: sp.regime,
-    country: sp.country,
-    constellation: sp.constellation,
-    purpose: sp.purpose,
+  // Read every facet from the query string by iterating the facet list rather than
+  // naming each one. The named form is what silently dropped the two new facets:
+  // they were added to `FACETS` and to the SQL, the URL carried them, and the page
+  // passed them nowhere, so every filter returned the full 72,401 rows.
+  const filter: BrowseFilter = {
     q: sp.q,
     orbitsOnly: sp.orbits === "1",
     page: Number(sp.page ?? "1") || 1,
-  });
+  };
+  for (const f of FACETS) {
+    const v = sp[f.key];
+    if (v) filter[f.key] = v;
+  }
+  const result = browse(filter);
 
   /** Keep every current filter except the one being changed. */
   const href = (over: Record<string, string | undefined>): string => {
     const p = new URLSearchParams();
-    for (const k of ["regime", "country", "constellation", "purpose", "q", "orbits"]) {
+    for (const k of [...FACETS.map((f) => f.key), "q", "orbits"]) {
       const v = over[k] ?? sp[k];
       if (v) p.set(k, v);
     }

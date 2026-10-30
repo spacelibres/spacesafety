@@ -60,6 +60,8 @@ export const ja: MessageTable = {
   "nav.browse": "分類ブラウズ",
   "browse.title": "分類別ブラウズ",
   "browse.objects": "オブジェクト",
+  "browse.objectClass": "目標分類",
+  "browse.classDetail": "分類詳細",
   "browse.regime": "軌道種別",
   "browse.constellation": "コンステレーション",
   "browse.country": "国・地域",

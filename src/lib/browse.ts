@@ -17,9 +17,16 @@
 
 import { getDb } from "@/db";
 
-export type FacetName = "regime" | "country" | "constellation" | "purpose";
+export type FacetName = "objectClass" | "classDetail" | "regime" | "country" | "constellation" | "purpose";
 
 const COLUMN: Record<FacetName, string> = {
+  // What the object is. This was missing from the facet list even though the
+  // identity is the first question anyone asks of a catalogue: the page could
+  // filter by orbit and by fleet but not by "show me only the live satellites".
+  objectClass: "c.object_class",
+  // The source's finer term: which fragments came from payloads, which from
+  // stages, and which objects were released deliberately rather than broken off.
+  classDetail: "c.class_detail",
   regime: "c.regime",
   country: "c.country",
   constellation: "c.constellation",
@@ -32,6 +39,8 @@ export interface FacetValue {
 }
 
 export interface BrowseFilter {
+  objectClass?: string;
+  classDetail?: string;
   regime?: string;
   country?: string;
   constellation?: string;
@@ -54,6 +63,7 @@ export interface BrowseResult {
     country: string | null;
     purposeGroup: string | null;
     objectClass: string | null;
+    classDetail: string | null;
     massKg: number | null;
     inclinationDeg: number | null;
     decayDate: string | null;
@@ -92,7 +102,14 @@ export function browse(f: BrowseFilter = {}): BrowseResult {
   const { sqlite, wideAttached } = getDb();
   if (!wideAttached) {
     return {
-      facets: { regime: [], country: [], constellation: [], purpose: [] },
+      facets: {
+        objectClass: [],
+        classDetail: [],
+        regime: [],
+        country: [],
+        constellation: [],
+        purpose: [],
+      },
       rows: [],
       total: 0,
       page: 1,
@@ -141,12 +158,18 @@ export function browse(f: BrowseFilter = {}): BrowseResult {
   const rows = sqlite
     .prepare(
       `SELECT w.norad_id AS noradId,
-              COALESCE(w.name__spacetrack, w.name__spacebook, w.name__discos) AS name,
+              COALESCE(w.name__spacetrack, w.name__spacebook, w.name__discos,
+                       w.name__keeptrack, w.name__sbsup) AS name,
               c.constellation AS constellation,
               c.regime AS regime,
               c.country AS country,
               c.purpose_group AS purposeGroup,
-              w.object_class__spacetrack AS objectClass,
+              /* The normalised value, not the raw Space-Track column: the raw
+                 column is upper-case there and title-case in DISCOS, and it is
+                 blank for the 1,112 analyst objects. Reading it here made the list
+                 disagree with both the facet counts and the filter selection. */
+              c.object_class AS objectClass,
+              c.class_detail AS classDetail,
               COALESCE(w.mass_kg__discos, w.mass_kg__spacebook) AS massKg,
               w.inclination_deg__spacetrack AS inclinationDeg,
               w.decay_date__spacetrack AS decayDate

@@ -100,7 +100,11 @@ export function statistics(): Statistics {
     .prepare(
       `SELECT w.norad_id AS noradId,
               c.regime AS regime,
-              w.object_class__spacetrack AS objectClass,
+              /* The normalised class from the classification table, not the raw
+                 Space-Track column: that column is blank for the 1,112 analyst
+                 objects and is titled differently by DISCOS, so the breakdown and
+                 the constellation crosstab were missing those rows entirely. */
+              c.object_class AS objectClass,
               c.purpose_group AS purpose,
               c.country AS country,
               c.constellation AS constellation,

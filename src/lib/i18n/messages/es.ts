@@ -60,6 +60,8 @@ export const es: MessageTable = {
   "nav.browse": "Explorador por categoría",
   "browse.title": "Explorar por categoría",
   "browse.objects": "objetos",
+  "browse.objectClass": "Clase de objeto",
+  "browse.classDetail": "Detalle de clase",
   "browse.regime": "Régimen orbital",
   "browse.constellation": "Constelación",
   "browse.country": "País",

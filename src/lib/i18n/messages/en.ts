@@ -68,6 +68,8 @@ export const en = {
   "nav.browse": "Category browser",
   "browse.title": "Browse by category",
   "browse.objects": "objects",
+  "browse.objectClass": "Object class",
+  "browse.classDetail": "Class detail",
   "browse.regime": "Orbit regime",
   "browse.constellation": "Constellation",
   "browse.country": "Country",
