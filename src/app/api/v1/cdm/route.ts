@@ -3,6 +3,7 @@ import { and, eq, gt, or, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/db";
 import { cdms } from "@/db/schema";
 import { json, route } from "@/lib/api/http";
+import { listPublishedConjunctions } from "@/lib/queries";
 import { hashFilters, issueToken, MAX_PAGE_SIZE, resolveCursor } from "@/lib/api/pagination";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +29,54 @@ export const dynamic = "force-dynamic";
  * `/v1/event/:id/cdms`): `created_at`, `tca`, `probability_of_collision`.
  * `{result, token}` follows the pagination pattern the vendor documents for
  * every bulk endpoint.
+ *
+ * ## `?source=public` — an extension, not part of the vendor contract
+ *
+ * The endpoint above is empty whenever no operator has uploaded an ephemeris,
+ * which is this deployment's state. The conjunction data that *does* exist is the
+ * publicly published CDM feed, and it does not belong in the default response:
+ * the vendor scopes this endpoint to owner/operator data, and a public CDM has no
+ * covariance, no manoeuvre plan and no operator claim.
+ *
+ * So it is opt-in and self-describing. `?source=public` returns the published
+ * conjunctions with an explicit `source` field and no operator scoping, and the
+ * default request is byte-for-byte what it was before. An unknown `source` is a
+ * 400 rather than a silent fallback, because a client that asked for one thing and
+ * received another would misreport it.
  */
 export const GET = route(async ({ request, principal }) => {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? undefined;
+
+  const source = url.searchParams.get("source");
+  if (source === "public") {
+    const published = listPublishedConjunctions(500);
+    return json(200, {
+      result: published.map((c) => ({
+        id: c.cdmId,
+        source: "space-track-public-cdm",
+        event_id: null,
+        created_at: c.createdIso,
+        tca: c.tcaIso,
+        probability_of_collision: c.pc,
+        miss_distance_km: c.minRangeKm,
+        message_count: c.messageCount,
+        object1: { norad_id: c.object1Norad, name: c.object1Name, type: c.object1Type },
+        object2: { norad_id: c.object2Norad, name: c.object2Name, type: c.object2Type },
+        operator1_id: null,
+        operator2_id: null,
+        is_active: c.tcaInFuture,
+      })),
+      // The published feed is complete per capture; there is no cursor to issue.
+      token: null,
+    });
+  }
+  if (source !== null && source !== "operator") {
+    return json(400, {
+      error: "invalid_source",
+      message: `unknown source "${source}"; expected "operator" (default) or "public"`,
+    });
+  }
 
   const filterHash = hashFilters({ endpoint: "v1/cdm", operator: principal.operatorId });
   const cursor = resolveCursor("cdms", token, filterHash);

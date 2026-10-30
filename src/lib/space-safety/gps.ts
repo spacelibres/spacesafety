@@ -84,17 +84,15 @@ export function formatGps(
 }
 
 /** Human-readable countdown, e.g. `T-2d 04h`, `T-13m`, `T+40s`. */
-export function countdownTo(
-  nanos: GpsNanos,
-  now: Date = new Date(),
-): string | null {
-  let tca: Date;
-  try {
-    tca = gpsNanosToDate(nanos);
-  } catch {
-    return null;
-  }
-  const deltaMs = tca.getTime() - now.getTime();
+/**
+ * Format a signed countdown from a millisecond delta.
+ *
+ * Split out so both time representations in this project reach the same string:
+ * our own CDMs carry GPS nanoseconds, while a publicly published CDM carries an
+ * ISO instant, and a page that shows "T-2d 04h" for one and something else for
+ * the other would be reporting the same quantity two ways.
+ */
+export function formatCountdown(deltaMs: number): string {
   const sign = deltaMs >= 0 ? "T-" : "T+";
   const total = Math.floor(Math.abs(deltaMs) / 1000);
   const days = Math.floor(total / 86_400);
@@ -108,4 +106,25 @@ export function countdownTo(
   }
   if (minutes > 0) return `${sign}${minutes}m ${String(seconds).padStart(2, "0")}s`;
   return `${sign}${seconds}s`;
+}
+
+export function countdownTo(
+  nanos: GpsNanos,
+  now: Date = new Date(),
+): string | null {
+  let tca: Date;
+  try {
+    tca = gpsNanosToDate(nanos);
+  } catch {
+    return null;
+  }
+  return formatCountdown(tca.getTime() - now.getTime());
+}
+
+/** Countdown to an ISO instant; `null` when the value is not a valid date. */
+export function countdownToIso(iso: string | null, now: Date = new Date()): string | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  return formatCountdown(ms - now.getTime());
 }

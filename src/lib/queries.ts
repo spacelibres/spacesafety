@@ -163,6 +163,199 @@ export function listConjunctions(limit = 100): ConjunctionRow[] {
   }));
 }
 
+/**
+ * Collapse `space_track_cdm_public` from **messages** to **conjunctions**.
+ *
+ * ## Why the table cannot be read row-per-row
+ *
+ * 3 164 messages describe **509** conjunctions. The screening centre re-issues a
+ * CDM for the same pair whenever its estimate moves, so one conjunction arrives
+ * as a series. Measured on pair 16910 / 42643 (14 messages, one conjunction):
+ *
+ *   | created (UTC)      | TCA             | Pc        | miss |
+ *   |--------------------|-----------------|-----------|------|
+ *   | 2026-10-28 06:15   | 22:49:39.105    | 0.0004271 | 218 km |
+ *   | 2026-10-28 12:46   | 22:49:39.104    | 0.0004271 | 218 km |
+ *   | 2026-10-29 12:46   | 22:49:39.098    | 0.0026593 |  92 km |
+ *   | 2026-10-30 00:23   | 22:49:39.096    | 0.0032998 |  71 km |
+ *   | 2026-10-30 05:37   | 22:49:39.096    | 0.0032998 |  71 km |
+ *
+ * Two things in that table matter:
+ *
+ *   1. **TCA is not a stable key.** The same conjunction's TCA jitters by
+ *      milliseconds between issues (`.094` → `.096` → `.105`). Grouping on the
+ *      exact value split this one conjunction into five rows.
+ *   2. **Pc moves by an order of magnitude.** Listing every message and sorting by
+ *      Pc would put the *historical worst* estimate at the top and present it as
+ *      the current risk. Only the newest message per conjunction is true now.
+ *
+ * So messages are clustered by object pair and by TCA **proximity**: rows of the
+ * same pair whose TCA is within 60 s of the previous one join the same cluster
+ * (a gaps-and-islands scan). The 60 s threshold is 7× the largest span actually
+ * observed inside a cluster (8.5 s; the mean is 0.08 s), and two approaches of
+ * one pair cannot fall inside a minute of each other.
+ *
+ * The pair is order-insensitive (\`MIN\`/\`MAX\` of the two NORAD ids): the same
+ * conjunction also arrives with \`object1\`/\`object2\` swapped a few minutes later.
+ */
+const CDM_AS_CONJUNCTIONS = `
+  WITH base AS (
+    SELECT cdm_id, created, tca, min_range_km, pc,
+           sat1_norad, sat1_name, sat1_object_type,
+           sat2_norad, sat2_name, sat2_object_type,
+           MIN(sat1_norad, sat2_norad) AS lo,
+           MAX(sat1_norad, sat2_norad) AS hi,
+           julianday(tca) AS jd
+      FROM space_track_cdm_public
+  ),
+  starts AS (
+    SELECT *,
+           CASE
+             WHEN LAG(jd) OVER (PARTITION BY lo, hi ORDER BY jd) IS NULL THEN 1
+             WHEN jd - LAG(jd) OVER (PARTITION BY lo, hi ORDER BY jd) > 60.0 / 86400.0 THEN 1
+             ELSE 0
+           END AS is_start
+      FROM base
+  ),
+  clustered AS (
+    SELECT *,
+           SUM(is_start) OVER (
+             PARTITION BY lo, hi ORDER BY jd, cdm_id ROWS UNBOUNDED PRECEDING
+           ) AS cluster
+      FROM starts
+  ),
+  ranked AS (
+    SELECT *,
+           COUNT(*) OVER (PARTITION BY lo, hi, cluster) AS message_count,
+           ROW_NUMBER() OVER (
+             PARTITION BY lo, hi, cluster ORDER BY created DESC, cdm_id DESC
+           ) AS rn
+      FROM clustered
+  )
+`;
+
+/**
+ * One conjunction, described by its **newest** CDM message.
+ *
+ * Distinct from `ConjunctionRow` on purpose, and the two must not be merged into
+ * one grid without a source column — they are different claims:
+ *
+ *   - `ConjunctionRow` is *our* screening output: it exists only when an operator
+ *     uploaded an ephemeris, and it carries our covariance-derived Pc, our miss
+ *     distance and the operator claim state.
+ *   - A public CDM is the screening centre's message about two **catalogue**
+ *     objects, computed from public elements. It has no covariance, no manoeuvre
+ *     plan and no operator claim.
+ *
+ * This deployment has no uploaded ephemerides, so the second kind is the only
+ * conjunction data that exists.
+ *
+ * `pc` is kept `null` where upstream omits it (~270 messages), never coerced to
+ * 0 — a missing probability is not a zero probability, and 0 would sort a
+ * possibly real threat below every measured one.
+ */
+export interface PublishedConjunctionRow {
+  cdmId: string;
+  /** When the newest message was published. */
+  createdIso: string | null;
+  tcaIso: string | null;
+  /** True while the TCA has not yet passed, i.e. still a live warning. */
+  tcaInFuture: boolean;
+  minRangeKm: number | null;
+  pc: number | null;
+  band: RiskBand;
+  /** How many CDM messages this conjunction received. */
+  messageCount: number;
+  object1Norad: number;
+  object1Name: string;
+  object1Type: string | null;
+  object2Norad: number;
+  object2Name: string;
+  object2Type: string | null;
+}
+
+/**
+ * Conjunctions the screening centre has published: live warnings first, then by
+ * probability.
+ *
+ * The table is created by `PublicCdmLoader` with raw SQL rather than through
+ * drizzle (it is loaded from an archive file, not written by the app), so this
+ * reads it with raw SQL too.
+ */
+export function listPublishedConjunctions(
+  limit = 200,
+  now: Date = new Date(),
+): PublishedConjunctionRow[] {
+  const { sqlite } = getDb();
+  const nowIso = now.toISOString();
+  const rows = sqlite
+    .prepare(
+      `${CDM_AS_CONJUNCTIONS}
+       SELECT cdm_id            AS cdmId,
+              created           AS createdIso,
+              tca               AS tcaIso,
+              min_range_km      AS minRangeKm,
+              pc                AS pc,
+              sat1_norad        AS object1Norad,
+              sat1_name         AS object1Name,
+              sat1_object_type  AS object1Type,
+              sat2_norad        AS object2Norad,
+              sat2_name         AS object2Name,
+              sat2_object_type  AS object2Type,
+              message_count     AS messageCount
+         FROM ranked
+        WHERE rn = 1
+        ORDER BY (tca >= @now) DESC,
+                 pc DESC NULLS LAST,
+                 tca ASC
+        LIMIT @limit`,
+    )
+    .all({ now: nowIso, limit }) as Array<Omit<PublishedConjunctionRow, "tcaInFuture" | "band">>;
+
+  return rows.map((r) => ({
+    ...r,
+    tcaInFuture: r.tcaIso !== null && r.tcaIso >= nowIso,
+    band: riskBand(r.pc),
+  }));
+}
+
+/**
+ * Header totals.
+ *
+ * `messages` and `conjunctions` are both reported on purpose: the difference is
+ * the revision count, and quoting only the message count would overstate how much
+ * is going on by 6× (3 164 messages, 509 conjunctions).
+ */
+export function publishedConjunctionCounts(now: Date = new Date()): {
+  messages: number;
+  conjunctions: number;
+  upcoming: number;
+  withProbability: number;
+} {
+  const { sqlite } = getDb();
+  const row = sqlite
+    .prepare(
+      `${CDM_AS_CONJUNCTIONS}
+       SELECT (SELECT COUNT(*) FROM space_track_cdm_public) AS messages,
+              SUM(CASE WHEN rn = 1 THEN 1 ELSE 0 END) AS conjunctions,
+              SUM(CASE WHEN rn = 1 AND tca >= @now THEN 1 ELSE 0 END) AS upcoming,
+              SUM(CASE WHEN rn = 1 AND pc IS NOT NULL THEN 1 ELSE 0 END) AS withProbability
+         FROM ranked`,
+    )
+    .get({ now: now.toISOString() }) as {
+    messages: number;
+    conjunctions: number | null;
+    upcoming: number | null;
+    withProbability: number | null;
+  };
+  return {
+    messages: row.messages,
+    conjunctions: row.conjunctions ?? 0,
+    upcoming: row.upcoming ?? 0,
+    withProbability: row.withProbability ?? 0,
+  };
+}
+
 export interface EventDetail {
   event: typeof events.$inferSelect | null;
   history: {

@@ -58,6 +58,8 @@
 | G16 | 测试 fixture 手抄表结构，加列后与真实库漂移 | 真实 DDL 抽成 `src/db/ddl.ts` 的 `SCHEMA_DDL`，fixture 直接用它 | `tests/sources.test.ts` 43 条全过 |
 | G17 | 只有 `download()` 要压缩，其余四个出口没有 | `src/lib/net/encoding.ts` 的 `ACCEPT_ENCODING` 接进全部五条传输路径（含 SOCKS5 分支，它原先既不要压缩也没有解码器）| `tests/http-encoding.test.ts` 9 条；实测每日 1.13 GB → 0.63 GB |
 | G18 | SOCKS5 分支会把压缩字节当正文 | 该分支 `decodeBody()` 解码并删除 `content-encoding` / `content-length` | 解码器单测覆盖；**代理链路本身未端到端实测**（本机无代理节点）|
+| G19 | 11 个数据集、226,637 行入库后无人读取 | 逐表断言 + 清单文档；公开 CDM 接到 `/conjunctions` 与 `/api/v1/cdm?source=public` | `npm run data:inventory`（11 表全过）；`docs/DATA-INVENTORY.md` |
+| G20 | 公开 CDM 按消息逐行展示，把历史最坏 Pc 当当前风险 | 按「物体对 + TCA 60 s 内」折叠：3,164 条消息 → 509 个交会，只显示最新估计并标出消息数 | `tests/cdm-cluster.test.ts` 8 条 |
 
 ---
 
@@ -74,6 +76,9 @@
 | P7 | 开发期无自动调度 | systemd 用户级 timer 曾安装并验证，后按开发需要**已停用**；`deploy/systemd/` 保留文件 | 上线时：`systemctl --user enable --now spacesafety-data.timer` |
 | P9 | 同一批 OMM 记录取三种编码 | `omm/kvn` 304 MB/日（服务端不压缩）+ `omm/json` 87 + `omm/xml` 48 = 439 MB/日，占全部 68%。kvn/xml 只用于验证"字段集与格式无关" | 把 `spacebook-omm-kvn` 的 `refreshMinutes` 120 → 1440 即降到约 365 MB/日；属数据节奏决策，等确认 |
 | P10 | 8 个 Spacebook 端点不压缩 | `omm/kvn`、`omm/xml`、`entity/tle`、`xp-tle`、两个 csv、`eop`、`weather` 不发 `content-encoding`（kvn 连 `br` 也不行）| 客户端无解法；能省的只有 P9 的重复取数 |
+| P11 | EOP 与空间天气无消费者 | 25,232 + 23,678 行仅入库，传播链路没接 EOP | 属轨道侧改动，按你的要求本轮不做 |
+| P12 | 再入 / 发射 / 解体事件没有页面 | 143,386 + 26,189 + 4,183 + 673 行仅入库 | 需要新页面（已确认本轮不新建）|
+| P13 | `discos_fragmentation.member_count` 恒为 0 | 上游只给关系链接，`meta.pagination` 无 `total`，`discos_objects` 无反向关系 | 逐事件分页遍历（673 次）或等 DISCOS 提供计数；当前按"未知"处理 |
 | P8 | 条件请求目前省 0 字节 | 实测 Spacebook / Space-Track / DISCOS **都不发** `ETag` / `Last-Modified`，多数还带 `cache-control: no-store`。机制已就绪且无副作用，去掉反而会丢掉将来 CDN 支持时的收益 | 无客户端解法：没有 validator，就无法在传输前判断内容是否变化。当前的省法是 gzip + 节奏 + 同哈希不重建、不重算 |
 
 ---

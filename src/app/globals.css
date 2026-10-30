@@ -606,6 +606,15 @@ table.data a:hover {
   border-color: var(--color-accent);
   color: var(--text);
 }
+/* Selected text button, for views that are filtered by a link rather than a
+   <select>. Uses the same accent as :hover so the active state and the hover
+   state are one visual language. */
+.btn.is-on {
+  border-color: var(--color-accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
 .filter-group {
   display: inline-flex;
   border: 1px solid var(--border-strong);

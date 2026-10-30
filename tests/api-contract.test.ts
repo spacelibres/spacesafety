@@ -170,6 +170,60 @@ async function main(): Promise<void> {
     assert.ok("created_at" in row && "tca" in row, Object.keys(row).join(","));
   });
 
+  // ------------------------------------------- ?source=public（扩展，非官方契约）
+  // 本部署没有上传星历，所以默认响应为空；公开发布的 CDM 只能显式索取，
+  // 否则运维方数据的语义会被 vendor CDM 稀释。
+  const { getDb: getDb2 } = await import("../src/db");
+  const { sqlite: sqlite2 } = getDb2();
+  sqlite2.exec(`
+    CREATE TABLE IF NOT EXISTS space_track_cdm_public (
+      cdm_id TEXT PRIMARY KEY, created TEXT, tca TEXT, min_range_km REAL, pc REAL,
+      emergency INTEGER, sat1_norad INTEGER, sat1_name TEXT, sat1_object_type TEXT,
+      sat1_rcs REAL, sat1_excl_vol_km REAL,
+      sat2_norad INTEGER, sat2_name TEXT, sat2_object_type TEXT,
+      sat2_rcs REAL, sat2_excl_vol_km REAL
+    );
+  `);
+  sqlite2.exec("DELETE FROM space_track_cdm_public");
+  const insPub = sqlite2.prepare(
+    `INSERT INTO space_track_cdm_public
+       (cdm_id, created, tca, min_range_km, pc, emergency, sat1_norad, sat1_name,
+        sat1_object_type, sat1_rcs, sat1_excl_vol_km, sat2_norad, sat2_name,
+        sat2_object_type, sat2_rcs, sat2_excl_vol_km)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'DEBRIS', 1.0, 0.02, ?, ?, 'DEBRIS', 1.0, 0.02)`,
+  );
+  // 同一交会的两条消息（TCA 差 2 毫秒）+ 一条无 Pc 的消息。
+  insPub.run("9000000001", "2026-10-30T01:00:00.000000Z", "2026-11-05T10:00:00.096000Z", 71, 0.0033, 42643, "DELTA 1 DEB", 16910, "H-1 R/B(MABES)");
+  insPub.run("9000000002", "2026-10-30T02:00:00.000000Z", "2026-11-05T10:00:00.098000Z", 85, 0.0028, 16910, "H-1 R/B(MABES)", 42643, "DELTA 1 DEB");
+  insPub.run("9000000003", "2026-10-30T03:00:00.000000Z", "2026-11-06T10:00:00.000000Z", 1200, null, 11111, "NO Pc DEB", 22222, "OTHER DEB");
+
+  const publicCdm = await call(cdmsV1.GET, "/api/v1/cdm?source=public");
+  check("GET /api/v1/cdm?source=public 返回公开发布的 CDM", () => {
+    assert.equal(publicCdm.status, 200);
+    const rows = publicCdm.body.result as Array<Record<string, unknown>>;
+    // 两条消息折叠成一个交会 + 一条无 Pc 的交会。
+    assert.equal(rows.length, 2, `返回 ${rows.length} 条`);
+    assert.ok(rows.every((r) => r.source === "space-track-public-cdm"));
+  });
+  check("?source=public 的行带来源标注且没有运营方字段", () => {
+    const row = (publicCdm.body.result as Array<Record<string, unknown>>)[0];
+    assert.equal(row.operator1_id, null, "公开发布的 CDM 不属于任何运营方");
+    assert.equal(row.event_id, null);
+    assert.equal(row.message_count, 2, `消息数 ${row.message_count}`);
+    assert.deepEqual(Object.keys(row.object1 as object).sort(), ["name", "norad_id", "type"]);
+  });
+  check("?source=public 保留无 Pc 的行，且 Pc 为 null 而不是 0", () => {
+    const rows = publicCdm.body.result as Array<Record<string, unknown>>;
+    const noPc = rows.find((r) => (r.object1 as { norad_id: number }).norad_id === 11111);
+    assert.ok(noPc, "无 Pc 的行被丢掉了");
+    assert.equal(noPc.probability_of_collision, null);
+  });
+  check("未知 source 返回 400 而不是悄悄回落到默认语义", async () => {
+    const bad = await call(cdmsV1.GET, "/api/v1/cdm?source=bogus");
+    assert.equal(bad.status, 400);
+    assert.equal(bad.body.error, "invalid_source");
+  });
+
   const v1Event = await call(events.GET, "/api/v1/event");
   check("GET /api/v1/event 返回 200 与 {result, token}", () => {
     assert.equal(v1Event.status, 200);
