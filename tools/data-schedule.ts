@@ -100,9 +100,12 @@ export class DataScheduler {
     const rows = sqlite
       .prepare(
         `SELECT source_id, MAX(finished_at) AS last_ok
-           FROM source_fetches WHERE status = 'ok' GROUP BY source_id`,
+           FROM source_fetches WHERE status IN ('ok', 'unchanged') GROUP BY source_id`,
       )
       .all() as Array<{ source_id: string; last_ok: string }>;
+    // A 304 (`unchanged`) proves the endpoint was checked and is current, so it
+    // counts as a success for cadence purposes. Counting only 'ok' would make
+    // every 304 look like "never fetched" and re-hammer the host every cycle.
     const lastSuccess = new Map(rows.map((r) => [r.source_id, r.last_ok]));
     const due = new Set(dueForRefresh(lastSuccess).map((d) => d.id));
 
@@ -134,7 +137,7 @@ export class DataScheduler {
     const rows = sqlite
       .prepare(
         `SELECT source_id, MAX(finished_at) AS last_ok
-           FROM source_fetches WHERE status = 'ok' GROUP BY source_id`,
+           FROM source_fetches WHERE status IN ('ok', 'unchanged') GROUP BY source_id`,
       )
       .all() as Array<{ source_id: string; last_ok: string }>;
     const lastSuccess = new Map(rows.map((r) => [r.source_id, r.last_ok]));
@@ -158,16 +161,38 @@ export class DataScheduler {
       return 0;
     }
 
+    // A download run is not a data change: with conditional requests most of the
+    // poll comes back `304`, and rebuilding 72 k rows for an unchanged file is
+    // pure waste. "Changed" is therefore counted from the ledger — rows that
+    // finished with new bytes during this cycle — not from the command running.
+    const { getDb } = await import("../src/db");
+    const { sqlite } = getDb();
+    const cycleStart = new Date().toISOString();
+
     let fetched = false;
     if (due.length) {
       try {
         run("npm", ["run", "sources:download", "--", "--only", due.join(",")]);
-        fetched = true;
-        log(`下载完成：${due.length} 个端点`);
       } catch (err) {
         log(`下载失败：${String((err as { stderr?: string }).stderr ?? "").trim().split("\n").slice(-3).join(" / ")}`);
         return 1;
       }
+      const countSince = (status: string): number =>
+        (
+          sqlite
+            .prepare(
+              `SELECT COUNT(*) AS n FROM source_fetches
+                WHERE status = ? AND finished_at >= ?`,
+            )
+            .get(status, cycleStart) as { n: number }
+        ).n;
+      const changed = countSince("ok");
+      const unchanged = countSince("unchanged");
+      fetched = changed > 0;
+      log(
+        `下载完成：${due.length} 个端点，${changed} 个有更新` +
+          (unchanged ? `，${unchanged} 个 304 未变` : ""),
+      );
     }
 
     if (keepTrack) {
@@ -204,8 +229,6 @@ export class DataScheduler {
       return 1;
     }
 
-    const { getDb } = await import("../src/db");
-    const { sqlite } = getDb();
     const wide = (
       sqlite.prepare("SELECT COUNT(*) AS n FROM object_classification").get() as { n: number }
     ).n;

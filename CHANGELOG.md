@@ -12,6 +12,72 @@
 
 ---
 
+## [0.1.66] - 2026-10-30
+
+**没有更新的数据不再重新下载。** 这一条此前只做了一半：归档层按 SHA-256 去重，
+所以"内容没变"这件事一直没有体现在行数上——浪费的只是带宽与整条重建链的时间，
+症状隐形，成本真实。
+
+### 条件请求（`304`）——机制建好，收益目前为 0，原因写在文档里
+
+`download()` 支持 `if-none-match` / `if-modified-since`，服务端回 `304` 时
+`notModified: true`、主体为空、本轮传输量为 0；validator 存进
+`source_fetches.etag` / `source_fetches.last_modified`（`migrate()` 自动补列），
+由新增的 `SourceLedger.lastValidators()` 读出、`finish()` 写回。
+`--force` 不发送条件头，否则服务器一句 304 就把手工强制刷新吃掉。
+
+**但实测四个源都不发 validator**（Spacebook / Space-Track / DISCOS，多数还带
+`cache-control: no-store`），所以这一层当前省下 **0 字节**。没有隐瞒这一点：
+`docs/DATA-SOURCES.md` 列了逐个端点的实测响应头，`CONTRIBUTING.md` §8.4 明令
+**不得对外宣称它省了带宽**。保留它的理由是一旦上游或中间 CDN 开始发 validator
+就立刻生效，且不发时不加条件头、行为与从前完全一致。
+
+### 真正省下带宽的是 gzip：30.37 MB → 7.23 MB
+
+之前把 `accept-encoding` 交给运行时协商，undici 默认要 brotli。实测同一份
+`/api/entity/omm/json`：
+
+| 请求头 | 线路传输 | 耗时 |
+|---|---|---|
+| `identity` | 30.37 MB | 7.2 s |
+| `gzip` | **7.23 MB** | **1.3 s** |
+| `br`（原来协商到的） | 8.59 MB | 2.5 s |
+
+`download()` 现在固定发 `accept-encoding: gzip, deflate`：比原来的默认少传 16%，
+解压也更快。顺带纠正一个长期误解——`downloads.ts` 里的 `approxMB` 是**解压后**
+大小，从来不是线路传输量。
+
+### 没有新字节就不重建
+
+`data-schedule` 与 `data:daily` 原先只要"跑过下载"就重建
+`load → wide → classify → events`，即使每个端点都是 304。现在按台账判定：
+本轮出现 `source_fetches.status='ok'` 的行才算有变化；全是 `unchanged` 就跳过重建
+（`data:daily -- --force` 可强制）。判断是否到期也改用
+`status IN ('ok','unchanged')`——只认 `'ok'` 会让每个 304 之后都被判成"从未抓取"，
+于是每轮重抓，比不做条件请求更糟。
+
+### 测试不再手抄表结构
+
+`tests/sources.test.ts` 的 `:memory:` fixture 是手抄的 `source_fetches`，
+加了 `etag` 列之后它没有跟着变，套件于是死在 `no such column: etag`——
+生产库反而是好的。真实 DDL 已抽成 `src/db/ddl.ts` 的 `SCHEMA_DDL`
+（`src/db/index.ts` 也直接 import 它），fixture 只能与真实库一致，无法再漂移。
+drizzle schema 同步补上两列。
+
+### 验证
+
+- 新增 `tests/http-conditional.test.ts`：起本地 `node:http` 文件服务（发 ETag 与
+  Last-Modified，条件命中回 304），断言第二次请求 `status=304`、主体 0 字节、
+  **写入 socket 的主体字节为 0**；内容改写后不再 304；只有 Last-Modified 也能 304；
+  无 validator 时不加条件头。5 条全过。
+- `tests/sources.test.ts` 新增 6 条 validator 台账断言（含"失败不得留下 validator"）。
+- 全量 `npm test`：41 个套件、855 条断言全过；`npm run check` 十项全过。
+- 真实链路复测：`download()` 打 `spacebook.com/api/entity/omm/json` 返回
+  `content-encoding: gzip`、解压后 30,371,355 字节、主体为合法 JSON、5.8 s；
+  `/api/eop/full` 返回 2,482,848 字节且完整性判定通过。
+
+---
+
 ## [0.1.65] - 2026-10-30
 
 停掉开发期的自动调度，建立**缺口清单**，并补上两处数据链路的真实缺口。

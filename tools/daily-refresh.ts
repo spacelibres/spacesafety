@@ -27,6 +27,15 @@
  *
  * It prints a before/after table so a refresh that quietly returned less data is
  * visible instead of looking like success.
+ *
+ * ## Why the rebuild can be skipped
+ *
+ * The download step sends `if-none-match` / `if-modified-since` from the previous
+ * capture, so an unchanged endpoint answers `304` and transfers nothing. When
+ * every due endpoint answers `304`, re-running load → wide → classify would
+ * rewrite 72 k rows with identical values: measurable cost, zero information.
+ * The ledger decides — `source_fetches.status = 'ok'` rows finished during this
+ * run mean real new bytes. `--force` overrides the check.
  */
 
 import { execFileSync } from "node:child_process";
@@ -75,6 +84,25 @@ export class DailyRefresh {
     ];
   }
 
+  /** How many sources delivered new bytes since `since` (ISO timestamp). */
+  private newBytesSince(since: string): number {
+    try {
+      const n = execFileSync(
+        "sqlite3",
+        [
+          "data/catalogue.sqlite",
+          `SELECT COUNT(*) FROM source_fetches WHERE status = 'ok' AND finished_at >= '${since}';`,
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      ).trim();
+      return Number(n);
+    } catch {
+      // No ledger (fresh checkout, or the file is mid-write): assume changed, so
+      // the refresh errs towards rebuilding rather than skipping real data.
+      return 1;
+    }
+  }
+
   counts(): Record<string, number> {
     const out: Record<string, number> = {};
     for (const table of WATCHED) {
@@ -112,7 +140,20 @@ export class DailyRefresh {
       return 0;
     }
 
-    for (const step of this.steps()) {
+    const cycleStart = new Date().toISOString();
+    let dataChanged = false;
+
+    for (const [index, step] of this.steps().entries()) {
+      // Index 0 is the download; everything from index 3 (load onward) is the
+      // rebuild that only new bytes can justify. KeepTrack's own sync (1, 2)
+      // dedupes internally and still runs.
+      if (index === 3 && !dataChanged && !this.force) {
+        console.log("\n  各源均返回 304（无更新），跳过重建：load → wide → classify → events");
+        console.log("  现有宽表 / 分类表仍然有效。");
+        console.log("  如需强制重建： npm run data:daily -- --force\n");
+        return 0;
+      }
+
       process.stdout.write(`\n  → ${step.label} … `);
       try {
         execFileSync(step.command, step.args, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
@@ -122,6 +163,16 @@ export class DailyRefresh {
         const stderr = String((err as { stderr?: string }).stderr ?? "").trim().split("\n").slice(-8).join("\n");
         console.error(`\n  ${step.label} 失败，后续步骤不再执行：\n${stderr}\n`);
         return 1;
+      }
+
+      if (index === 0) {
+        const changed = this.newBytesSince(cycleStart);
+        dataChanged = changed > 0;
+        console.log(
+          changed > 0
+            ? `     ${changed} 个源取回新数据`
+            : "     所有源均为 304，没有可比对的新内容",
+        );
       }
     }
 

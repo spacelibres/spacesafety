@@ -20,6 +20,7 @@
 
 import Database from "better-sqlite3";
 
+import { SCHEMA_DDL } from "../src/db/ddl";
 import type { Tle } from "../src/lib/orbit/tle";
 import { compareSources, summarize, type OcmSampler } from "../src/lib/sources/compare";
 import { SourceLedger } from "../src/lib/sources/ledger";
@@ -118,31 +119,18 @@ function state(noradId: number, sourceId: string, tle: Tle) {
   };
 }
 
+/**
+ * An in-memory database built from the **real** schema.
+ *
+ * This used to be a hand-copied subset of the tables, and it drifted exactly as
+ * you would expect: `source_fetches` gained `etag` / `last_modified` in
+ * `src/db/index.ts` and not here, so `ledger.finish()` died on
+ * `no such column: etag` while the production database was fine.
+ * `SCHEMA_DDL` is the single definition; the fixture cannot disagree with it.
+ */
 function ledgerDb(): Database.Database {
   const db = new Database(":memory:");
-  db.exec(`
-    CREATE TABLE data_sources (
-      id TEXT PRIMARY KEY, label TEXT NOT NULL, kind TEXT NOT NULL, format TEXT NOT NULL,
-      credential_env TEXT, refresh_minutes INTEGER NOT NULL DEFAULT 120,
-      enabled INTEGER NOT NULL DEFAULT 1, notes TEXT, last_success_at TEXT,
-      last_attempt_at TEXT, last_error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-    );
-    CREATE TABLE source_fetches (
-      id TEXT PRIMARY KEY, source_id TEXT NOT NULL, started_at TEXT NOT NULL,
-      finished_at TEXT, status TEXT NOT NULL DEFAULT 'running', bytes INTEGER,
-      records INTEGER, path TEXT, sha256 TEXT, error TEXT, seq INTEGER NOT NULL
-    );
-    CREATE INDEX source_fetches_source_idx ON source_fetches(source_id, started_at);
-    CREATE INDEX source_fetches_seq_idx ON source_fetches(seq);
-    CREATE TABLE object_sources (
-      norad_id INTEGER NOT NULL, source_id TEXT NOT NULL, epoch TEXT, inclination REAL,
-      raan REAL, eccentricity REAL, arg_perigee REAL, mean_anomaly REAL,
-      mean_motion REAL, bstar REAL, pos_x REAL, pos_y REAL, pos_z REAL,
-      delta_km REAL, fetched_at TEXT NOT NULL, PRIMARY KEY (norad_id, source_id)
-    );
-    CREATE INDEX object_sources_source_idx ON object_sources(source_id, norad_id);
-    CREATE INDEX object_sources_norad_idx ON object_sources(norad_id);
-  `);
+  db.exec(SCHEMA_DDL);
   return db;
 }
 
@@ -261,6 +249,57 @@ function main() {
   );
   const coverage = ledger.coverage();
   check("coverage reports one object per source", coverage.length === 2 && coverage.every((c) => c.objects === 1));
+
+  // ---- validators: what the next poll sends back -----------------------------
+  console.log("\nconditional-request validators");
+  const none = ledger.lastValidators("space-track-gp");
+  check("no validator before any capture", none.etag === null && none.lastModified === null);
+
+  const first = ledger.begin("space-track-gp", 3);
+  ledger.finish(first, {
+    sourceId: "space-track-gp",
+    status: "ok",
+    bytes: 1234,
+    etag: '"abc123"',
+    lastModified: "Thu, 30 Oct 2026 00:00:00 GMT",
+  });
+  const stored = ledger.lastValidators("space-track-gp");
+  check("a successful capture stores its validators", stored.etag === '"abc123"', String(stored.etag));
+  check(
+    "and the Last-Modified alongside it",
+    stored.lastModified === "Thu, 30 Oct 2026 00:00:00 GMT",
+    String(stored.lastModified),
+  );
+
+  // A 304 carries the same validator forward. Losing it would mean the next poll
+  // had nothing to compare and would transfer the body again.
+  const second = ledger.begin("space-track-gp", 4);
+  ledger.finish(second, {
+    sourceId: "space-track-gp",
+    status: "unchanged",
+    bytes: 0,
+    etag: '"abc123"',
+    lastModified: "Thu, 30 Oct 2026 00:00:00 GMT",
+  });
+  check(
+    "304 keeps the validator for the next poll",
+    ledger.lastValidators("space-track-gp").etag === '"abc123"',
+  );
+
+  // A failure must never contribute a validator: it describes bytes we did not get.
+  const failed = ledger.begin("spacebook-eop", 5);
+  ledger.finish(failed, { sourceId: "spacebook-eop", status: "failed", error: "timeout" });
+  const afterFail = ledger.lastValidators("spacebook-eop");
+  check("a failed capture yields no validator", afterFail.etag === null && afterFail.lastModified === null);
+
+  // A host that sends no validator at all (all four vendors today) must simply
+  // report null, so the next request goes out unconditional instead of 304-ing
+  // against a validator the server never issued.
+  const plain = ledger.begin("spacebook-omm-json", 6);
+  ledger.finish(plain, { sourceId: "spacebook-omm-json", status: "ok", bytes: 30_371_355 });
+  const plainV = ledger.lastValidators("spacebook-omm-json");
+  check("a capture without validators stores none", plainV.etag === null && plainV.lastModified === null);
+
   db.close();
 
   // ---- 3. comparison -------------------------------------------------------

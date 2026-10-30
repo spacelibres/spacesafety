@@ -186,3 +186,34 @@ npm run release:verify   # 工作区干净 / HEAD 已打 tag / 每条 tag 自带
 ```
 
 五项全过才叫"已发布"。只跑前三条会让版本留在本地——曾经 17 个版本就这样没上到 GitHub。
+
+## 8. 数据抓取与刷新（硬性）
+
+这一节约束"怎么去拿数据"，不是"拿什么数据"。违反它的典型症状是**带宽与重建时间**
+被浪费掉，而所有行数、所有测试看上去都正常。
+
+1. **不变的数据不重新下载。** 每个支持 `ETag` / `Last-Modified` 的端点，抓取时必须带上
+   上一轮的 validator（`if-none-match` / `if-modified-since`）；服务器回 `304` 就是
+   "没有更新"，本轮传输量必须为 0，并记为 `source_fetches.status = 'unchanged'`。
+   validator 由 `SourceLedger.lastValidators()` 读出、`finish()` 写回，不另存文件。
+2. **"到期"不等于"要传"。** 节奏（`downloads.ts` 的 `refreshMinutes`）只决定什么时候去问；
+   要不要传由 304 决定；要不要重建由"本轮是否有 `status='ok'` 的行"决定。
+   没有新字节就不跑 `load → wide → classify → events`。
+3. **两种状态都算"检查过了"。** 判断是否到期用 `status IN ('ok','unchanged')`。
+   只认 `'ok'` 会让每个 304 之后都被判成"从未抓取"，于是每轮重抓——比不做条件请求更糟。
+4. **能力范围要写清楚，不许假装全都省了。** 2026-10-30 实测：Spacebook、
+   Space-Track、DISCOS **都不发** `ETag` / `Last-Modified`（且多数是
+   `cache-control: no-store`），所以条件请求当前省下的是 **0 字节**。机制必须保留
+   （上游或 CDN 一旦开始发就立刻生效，不发时不加条件头、行为不变），但对外**不得**
+   宣称它省了带宽。查询型 API（Space-Track `/basicspacedata/query/`）没有整文件
+   validator，仍按节奏整取；分页爬取（DISCOS）省的是已缓存的分页，不是整档。
+   实测数据与例外全部记在 `docs/DATA-SOURCES.md`。
+5. **归档层继续用 SHA-256 兜底。** 服务端不给 validator、或给了但内容其实变了，
+   `archive.store()` 的同哈希判断仍然保证不写重复档。
+6. **必须显式要 gzip。** `download()` 固定发 `accept-encoding: gzip, deflate`。
+   不能留给运行时默认协商：undici 默认要 brotli，实测在 30 MB 的主体上
+   gzip 传 7.23 MB / 1.3 s，brotli 传 8.59 MB / 2.5 s——更慢也更大。
+   仓库里凡是写"约 XX MB"的地方，都是**解压后**大小，不是线路传输量。
+7. **验证方式不能只靠连上游。** `tests/http-conditional.test.ts` 起本地 `node:http`
+   文件服务，断言第二次请求是 304 且**写入 socket 的主体字节为 0**。
+   改这条链路却让该测试变红，就是改坏了。

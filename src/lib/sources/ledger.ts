@@ -30,9 +30,12 @@ export interface FetchRecord {
   status: "running" | "ok" | "failed" | "unchanged";
   bytes?: number;
   records?: number;
-  path?: string;
-  sha256?: string;
+  path?: string | null;
+  sha256?: string | null;
   error?: string;
+  /** HTTP validator from this response, kept for the next conditional request. */
+  etag?: string | null;
+  lastModified?: string | null;
 }
 
 /** One provider's view of one object. */
@@ -128,7 +131,8 @@ export class SourceLedger {
     this.sqlite
       .prepare(
         `UPDATE source_fetches
-            SET finished_at = ?, status = ?, bytes = ?, records = ?, path = ?, sha256 = ?, error = ?
+            SET finished_at = ?, status = ?, bytes = ?, records = ?, path = ?, sha256 = ?,
+                error = ?, etag = COALESCE(?, etag), last_modified = COALESCE(?, last_modified)
           WHERE id = ?`,
       )
       .run(
@@ -139,6 +143,8 @@ export class SourceLedger {
         record.path ?? null,
         record.sha256 ?? null,
         record.error ?? null,
+        record.etag ?? null,
+        record.lastModified ?? null,
         fetchId,
       );
 
@@ -153,6 +159,28 @@ export class SourceLedger {
         "UPDATE data_sources SET last_success_at = ?, last_error = NULL, updated_at = ? WHERE id = ?",
       )
       .run(ts, ts, record.sourceId);
+  }
+
+  /**
+   * Validators from the last successful capture, for a conditional request.
+   *
+   * Only successes count: a failed attempt recorded no body, so its validator
+   * would be a promise about bytes we never saw. Reading the newest such row is
+   * what lets the next poll ask "has this changed since then?" and get `304`
+   * instead of 552 MB a day.
+   */
+  lastValidators(sourceId: string): { etag: string | null; lastModified: string | null } {
+    const row = this.sqlite
+      .prepare(
+        `SELECT etag, last_modified AS lastModified
+           FROM source_fetches
+          WHERE source_id = ? AND status IN ('ok', 'unchanged')
+            AND (etag IS NOT NULL OR last_modified IS NOT NULL)
+          ORDER BY started_at DESC, seq DESC
+          LIMIT 1`,
+      )
+      .get(sourceId) as { etag: string | null; lastModified: string | null } | undefined;
+    return { etag: row?.etag ?? null, lastModified: row?.lastModified ?? null };
   }
 
   /**

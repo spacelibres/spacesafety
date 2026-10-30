@@ -30,6 +30,14 @@ export interface DownloadOptions {
   signal?: AbortSignal;
   /** Header overrides, e.g. Space-Track's session cookie. */
   headers?: Record<string, string>;
+  /**
+   * Validators from the previous capture.
+   *
+   * Sending these turns the poll into a conditional request: an unchanged file
+   * comes back as `304 Not Modified` with no body, which is the difference
+   * between re-downloading 552 MB a day and downloading only what moved.
+   */
+  conditional?: { etag?: string | null; lastModified?: string | null };
 }
 
 export interface DownloadResult {
@@ -38,6 +46,11 @@ export interface DownloadResult {
   headers: Headers;
   /** True when the caller's completeness predicate accepted the body. */
   complete: boolean;
+  /** True when the server answered 304 to a conditional request. */
+  notModified: boolean;
+  /** Validators to store for the next poll. */
+  etag: string | null;
+  lastModified: string | null;
 }
 
 /** Identifies as a normal browser. The endpoints serve the files to browsers. */
@@ -59,24 +72,62 @@ export async function download(
   isComplete: (body: Buffer, headers: Headers) => boolean,
   opts: DownloadOptions = {},
 ): Promise<DownloadResult> {
-  const { timeoutMs = 300_000, retries = 3, signal, headers = {} } = opts;
+  const { timeoutMs = 300_000, retries = 3, signal, headers = {}, conditional } = opts;
   let last: DownloadResult | null = null;
   let lastError: string | null = null;
+
+  // A conditional request is only sent when we hold a validator from a previous
+  // capture. Without one the server has nothing to compare against and would
+  // send the whole body anyway.
+  const conditionalHeaders: Record<string, string> = {};
+  if (conditional?.etag) conditionalHeaders["if-none-match"] = conditional.etag;
+  if (conditional?.lastModified) {
+    conditionalHeaders["if-modified-since"] = conditional.lastModified;
+  }
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       const res = await fetch(url, {
         method: "GET",
         signal: signal ?? AbortSignal.timeout(timeoutMs),
-        // No `Range` header: see the note above. `accept-encoding` is left to the
-        // runtime, which negotiates and decompresses transparently.
+        // No `Range` header: see the note above.
+        //
+        // `accept-encoding` is set explicitly rather than left to the runtime.
+        // undici negotiates brotli by default, and on the largest body it is the
+        // *worse* choice — measured on `/api/entity/omm/json` (30.37 MB raw):
+        //
+        //   identity  30.37 MB   7.2 s
+        //   gzip       7.23 MB   1.3 s   ← chosen
+        //   brotli     8.59 MB   2.5 s
+        //
+        // So always advertise gzip first. Whatever the host returns is decompressed
+        // by undici before this function sees it; the body length the caller
+        // measures is always the decompressed one.
         headers: {
           "user-agent": BROWSER_USER_AGENT,
           accept: "text/html,application/xhtml+xml,text/plain,*/*",
           acceptLanguage: "en-US,en;q=0.9",
+          "accept-encoding": "gzip, deflate",
+          ...conditionalHeaders,
           ...headers,
         },
       });
+
+      // 304 carries no body; `res.ok` is false for it, so it is handled first.
+      // This is the whole point of the conditional request: the file did not
+      // change, so nothing is transferred and nothing downstream needs to run.
+      if (res.status === 304) {
+        return {
+          body: Buffer.alloc(0),
+          status: 304,
+          headers: res.headers,
+          complete: true,
+          notModified: true,
+          etag: res.headers.get("etag") ?? conditional?.etag ?? null,
+          lastModified:
+            res.headers.get("last-modified") ?? conditional?.lastModified ?? null,
+        };
+      }
 
       if (!res.ok) {
         const retryable = res.status >= 500 || res.status === 429;
@@ -85,6 +136,9 @@ export async function download(
           status: res.status,
           headers: res.headers,
           complete: false,
+          notModified: false,
+          etag: null,
+          lastModified: null,
         };
         if (!retryable || attempt === retries) return last;
         await sleep(500 * (attempt + 1));
@@ -93,7 +147,15 @@ export async function download(
 
       const body = Buffer.from(await res.arrayBuffer());
       const complete = isComplete(body, res.headers);
-      last = { body, status: res.status, headers: res.headers, complete };
+      last = {
+        body,
+        status: res.status,
+        headers: res.headers,
+        complete,
+        notModified: false,
+        etag: res.headers.get("etag") ?? null,
+        lastModified: res.headers.get("last-modified") ?? null,
+      };
       if (complete) return last;
       lastError = `${body.length} bytes (incomplete)`;
       await sleep(500 * (attempt + 1));
@@ -104,6 +166,9 @@ export async function download(
         status: 0,
         headers: new Headers(),
         complete: false,
+        notModified: false,
+        etag: null,
+        lastModified: null,
       };
       if (attempt === retries) {
         throw new Error(

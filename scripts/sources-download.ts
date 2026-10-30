@@ -74,6 +74,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  /** What one endpoint's fetch produced, including whether anything came back. */
+  interface FetchOutcome {
+    body: Buffer;
+    notModified: boolean;
+    etag: string | null;
+    lastModified: string | null;
+  }
+
   const { sqlite } = getDb();
   const ledger = new SourceLedger(sqlite);
   ledger.seedRegistry();
@@ -81,18 +89,41 @@ async function main(): Promise<void> {
   const archive = new SourceArchive();
   const auth = new SpacebookAuth();
 
-  /** Fetch one endpoint's raw body. */
-  async function fetchBody(spec: (typeof DOWNLOADS)[number]): Promise<Buffer> {
+  /**
+   * Fetch one endpoint.
+   *
+   * `notModified` is the answer that saves the bandwidth: when the server replies
+   * `304` the body is empty and nothing downstream needs to run, because the
+   * archive already holds these exact bytes.
+   */
+  async function fetchBody(
+    spec: (typeof DOWNLOADS)[number],
+    validators: { etag: string | null; lastModified: string | null },
+  ): Promise<FetchOutcome> {
     if (spec.upstream === "space-track") {
       // `spaceTrackGet` returns text and owns the session cookie; the archive
-      // stores the bytes it produced rather than re-encoding JSON.
+      // stores the bytes it produced rather than re-encoding JSON. It is a query
+      // API with per-request dynamic results, so no validator is carried.
       const res = await spaceTrackGet(`/${spec.path}`);
       if (!res.ok) throw new Error(res.error ?? "space-track request failed");
-      return Buffer.from(res.data ?? "", "utf8");
+      return {
+        body: Buffer.from(res.data ?? "", "utf8"),
+        notModified: false,
+        etag: null,
+        lastModified: null,
+      };
     }
 
     if (spec.upstream === "discos") {
-      return fetchDiscos(spec);
+      // DISCOS is crawled page by page with an on-disk resume cache, so its own
+      // paging already skips bytes it has; a whole-collection validator does not
+      // exist to send.
+      return {
+        body: await fetchDiscos(spec),
+        notModified: false,
+        etag: null,
+        lastModified: null,
+      };
     }
 
     // Spacebook is fetched by URL, not through `SpacebookClient`: the client is
@@ -105,12 +136,25 @@ async function main(): Promise<void> {
     const result = await download(
       `https://spacebook.com/${spec.path}`,
       (body) => body.length > 1024 && !body.subarray(0, 15).toString().trimStart().startsWith("<!"),
-      { timeoutMs: 600_000, retries: 3, headers },
+      { timeoutMs: 600_000, retries: 3, headers, conditional: validators },
     );
+    if (result.notModified) {
+      return {
+        body: Buffer.alloc(0),
+        notModified: true,
+        etag: result.etag,
+        lastModified: result.lastModified,
+      };
+    }
     if (result.status === 0) throw new Error("download failed");
     if (result.status >= 400) throw new Error(`HTTP ${result.status}`);
     if (!result.complete) throw new Error(`incomplete body (${result.body.length} bytes)`);
-    return result.body;
+    return {
+      body: result.body,
+      notModified: false,
+      etag: result.etag,
+      lastModified: result.lastModified,
+    };
   }
 
   /**
@@ -239,8 +283,33 @@ async function main(): Promise<void> {
     const previousPath = await archive.latest(spec.id);
     const previousHash = previousPath ? hashOfName(previousPath) : null;
 
+    // `--force` means "fetch it again", not "ask politely": sending a validator
+    // would let the server answer 304 and quietly defeat the flag.
+    const validators = force
+      ? { etag: null, lastModified: null }
+      : ledger.lastValidators(spec.id);
+
     try {
-      const body = await fetchBody(spec);
+      const outcome = await fetchBody(spec, validators);
+
+      // 304: the server says nothing changed. Record that fact and transfer
+      // nothing — no archive write, no prune, no downstream rebuild.
+      if (outcome.notModified) {
+        ledger.finish(fetchId, {
+          sourceId: spec.id,
+          status: "unchanged",
+          bytes: 0,
+          path: previousPath,
+          sha256: previousHash,
+          etag: outcome.etag,
+          lastModified: outcome.lastModified,
+        });
+        const age = ((Date.now() - started) / 1000).toFixed(1);
+        console.log(`  ${spec.id.padEnd(32)} ${"304 unchanged".padStart(12)}  ${age}s`);
+        return;
+      }
+
+      const body = outcome.body;
       const stored = await archive.store(
         spec,
         body,
@@ -254,6 +323,8 @@ async function main(): Promise<void> {
         records: countRecords(body, spec.format),
         path: stored.path,
         sha256: stored.sha256,
+        etag: outcome.etag,
+        lastModified: outcome.lastModified,
       });
 
       const removed = await archive.prune(spec.id);

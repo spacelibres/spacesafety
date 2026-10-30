@@ -439,6 +439,14 @@ export const sourceFetches = sqliteTable(
     /** SHA-256 of the body; identical to the previous pull means `unchanged`. */
     sha256: text("sha256"),
     error: text("error"),
+    /**
+     * HTTP validators from the response, so the next poll can send
+     * `if-none-match` / `if-modified-since` and get `304` instead of the body.
+     * Kept here rather than in a sidecar file so the archive and the ledger can
+     * never disagree about which version of a source the validators describe.
+     */
+    etag: text("etag"),
+    lastModified: text("last_modified"),
     seq: integer("seq").notNull(),
   },
   (t) => [

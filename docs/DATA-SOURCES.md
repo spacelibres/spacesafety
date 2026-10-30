@@ -106,6 +106,54 @@ Space-Track 官方再入预测 26,184 条、公开 CDM 3,161 条、DISCOS 碎片
 
 频率只写在 `src/lib/sources/downloads.ts` 一处，调度器读它而不是重复一遍。
 
+#### 没有更新的数据不重新下载
+
+这是四层判断，**每一层能省的东西不一样**，不能混着说：
+
+| 层 | 依据 | 省下什么 | 现状 |
+|---|---|---|---|
+| 节奏 | `downloads.ts` 的 `refreshMinutes` + `source_fetches` 上次检查时间 | 整次请求（连 HEAD 都不发） | 已生效 |
+| 条件请求 | `if-none-match` / `if-modified-since`（上一轮的 validator） | 响应主体（`304`，0 字节） | 机制已就绪，**当前四个源都不发 validator** |
+| 压缩 | `accept-encoding: gzip` | 传输量约 4 倍 | 已生效 |
+| 归档 | 与上一份 SHA-256 相同 | 不写新档（磁盘） | 已生效 |
+| 重建 | 本轮 `source_fetches.status='ok'` 的行数 | load → wide → classify → events | 已生效 |
+
+**当前四个源的实测响应头（2026-10-30，直接用 node fetch 打）：**
+
+| 端点 | ETag | Last-Modified | cache-control |
+|---|---|---|---|
+| `spacebook.com/api/eop/full` | 无 | 无 | `no-store,no-cache` |
+| `spacebook.com/api/entity/omm/json` | 无 | 无 | `no-store,no-cache` |
+| `www.space-track.org` | 无 | 无 | `no-store,no-cache,must-revalidate` |
+| `discosweb.esoc.esa.int` | 无 | 无 | 无 |
+
+**结论要说清楚：条件请求的收益目前是 0 字节。** 服务器不发 `ETag` / `Last-Modified`，
+客户端就没有东西可以拿回去比对，每次仍然是完整响应。机制保留是因为：
+一旦上游（或中间的 CDN）开始发 validator，这一层立刻生效，不需要改代码；
+而且它没有代价——不发 validator 时不加条件头，行为与以前完全一致。
+
+**真正省下带宽的是压缩。** 实测 `/api/entity/omm/json`（同一份数据）：
+
+| 请求头 | 传输 | 耗时 |
+|---|---|---|
+| `identity` | 30.37 MB | 7.2 s |
+| `gzip` | **7.23 MB** | **1.3 s** |
+| `br`（undici 默认协商到的） | 8.59 MB | 2.5 s |
+
+所以 `download()` 显式声明 `accept-encoding: gzip, deflate`：比默认的 brotli
+少传 16%，解压也快。上表的 `approxMB` 是**解压后**大小，不是线路上真实传输量。
+
+validator 存在 `source_fetches.etag` / `source_fetches.last_modified`，
+由 `SourceLedger.lastValidators()` 读出、`finish()` 写回；
+`--force` 时不发送条件头（否则服务器回 304 就把手工强制刷新吃掉了）。
+
+`source_fetches.status` 因此有四个值：`ok`（有新字节）/ `unchanged`（304 或同哈希）/
+`failed` / `running`。判断是否到期用 `status IN ('ok','unchanged')`——两者都算"检查过了"；
+只有 `ok` 才触发重建。
+
+验证不连上游：`tests/http-conditional.test.ts` 起本地 `node:http` 文件服务，
+断言第二次请求是 `304` 且写入 socket 的主体字节为 **0**。
+
 **三维模型不在此表内**：299 个 `.glb` 变动极少，不参与每日刷新
 （需要时手动 `npm run models:sync`）。
 
