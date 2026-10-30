@@ -19,6 +19,7 @@ const NAV = [
   { href: "/objects", labelKey: "nav.objects", icon: "satellite" },
   { href: "/catalogue", labelKey: "nav.catalogue", icon: "satellite" },
   { href: "/browse", labelKey: "nav.browse", icon: "satellite" },
+  { href: "/statistics", labelKey: "nav.statistics", icon: "docs" },
   { href: "/models", labelKey: "nav.models", icon: "satellite" },
   { href: "/trajectories", labelKey: "nav.trajectories", icon: "orbit" },
   { href: "/conjunctions", labelKey: "nav.conjunctions", icon: "alert" },

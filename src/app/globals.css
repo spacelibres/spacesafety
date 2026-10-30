@@ -27,7 +27,7 @@ body {
 }
 
 a {
-  color: var(--accent);
+  color: var(--color-accent);
   text-decoration: none;
 }
 a:hover {
@@ -274,7 +274,7 @@ code,
   color: var(--text-faint);
 }
 .sidebar-search input:focus {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
 }
 
 .sidebar-nav {
@@ -473,7 +473,7 @@ table.data a {
   color: var(--text);
 }
 table.data a:hover {
-  color: var(--accent);
+  color: var(--color-accent);
 }
 
 .table-caption {
@@ -515,7 +515,7 @@ table.data a:hover {
   font-size: 12px;
 }
 .filter-btn:hover {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
   color: var(--text);
 }
 /* A button with a text label rather than an icon. `.filter-btn` is a fixed 34px
@@ -537,7 +537,7 @@ table.data a:hover {
   text-decoration: none;
 }
 .btn:hover {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
   color: var(--text);
 }
 .filter-group {
@@ -854,7 +854,7 @@ table.data td.is-absent {
   color: var(--text);
 }
 .facet-item.active {
-  background: var(--tint-accent, rgba(64, 140, 255, 0.16));
+  background: var(--tint-primary);
   color: var(--text);
 }
 .facet-item.active .facet-count {
@@ -896,7 +896,165 @@ table.data td.is-absent {
 }
 .check-inline input {
   margin: 0;
-  accent-color: var(--accent);
+  accent-color: var(--color-accent);
+}
+
+/* ------------------------------------------------------------ statistics */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+  /* Cards size to their own content. Stretching them to the tallest in the row left
+     the "by purpose" card two-thirds empty because it holds 7 rows while its
+     neighbour holds 10. */
+  align-items: start;
+}
+.stat-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev-1);
+  padding: 14px 16px;
+}
+.stat-card-wide {
+  margin-bottom: 16px;
+}
+.stat-title {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.stat-table td,
+.stat-table th {
+  padding: 3px 0;
+  vertical-align: middle;
+}
+.stat-table th {
+  color: var(--text-faint);
+  font-weight: 400;
+  font-size: 10.5px;
+  text-align: right;
+  padding-bottom: 6px;
+}
+.stat-table th.stat-label {
+  text-align: left;
+}
+.stat-label {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+  padding-right: 10px !important;
+}
+/* The bar takes the free space so the numeric columns stay aligned across rows. */
+.stat-bar-cell {
+  width: 100%;
+  padding: 0 10px !important;
+}
+.stat-bar {
+  height: 7px;
+  background: var(--bg-elev-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+.stat-bar-fill.accent {
+  background: var(--color-accent);
+}
+.stat-bar-fill.muted {
+  background: var(--text-faint);
+}
+.stat-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text);
+  white-space: nowrap;
+  padding-left: 6px !important;
+}
+.stat-pct {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-faint);
+  white-space: nowrap;
+  width: 56px;
+  padding-left: 8px !important;
+}
+.stat-rest {
+  border-top: 1px solid var(--border);
+}
+.stat-rest .stat-label {
+  color: var(--text-faint);
+}
+.stat-note {
+  margin-top: 10px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+.stat-cross td,
+.stat-cross th {
+  padding: 5px 10px;
+}
+.stat-cross-total {
+  border-top: 1px solid var(--border-strong);
+  color: var(--text-dim);
+}
+
+/* Launch-year histogram. CSS bars rather than an SVG chart: the data is a handful of
+   values and the only requirement is "shape at a glance".
+   Layout: each column is a plain block whose bar has an explicit pixel height and
+   whose label sits below it. Flex was tried first and collapsed the bars to zero —
+   a percentage or flex-grow height inside a column whose height comes from its own
+   children has nothing to resolve against. */
+.histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 168px;
+  padding-top: 8px;
+}
+.histo-col {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  /* Push the bar to the bottom of the 168px track so short bars still sit on the
+     baseline instead of floating at the top. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}
+.histo-bar {
+  width: 100%;
+  background: var(--color-accent);
+  opacity: 0.75;
+  border-radius: 1px 1px 0 0;
+}
+.histo-col:hover .histo-bar {
+  opacity: 1;
+}
+.histo-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  margin-top: 6px;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .banner {
@@ -935,7 +1093,7 @@ button.btn {
   height: 30px;
 }
 button.btn:hover {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
 }
 button.btn.primary {
   background: var(--color-primary);
