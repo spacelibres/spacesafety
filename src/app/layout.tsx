@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { Sidebar } from "@/components/Shell";
 import { I18nProvider } from "@/lib/i18n/client";
 import { currentLocale, translator } from "@/lib/i18n/registry";
-import { currentTheme } from "@/lib/vi/theme";
+import { currentPalette, currentTheme } from "@/lib/vi/theme";
+import { tokenCss } from "@/lib/vi/tokens";
 
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./globals.css";
@@ -27,10 +28,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Resolved on the server so the first paint already carries the right
   // palette; a browser-only switch would flash the wrong theme.
   const theme = await currentTheme();
+  // The static stylesheet carries the default scheme. A reader who picked another
+  // one gets the same generator's output injected here — the VI derives the whole
+  // scheme from a single primary, so this is a token block, not sixteen choices.
+  const palette = await currentPalette();
+  const derivedTokens = palette.name === "01-electric-orbit" ? null : tokenCss(palette);
 
   return (
     <html lang={locale} data-theme={theme}>
       <body>
+        {/* Placed first in <body> so it lands after the stylesheet links in
+            document order and therefore wins the cascade. */}
+        {derivedTokens ? (
+          <style id="vi-palette-tokens" dangerouslySetInnerHTML={{ __html: derivedTokens }} />
+        ) : null}
         <I18nProvider locale={locale}>
           <div className="app">
             <Sidebar theme={theme} />

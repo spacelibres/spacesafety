@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useTranslator } from "@/lib/i18n/client";
-import { logoFor, useThemeMode, type ThemeMode } from "@/lib/vi/theme-bridge";
+import { LOGO_MARKS } from "@/lib/vi/logo-marks";
+import type { ThemeMode } from "@/lib/vi/theme-bridge";
 
 import { PreferenceDock } from "./PreferenceDock";
 
@@ -94,9 +95,6 @@ export function Icon({ name }: { name: string }) {
 export function Sidebar({ theme }: { theme: ThemeMode }) {
   const pathname = usePathname();
   const t = useTranslator();
-  // The logo's planet is recoloured per theme (VI §2), so the asset follows the
-  // same attribute the rest of the page keys off.
-  const brandMode = useThemeMode(theme);
   const [clock, setClock] = useState("");
 
   /**
@@ -138,22 +136,25 @@ export function Sidebar({ theme }: { theme: ThemeMode }) {
         The compact breakpoint swaps to the icon master rather than shrinking
         the horizontal mark below the VI's 240 px minimum (24–32 px is where the
         VI warns the tips and thin gaps degrade).
+
+        Rendered inline rather than as an `<img>`: the mark's two colour roles are
+        bound to `var(--color-planet)` / `var(--color-primary)`, so one artifact
+        follows both the theme and whichever colour scheme the reader picked —
+        the VI requires the SVG mark to move with the rest of the page.
       */}
       <div className="sidebar-brand">
-        <picture>
-          <source
-            media="(max-width: 900px)"
-            srcSet={logoFor(brandMode, "icon")}
-            width={48}
-            height={48}
-          />
-          <img
-            src={logoFor(brandMode, "horizontal")}
-            alt={t.t("app.name")}
-            width={240}
-            height={53}
-          />
-        </picture>
+        <span
+          className="brand-mark brand-mark-wide"
+          role="img"
+          aria-label={t.t("app.name")}
+          dangerouslySetInnerHTML={{ __html: LOGO_MARKS.horizontal }}
+        />
+        <span
+          className="brand-mark brand-mark-compact"
+          role="img"
+          aria-label={t.t("app.name")}
+          dangerouslySetInnerHTML={{ __html: LOGO_MARKS.icon }}
+        />
       </div>
       {showBanner && <div className="sidebar-env">{env}</div>}
       <div className="sidebar-clock">{clock}</div>

@@ -12,6 +12,82 @@
 
 ---
 
+## [0.1.58] - 2026-10-30
+
+按 VI 的 **COLOR EXPLORER** 重做色系：**只选一个主色，其余 15 个角色由主色推导**。
+之前是六套预设的 16 个值**手抄**进代码 —— 能复现今天的六套，永远接不了第七个主色。
+
+### VI 怎么说的
+
+手册 §02 COLOR SYSTEM：
+
+> 六套配色，一套完整的视觉秩序。
+> COLOR EXPLORER / 扩展配色实验室 —— **只选主色，自动生成完整的全站色系。**
+> 六套方案控制整个网页：背景、文字、卡片、按钮、SVG 标志与辅助图形、影像遮罩同步变化。
+
+所以六套是**种子**（主色 + 辅色关系），不是 96 个常量。
+
+### 拿到了官方算法
+
+手册的实现就在 `vi.spacelibre.cn/app.js` 里：`generatePalette(hex, mode)` 加上
+`hexToHsl` / `hslToHex` / `mixHex` / `fitContrast` / `contrast`。逐行移植到
+`src/lib/vi/palette-derive.ts`，两处与本仓库惯例相反的地方**刻意保留**：
+
+- `mixHex(a, b, weight)` 的 weight 是 **a** 的占比（本仓库 `palette.mix` 是 b 的占比）；
+- `fitContrast` 沿 **hsl 明度轴**移动，不是向白/黑混合。
+
+### 用官方六套预设做回放校验
+
+```
+01-electric-orbit   mode=split       ✓ 16/16 一致
+02-aurora-jump      mode=triad       ✓ 16/16 一致
+03-nebula-spectrum  mode=analogous   ✓ 16/16 一致
+04-solar-storm      mode=split       ✓ 16/16 一致
+05-deep-space-oasis mode=split       ✓ 16/16 一致
+06-acid-future      mode=triad       ✓ 16/16 一致
+合计 96 个角色，0 个不一致
+```
+
+这是"我用的是 VI 的算法、不是自己猜的"的证明。`ELECTRIC_ORBIT` 现在**是**
+`derivePalette("#007BFF","split")` 的返回值，与原先手抄的 16 个值逐字段相同 ——
+所以默认外观零变化。
+
+### 站点接上推导
+
+- `palette` cookie 只存**一个选择**：预设 id，或 `custom:<hex>:<auto|split|triad|analogous>`。
+- 服务端解析成方案，用**同一个生成器**（`src/lib/vi/tokens.ts`，构建与运行时共用）算出
+  token 块注入到 `<body>` 首位；默认方案仍走静态 `vi-tokens.css`，两者逐字节一致（有测试）。
+- 偏好面板新增「配色方案」：六套预设 + 自定义主色（含 hex 输入与辅色关系选择）。
+- **标志跟着走**：`npm run vi` 生成 `src/lib/vi/logo-marks.ts`，把标志的两个颜色角色绑到
+  `var(--color-planet)` / `var(--color-primary)`，一个内联 SVG 跟随任何方案与主题 ——
+  否则换方案时整页都变了、只有 logo 还停在旧颜色。蒙版的 black/white 保持字面量（VI 要求
+  结构色不参与主题化）。
+
+### 验证（真实浏览器，读的是 computed style）
+
+| 方案 / 主题 | 标志尺寸 | 星球 | 轨道 | CSS 变量 |
+|---|---|---|---|---|
+| 01 / dark | 240×53 | `rgb(255,55,51)` | `rgb(5,126,255)` | primary `#057EFF` / planet `#FF3733` |
+| 02 aurora / dark | 240×53 | `rgb(206,67,239)` | `rgb(18,214,176)` | `#12D6B0` / `#CE43EF` |
+| custom #FF6A3D / light | 240×53 | `rgb(0,128,29)` | `rgb(209,48,0)` | `#D13000` / `#00801D` |
+
+页面级：`02-aurora-jump` 下 `--bg` `#F1F5F9 → #F1F9F7`、`--risk-high` `#C01C34 → #C01C2E`；
+自定义 `#FF6A3D`/`triad` 下 `--color-accent` 变成 `#8664F7`（240° 三角色的推导结果）。
+
+### 测试：`tests/vi-tokens.test.ts` 7 → **14 passed**
+
+新增 7 条：六套官方预设 96/96 回放、种子表覆盖六套、`ELECTRIC_ORBIT` 等于推导结果、
+**任意 10 个主色（含近灰与极浅）推导出的方案两套主题 × 背景/卡片全部 ≥4.5:1**、
+六套基底互不相同、运行时 token 与构建产物逐字节相同、换方案确实改变 token 内容。
+
+### 其它
+
+`tools/vi.ts` 的 token 生成抽到 `src/lib/vi/tokens.ts` 供构建与运行时共用（重构后
+`vi-tokens.css` **逐字节未变**，已 diff 验证）；`npm run vi` 现在同时产出
+`src/lib/vi/logo-marks.ts`。
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check`、`npm run check:css` 全过。
+
 ## [0.1.57] - 2026-10-30
 
 修掉 0.1.55 引入的一个确定性错误：**浅色主题下侧栏仍加载深色 logo**。

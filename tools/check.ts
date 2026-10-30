@@ -614,11 +614,16 @@ function checkVi(): void {
     if (brandBlock === "") {
       fail("vi", "Shell.tsx has no .sidebar-brand block");
     } else {
-      if (!brandBlock.includes("<img")) {
-        fail("vi", "the sidebar brand renders no <img> — the logo must be the VI master");
+      const inline = brandBlock.includes("LOGO_MARKS");
+      const image = brandBlock.includes("<img") || brandBlock.includes("<picture");
+      if (!inline && !image) {
+        fail("vi", "the sidebar brand renders neither the inline VI mark nor an <img> master");
       }
-      if (!text.includes("logoFor(")) {
-        fail("vi", "the sidebar brand does not use logoFor() — the path must come from the VI generator");
+      if (!text.includes("LOGO_MARKS") && !text.includes("logoFor(")) {
+        fail(
+          "vi",
+          "the sidebar brand does not read a generated master (LOGO_MARKS / logoFor) — the mark must come from the VI generator",
+        );
       }
     }
   }

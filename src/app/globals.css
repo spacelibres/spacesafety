@@ -82,18 +82,19 @@ code,
      (--sidebar-w: 272px, generated from this same arithmetic) has room for. */
   padding: 20px 14px 16px;
 }
-.sidebar-brand picture {
+.brand-mark {
   display: block;
   line-height: 0;
 }
-.sidebar-brand img {
+.brand-mark svg {
   display: block;
-  /* The canvas ratio is 810:180. Fixed dimensions rather than 100% keep it exact
-     and stop the mark stretching inside a flex container. */
+  /* The canvas ratio is 810:180: the VI's minimum decides the width and the
+     height follows, so the mark can never be stretched in the flex row. */
   width: 240px;
-  height: 53px;
-  /* The master is vector; keep it crisp if a browser scales it for a fraction. */
-  object-fit: contain;
+  height: auto;
+}
+.brand-mark-compact {
+  display: none;
 }
 
 /* Visually hidden, still read by screen readers. A general utility; no component
@@ -1292,9 +1293,14 @@ button.btn.primary:hover {
   .sidebar {
     width: 56px;
   }
-  .sidebar-brand img {
-    /* Compact breakpoint: the <picture> element above already swapped to the icon
-       master, which the VI allows down to 48px. 48px tall means 12px of clear
+  .brand-mark-wide {
+    display: none;
+  }
+  .brand-mark-compact {
+    display: block;
+  }
+  .brand-mark svg {
+    /* The VI allows the icon master down to 48px; 48px tall means 12px of clear
        space (25% of the canvas height). */
     width: 48px;
     height: 48px;

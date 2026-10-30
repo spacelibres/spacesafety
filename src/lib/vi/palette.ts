@@ -21,6 +21,14 @@
  * of class names.
  */
 
+import {
+  derivePalette,
+  presetById,
+  resolveHarmony,
+  VI_PRESETS,
+  type HarmonyMode,
+} from "./palette-derive";
+
 export interface ViPalette {
   /** Preset name in the VI repository. */
   readonly name: string;
@@ -53,27 +61,45 @@ export interface ViPalette {
   readonly planetOnDark: string;
 }
 
-/** 01-electric-orbit: the approved starting point for this product. */
+/**
+ * 01-electric-orbit: the approved starting point for this product.
+ *
+ * Derived, not typed out. The VI's Color Explorer generates all sixteen roles
+ * from **one primary colour plus a harmony relation** ("只选主色，自动生成完整的
+ * 全站色系"), so the six presets are seeds and the rest is computed. Writing the
+ * table by hand reproduced exactly these values and could accept nothing else;
+ * `derivePalette()` reproduces them *and* any other primary the reader picks.
+ *
+ * `tests/vi-tokens.test.ts` asserts that this derivation equals the official
+ * 16-role palette for all six presets (96/96 roles).
+ */
 export const ELECTRIC_ORBIT: ViPalette = {
   name: "01-electric-orbit",
   mode: "split",
-  primary: "#007BFF",
-  secondary: "#FF3733",
-  accent: "#F4F764",
-  deep: "#0D1721",
-  surface: "#F1F5F9",
-  ink: "#122A44",
-  card: "#FCFDFE",
-  muted: "#627180",
-  line: "#C9D0D8",
-  success: "#176E55",
-  warning: "#845A0B",
-  danger: "#C01C34",
-  primaryOnLight: "#006CE0",
-  primaryOnDark: "#007BFF",
-  planetOnLight: "#E00400",
-  planetOnDark: "#FF3733",
+  ...derivePalette("#007BFF", "split"),
 };
+
+/** Any of the six shipped schemes, by id. */
+export function presetPalette(id: string): ViPalette {
+  const preset = presetById(id) ?? VI_PRESETS[0];
+  return {
+    name: preset.id,
+    mode: preset.mode,
+    ...derivePalette(preset.primary, preset.mode),
+  };
+}
+
+/**
+ * A scheme derived from an arbitrary primary — the "custom" choice in the
+ * explorer. `auto` lets the VI pick the harmony relation from the hue itself.
+ */
+export function customPalette(primaryHex: string, mode: HarmonyMode = "auto"): ViPalette {
+  return {
+    name: `custom-${primaryHex.toUpperCase()}`,
+    mode: mode === "auto" ? resolveHarmony(primaryHex, "auto") : mode,
+    ...derivePalette(primaryHex, mode),
+  };
+}
 
 /** Surface roles: what a theme's backgrounds and body text resolve to. */
 export interface ThemeSurfaces {

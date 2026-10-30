@@ -29,10 +29,13 @@ import {
   type Translator,
 } from "@/lib/i18n";
 import { useLocale, useTranslator } from "@/lib/i18n/client";
+import { ELECTRIC_ORBIT } from "@/lib/vi/palette";
+import { VI_PRESETS } from "@/lib/vi/palette-derive";
 import type { ThemePreference } from "@/lib/vi/theme";
 
 const LOCALE_COOKIE = "locale";
 const THEME_COOKIE = "theme";
+const PALETTE_COOKIE = "palette";
 
 /** Writes a preference and reloads so the server can re-render with it. */
 class PreferenceStore {
@@ -48,6 +51,18 @@ class PreferenceStore {
 
   static setTheme(theme: ThemePreference): void {
     this.write(THEME_COOKIE, theme);
+    window.location.reload();
+  }
+
+  /**
+   * Store a scheme choice.
+   *
+   * The cookie holds **one** thing — a preset id, or `custom:<hex>:<mode>` — not
+   * sixteen colours. The VI derives the rest from the primary, so the primary is
+   * the only choice worth persisting.
+   */
+  static setPalette(value: string): void {
+    this.write(PALETTE_COOKIE, value);
     window.location.reload();
   }
 }
@@ -104,7 +119,95 @@ export function PreferenceDock() {
     <div className="pref-dock">
       <LanguageControl t={t} locale={locale} />
       <ThemeControl t={t} theme={theme} onChange={(v) => PreferenceStore.setTheme(v)} />
+      <PaletteControl t={t} />
     </div>
+  );
+}
+
+/**
+ * Colour scheme.
+ *
+ * The VI's Color Explorer is "只选主色，自动生成完整的全站色系": six shipped
+ * schemes plus a custom primary, from which the other fifteen roles are derived.
+ * So this offers the six and `custom`; a custom choice asks for the one thing
+ * that actually determines the scheme — the primary — plus the harmony relation.
+ */
+function PaletteControl({ t }: { t: Translator }) {
+  const [choice, setChoice] = useState("01-electric-orbit");
+  const [hex, setHex] = useState(ELECTRIC_ORBIT.primary);
+  const [harmony, setHarmony] = useState("auto");
+
+  useEffect(() => {
+    const raw = document.cookie.match(/(?:^|;\s*)palette=([^;]*)/)?.[1] ?? "";
+    if (raw.startsWith("custom:")) {
+      const [, customHex, mode] = raw.split(":");
+      setChoice("custom");
+      if (customHex) setHex(customHex);
+      if (mode) setHarmony(mode);
+    } else if (raw) {
+      setChoice(raw);
+    }
+  }, []);
+
+  const apply = (next: string, nextHex = hex, nextHarmony = harmony) => {
+    PreferenceStore.setPalette(
+      next === "custom" ? `custom:${nextHex}:${nextHarmony}` : next,
+    );
+  };
+
+  return (
+    <>
+      <label className="pref-field">
+        <span className="pref-label">{t.t("palette.label")}</span>
+        <select
+          value={choice}
+          onChange={(event) => {
+            setChoice(event.target.value);
+            apply(event.target.value);
+          }}
+          aria-label={t.t("palette.label")}
+        >
+          {VI_PRESETS.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {t.t(`palette.${preset.id}`)}
+            </option>
+          ))}
+          <option value="custom">{t.t("palette.custom")}</option>
+        </select>
+      </label>
+
+      {choice === "custom" && (
+        <>
+          <label className="pref-field">
+            <span className="pref-label">{t.t("palette.primary")}</span>
+            <input
+              type="text"
+              value={hex}
+              onChange={(event) => setHex(event.target.value.toUpperCase())}
+              onBlur={() => apply("custom")}
+              aria-label={t.t("palette.primary")}
+              pattern="^#[0-9a-fA-F]{6}$"
+            />
+          </label>
+          <label className="pref-field">
+            <span className="pref-label">{t.t("palette.harmony")}</span>
+            <select
+              value={harmony}
+              onChange={(event) => {
+                setHarmony(event.target.value);
+                apply("custom", hex, event.target.value);
+              }}
+              aria-label={t.t("palette.harmony")}
+            >
+              <option value="auto">{t.t("palette.auto")}</option>
+              <option value="split">{t.t("palette.split")}</option>
+              <option value="triad">{t.t("palette.triad")}</option>
+              <option value="analogous">{t.t("palette.analogous")}</option>
+            </select>
+          </label>
+        </>
+      )}
+    </>
   );
 }
 

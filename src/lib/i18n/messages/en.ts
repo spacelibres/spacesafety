@@ -492,6 +492,20 @@ export const en = {
   "feedback.includeRequest": "The exact request: method, path, and query parameters.",
   "feedback.includeExpected": "What you expected and what happened instead.",
   "feedback.includeSensitive": "Do not send private keys, certificates, or ephemeris files.",
+  "palette.label": "Scheme",
+  "palette.custom": "Custom primary",
+  "palette.primary": "Primary colour",
+  "palette.harmony": "Harmony",
+  "palette.auto": "Automatic",
+  "palette.split": "Split complementary",
+  "palette.triad": "Triad",
+  "palette.analogous": "Analogous",
+  "palette.01-electric-orbit": "01 Electric orbit",
+  "palette.02-aurora-jump": "02 Aurora jump",
+  "palette.03-nebula-spectrum": "03 Nebula spectrum",
+  "palette.04-solar-storm": "04 Solar storm",
+  "palette.05-deep-space-oasis": "05 Deep space oasis",
+  "palette.06-acid-future": "06 Acid future",
 } as const;
 
 export type MessageTable = Record<keyof typeof en, string>;
