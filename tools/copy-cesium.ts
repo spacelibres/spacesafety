@@ -22,14 +22,17 @@ const SOURCE = join(ROOT, "node_modules", "cesium", "Build", "Cesium");
 const TARGET = join(ROOT, "public", "cesium");
 
 /**
- * Runtime directories only.
+ * Runtime directories, plus the UMD entry.
  *
- * `Build/Cesium` also ships `Cesium.js`, `index.js` and `index.cjs` — those are the
- * package's *module* entry points, which the bundler resolves from
- * `node_modules`. Copying them to `public/` would serve 15 MB of duplicate code
- * that nothing requests.
+ * `Build/Cesium` ships three entry points. `index.js` and `index.cjs` are for the
+ * bundler, which resolves them from `node_modules`; copying those would ship
+ * megabytes nothing requests. `Cesium.js` is the opposite case — it is the bundle
+ * the browser loads through a script tag, which is how the app uses Cesium (see
+ * `src/components/cesium/cesium-bundle.ts` for why it is not bundled), so it must
+ * be served from our own origin.
  */
 const DIRECTORIES = ["Workers", "Assets", "ThirdParty", "Widgets"];
+const FILES = ["Cesium.js"];
 
 /** Size of a directory tree, for the summary line. */
 async function size(dir: string): Promise<number> {
@@ -60,6 +63,9 @@ export class CesiumAssets {
     await rm(TARGET, { recursive: true, force: true });
     for (const name of DIRECTORIES) {
       await cp(join(SOURCE, name), join(TARGET, name), { recursive: true });
+    }
+    for (const name of FILES) {
+      await cp(join(SOURCE, name), join(TARGET, name));
     }
     const mb = ((await size(TARGET)) / 1e6).toFixed(1);
     console.log(`cesium assets -> public/cesium (${mb} MB)`);

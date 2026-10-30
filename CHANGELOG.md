@@ -12,6 +12,69 @@
 
 ---
 
+## [0.1.44] - 2026-10-30
+
+修复**生产构建首页 3D 轨道视图永远不出现**，并把这类问题变成 `npm run check` 能拦住的一项。
+
+### 症状：tsc 通过、测试全绿、页面 200，但线上没有地球
+
+对生产构建的客户端 chunk 直接做语法校验：
+
+```
+$ node --check .next/static/chunks/2117a04a.2794f356c7464c54.js
+SyntaxError: Octal escape sequences are not allowed in template strings.   ← 行 585 列 763
+```
+
+浏览器里同一条错误（CDP `Runtime.exceptionThrown`，同样的行列），后果是
+`import("cesium")` 永不 resolve，`.constellation-canvas` 子节点为 0、页面上
+一个 `<canvas>` 都没有。三次独立构建产出的 chunk 文件名哈希完全相同，是确定性缺陷。
+
+**`next dev` 下不复现**（canvas = 1、零控制台错误），因为 dev 不压缩 —— 这就是它
+躲过所有检查的原因。
+
+### 根因
+
+`cesium` → `@cesium/engine` → `@spz-loader/core` 把一个 WebAssembly 二进制以
+转义字符串的形式内嵌在模块里。生产压缩器重编码该字符串时把 NUL 字节写成 `\0`，
+当紧随其后的字节恰好是 ASCII 数字时就形成 `\00` —— 模板字符串里的非法八进制转义，
+整个 chunk 变成 `SyntaxError`。
+
+同一份源码关掉 `optimization.minimize` 重建，全部 chunk 语法通过，由此确认是压缩
+阶段引入，而非数据或依赖损坏。
+
+### 改法：Cesium 不再进打包器
+
+新增 `src/components/cesium/cesium-bundle.ts`（`CesiumBundle` 类，按 §2 把有状态的
+加载能力封成类），通过 `<script src="/cesium/Cesium.js">` 加载 Cesium 官方的 UMD
+入口，`window.CESIUM_BASE_URL` 在脚本执行**之前**设置。`tools/copy-cesium.ts` 相应
+多拷一个 `Cesium.js`（其余两个 bundler 入口仍然不拷）。
+
+附带效果：客户端 chunk 从 ~5.1 MB 降到 ~1 MB（4.8 MB 的 Cesium chunk 与 274 KB 的
+`@spz-loader` chunk 一起消失），dev 与生产走同一条加载路径。
+
+### 新增规则：`build-artifacts`
+
+`tools/check.ts` 现在会解析 `.next/static/chunks/**/*.js` 里的每一个 chunk
+（拷成 `.mjs` 后 `node --check`，因为带 `import` 的 chunk 必须按 ESM 解析）。
+没有构建目录时只提示，不失败。
+
+**已验证它能拦住真实故障**：把 0.1.43 那个坏 chunk 放进 `.next/static/chunks/`，
+`npm run check` 报 `FAIL build-artifacts  1 of 8 client chunk(s) are not valid JavaScript`；
+删除后恢复 `ok`。
+
+### 验证
+
+- `npx tsc --noEmit` 通过。
+- `npm run check` 全部通过（含新规则）。
+- 重建后 `.next/static/chunks` 全部 chunk `node --check` 通过，`2117a04a` 不再产生。
+- 浏览器实测（生产构建 + 软渲染）：`canvas = 1`、`.constellation-canvas` 有 1 个子节点、
+  `window.Cesium.VERSION = 1.146.0`、`script#cesium-bundle` 已注入、控制台 0 错误。
+
+### 已知问题
+
+- `public/cesium/` 从 7.7 MB 增到 13.1 MB（多出 6.1 MB 的 `Cesium.js`）。它是
+  `postinstall` 生成物、不入库，与原来的 4.8 MB 客户端 chunk 量级相当。
+
 ## [0.1.43] - 2026-10-30
 
 修正自己违反「脚本一律用 TypeScript」的做法，并把这个规则变成可执行的检查。

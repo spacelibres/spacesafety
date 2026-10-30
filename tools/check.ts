@@ -16,7 +16,8 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 import { LOCALES, type Locale, validateMessages } from "../src/lib/i18n";
@@ -463,6 +464,74 @@ function checkVi(): void {
   }
 }
 
+// --- 10. every emitted client chunk is valid JavaScript -----------------------
+/**
+ * Parse the build's client chunks.
+ *
+ * This check exists because of the worst bug this project has shipped: the
+ * production minifier re-escaped a WebAssembly literal inside Cesium's
+ * `@spz-loader/core`, turning a NUL byte followed by a digit into `\00` — an
+ * illegal octal escape in a template literal. The whole chunk was a SyntaxError,
+ * so `import("cesium")` never resolved and the home page's 3D view never
+ * appeared. `tsc` passed, all 35 test suites passed, `npm run check` passed and
+ * every page returned 200; only a browser could see it, and only in a production
+ * build, because dev chunks are not minified.
+ *
+ * Parsing the artefacts is the one check that catches the whole class: whatever
+ * future dependency ships a blob a minifier mishandles, this fails before the
+ * build leaves the machine.
+ */
+function checkBuildArtifacts(): void {
+  const dir = join(ROOT, ".next", "static", "chunks");
+  if (!existsSync(dir)) {
+    notes.push("build-artifacts: no build present (run `npm run build` to include this check)");
+    return;
+  }
+
+  const chunks: string[] = [];
+  const walk = (at: string): void => {
+    for (const name of readdirSync(at)) {
+      const full = join(at, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (name.endsWith(".js")) chunks.push(full);
+    }
+  };
+  walk(dir);
+
+  const broken: string[] = [];
+  let index = 0;
+  for (const chunk of chunks) {
+    // `node --check` picks the module system from the extension, and a chunk with
+    // `import` must be parsed as ESM, so the copy carries `.mjs`. Copying also
+    // keeps the check away from files `next dev` is rewriting underneath us.
+    const scratch = join(tmpdir(), `spacesafety-chunk-${process.pid}-${index++}.mjs`);
+    copyFileSync(chunk, scratch);
+    try {
+      execFileSync(process.execPath, ["--check", scratch], {
+        stdio: ["ignore", "ignore", "pipe"],
+        timeout: 120_000,
+      });
+    } catch (err) {
+      const stderr = String((err as { stderr?: Buffer }).stderr ?? "");
+      const reason = stderr.split("\n").find((l) => /Error/.test(l))?.trim() ?? "does not parse";
+      broken.push(`${relative(ROOT, chunk)}  ${reason}`);
+    } finally {
+      rmSync(scratch, { force: true });
+    }
+  }
+
+  if (broken.length) {
+    fail(
+      "build-artifacts",
+      `${broken.length} of ${chunks.length} client chunk(s) are not valid JavaScript:\n    ${broken
+        .slice(0, 8)
+        .join("\n    ")}`,
+    );
+    return;
+  }
+  notes.push(`build-artifacts: ${chunks.length} client chunk(s) parse`);
+}
+
 // --- run ----------------------------------------------------------------------
 const CHECKS: Array<[string, () => void]> = [
   ["no-python", checkNoPython],
@@ -474,6 +543,7 @@ const CHECKS: Array<[string, () => void]> = [
   ["version", checkVersion],
   ["i18n-hardcoded", checkHardcodedText],
   ["vi", checkVi],
+  ["build-artifacts", checkBuildArtifacts],
 ];
 
 console.log("\nSpace Safety — project rules\n");

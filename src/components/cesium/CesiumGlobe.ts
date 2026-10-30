@@ -35,8 +35,8 @@ import type { SnapshotFile } from "@/lib/geo/snapshot";
 import { dequantise } from "@/lib/geo/snapshot";
 import { cssColour, type SceneTheme } from "@/lib/vi/theme-bridge";
 
-/** Cesium is loaded dynamically: it is ~2 MB of JS and must not block first paint. */
-type CesiumModule = typeof import("cesium");
+import { CesiumBundle, cesiumBundle, type CesiumModule } from "./cesium-bundle";
+
 type Viewer = import("cesium").Viewer;
 type PointCollection = import("cesium").PointPrimitiveCollection;
 type PolylineCollection = import("cesium").PolylineCollection;
@@ -191,12 +191,14 @@ export class CesiumGlobe {
    * awaiting inside a constructor is not possible.
    */
   static async create(options: CesiumGlobeOptions): Promise<CesiumGlobe> {
-    const cesium = await import("cesium");
+    // Cesium resolves its workers and assets relative to this base, and reads it
+    // while the bundle initialises — so it has to be set before the load starts,
+    // not after. Pointing it at the copy in `public/cesium` keeps the widgets,
+    // textures and web workers on our own origin instead of a CDN, which a
+    // self-hosted deployment needs.
+    CesiumBundle.setAssetBase();
 
-    // Cesium resolves its workers and assets relative to this base. Pointing it
-    // at the copy in `public/cesium` keeps the widgets, textures and web workers
-    // on our own origin instead of a CDN, which a self-hosted deployment needs.
-    (window as unknown as { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = "/cesium";
+    const cesium = await cesiumBundle.load();
 
     // Without a token Cesium falls back to its built-in default one, which is
     // shared by everyone and rate-limited: the globe would render for a while and
