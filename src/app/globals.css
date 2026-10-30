@@ -310,18 +310,40 @@ code,
    own, and linking it to the first child would make the header's active state depend
    on which child was opened last. */
 .nav-group-title {
-  cursor: default;
+  /* A <button>, so the browser's own control styling has to be cleared. Using a
+     button rather than a <div> is what makes the group keyboard-operable and
+     announced as expandable. */
+  cursor: pointer;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-align: left;
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 9px 9px 5px;
 }
+.nav-group-title:hover {
+  color: var(--text);
+}
 .nav-group-title.active {
   /* No filled background: the children carry the active state. */
   background: transparent;
   color: var(--text-dim);
   font-weight: 400;
+}
+.nav-chevron {
+  width: 11px;
+  height: 11px;
+  margin-left: auto;
+  flex: none;
+  opacity: 0.5;
+  transition: transform 120ms ease;
+}
+.nav-chevron.open {
+  transform: rotate(90deg);
 }
 .nav-sub {
   display: none;

@@ -89,6 +89,21 @@ export function Sidebar() {
   const t = useTranslator();
   const [clock, setClock] = useState("");
 
+  /**
+   * Groups the user has opened by clicking, keyed by `labelKey`.
+   *
+   * Kept as a set of keys rather than one "which group is open" value so that a
+   * future second group can be open at the same time without rewriting this.
+   */
+  const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
   useEffect(() => {
     const tick = () => setClock(formatUtc(new Date()));
     tick();
@@ -133,17 +148,39 @@ export function Sidebar() {
             );
           }
 
-          // Open when the current route is one of the children. Doing this from the
-          // path rather than from click state means a deep link into the section
-          // shows its siblings without a second navigation.
+          // Open when the current route is one of the children, or when the user has
+          // clicked the header. Path state alone was not enough: from the home page
+          // nothing under the group was reachable, because the header was a plain
+          // <div> and the list it would expand only exists once you are already
+          // inside the section.
           const groupActive = item.children.some((c) => pathname.startsWith(c.href));
+          const expanded = groupActive || openGroups.has(item.labelKey);
           return (
             <div key={item.labelKey} className="nav-group">
-              <div className={`nav-item nav-group-title${groupActive ? " active" : ""}`}>
+              <button
+                type="button"
+                className={`nav-item nav-group-title${groupActive ? " active" : ""}`}
+                aria-expanded={expanded}
+                aria-controls={`nav-group-${item.icon}`}
+                onClick={() => toggleGroup(item.labelKey)}
+              >
                 <Icon name={item.icon} />
                 <span>{t.t(item.labelKey)}</span>
-              </div>
-              <div className={`nav-sub${groupActive ? " open" : ""}`}>
+                <svg
+                  className={`nav-chevron${expanded ? " open" : ""}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+              <div
+                id={`nav-group-${item.icon}`}
+                className={`nav-sub${expanded ? " open" : ""}`}
+              >
                 {item.children.map((child) => {
                   const active =
                     child.href === "/"
