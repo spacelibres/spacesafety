@@ -12,6 +12,63 @@
 
 ---
 
+## [0.1.60] - 2026-10-30
+
+做成可安装的应用（PWA）：浏览器可以「安装到桌面」，装完是独立窗口、没有地址栏。
+
+### 三件东西缺一不可
+
+Chrome 只在**同时**满足时才弹安装提示：manifest 链接在 `<head>` 里、manifest 有合尺寸的
+图标、以及一个带 fetch 处理的 Service Worker 正在控制页面。三件都做了，并且是逐项验证的。
+
+| 组件 | 文件 | 说明 |
+|---|---|---|
+| Manifest | `src/app/manifest.ts` | Next 的 metadata route，颜色取自 `palette.deep`，`display: standalone` |
+| 图标 | `public/pwa/icon-{192,512}-{any,maskable}.png` | `npm run pwa:icons` 用 VI 母版截图生成，蒙版版内缩 12% 保证落在安全区 |
+| Service Worker | `public/sw.js` | 导航 network-first、静态资源 cache-first、**`/api/*` 一律不缓存** |
+
+`/api/*` 不缓存是刻意的：CDM 与编目数字是数据，缓存一个旧答案比慢一点更糟。
+
+### 踩到的坑：manifest 链接跑到 body 里
+
+第一次验证时 Chrome 报 `no-manifest`，而 manifest 本身 200、内容合法、图标齐全。原因很隐蔽：
+**App Router 的异步 metadata 会被冲到文档末尾**——实测 `</head>` 在 1,095 字节处，而
+`<link rel="manifest">` 在 16,072 字节处，落在 body 里。Chrome 不认 body 里的 manifest 链接。
+
+改法：在 layout 里直接渲染 `<link rel="manifest" href="/manifest.webmanifest" />`（React 会把
+它 hoist 进 head），并在 `next.config.ts` 额外发送 HTTP `Link: </manifest.webmanifest>; rel="manifest"`
+作为双保险。
+
+### 验证（Chrome 自己的判定，不是我推断的）
+
+```
+状态: {"swActive":"activated","controlled":true,"manifestInHead":true}
+Chrome 可安装性: ✓ 无错误
+manifest: {"status":200,"display":"standalone","icons":5,"maskable":2}
+```
+
+用 CDP 的 `Page.getInstallabilityErrors` 直接问浏览器「这页可安装吗」，返回空数组；
+改之前同一条命令返回 `["no-manifest"]`。
+
+### 顺带修掉的：metadata 落在 body
+
+同一个根因还导致 `<title>`、`description`、`theme-color` 全部渲染在 body 里（`<title>` 在
+1,095 字节之后）。manifest 用上面的办法解决了；**`<title>` 目前仍在 body**——浏览器仍然会用它
+做窗口标题，但这不是合规位置。已记在下面的已知问题里，没有假装修好。
+
+### 门禁
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check`、`npm run check:css` 全过；
+`npm run audit:viewport` 对**生产构建**（`next start`）同样七个视口全绿。
+
+### 已知问题
+
+- `<title>`/`description` 仍落在 body：根因是异步 metadata 的写入时机。要修需把 metadata 改成
+  静态导出（会失去按语言切换标题），或等 Next 版本行为变化——权衡后暂不动，记在这里。
+- Service Worker 在 `NODE_ENV !== "production"` 时不注册（dev 服务器频繁重编，缓存只会捣乱）。
+  所以**本地要验证安装提示，必须跑 `npm run build && npx next start`**。
+- `public/pwa/*.png` 是提交进仓库的生成物（几十 KB）。改母版或调色板后重跑 `npm run pwa:icons`。
+
 ## [0.1.59] - 2026-10-30
 
 整页不再滚动：任何页面、任何屏幕尺寸都不出现滚动条。

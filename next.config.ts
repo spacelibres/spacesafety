@@ -26,6 +26,24 @@ const nextConfig: NextConfig = {
   // build artefacts rather than source: `data/` is gitignored and a checkout does not
   // have them. Rewriting keeps them servable without copying hundreds of megabytes
   // into `public/` or committing them.
+  /**
+   * Send the manifest link as a header as well as a tag.
+   *
+   * The layout renders `<link rel="manifest">` and React hoists it into `head`,
+   * which is what Chrome requires — but Next's async metadata can also flush tags
+   * into the body, and a manifest link outside `head` makes installability fail
+   * with a bare `no-manifest` error. The HTTP `Link` header is honoured regardless
+   * of document structure, so this is the belt to that braces.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [{ key: "Link", value: '</manifest.webmanifest>; rel="manifest"' }],
+      },
+    ];
+  },
+
   async rewrites() {
     return [{ source: "/models/:path*", destination: "/api/models/:path*" }];
   },
