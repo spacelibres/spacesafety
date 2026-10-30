@@ -12,6 +12,61 @@
 
 ---
 
+## [0.1.61] - 2026-10-30
+
+补齐发布流程里漏掉的一步：**推送到远端**。并把「每条 tag 自带版本」变成检查项。
+
+### 到底发生了什么（不推给环境）
+
+核对远端后发现：`origin/main` 停在 `7e7544e`（v0.1.43），**v0.1.44–v0.1.60 这 17 个提交
+和 17 个 tag 全部只在本地**。也就是说发布流程只走完了"本地四处一致"，最后一步 `git push`
+从未执行。GitHub 上看不到 tag，是因为 tag 根本没推上去。
+
+原有的 `npm run check` 完全查不出这件事：它比对的是**本地** `package.json` /
+`package-lock.json` / `CHANGELOG` / `git tag`，全部一致，所以一路绿灯。**本地一致 ≠ 已发布。**
+
+### 顺带发现并修掉一处我自己造成的损坏
+
+`git push origin --tags` 被拒绝了一个 tag：`v0.1.2`。原因是我在 v0.1.48 做负例测试时
+`git tag -d v0.1.2` 又重建成了**轻量 tag**，而远端的 v0.1.2 是**附注 tag**；指向的提交相同
+（`0668c11`），但 ref 对象不同，于是推不上去。
+
+已从远端重新取回原 tag（`git fetch origin refs/tags/v0.1.2:refs/tags/v0.1.2`），现在
+附注对象与远端完全一致。**教训：负例测试不要动历史 ref。**
+
+### 新增检查：每条 tag 的内容必须自带该版本
+
+`checkVersion` 之前只比对 HEAD 与**最新**一个 tag，那对另外 57 个 tag 一无所知 —— 一个打在
+错误提交上的 tag、或被手工重建过的 tag，都能一路通过。现在逐条读取
+
+```
+git show vX.Y.Z:package.json    → version 必须是 X.Y.Z
+git show vX.Y.Z:CHANGELOG.md    → 首条必须是 [X.Y.Z]
+```
+
+**已验证负例**：把 `v0.1.60` 指向 v0.1.59 的提交，`npm run check` 报
+`[version] 1 tag(s) do not carry their own version`；恢复后 `ok`。
+
+### CONTRIBUTING §5 补上推送步骤
+
+原文只写「四处一致」，现在明确：
+
+- **"四处一致"包含推送到远端**，最后一步是 `git push origin main && git push origin --tags`，
+  并回读 `git ls-remote --tags origin` 确认数量；
+- `git push --follow-tags` **不够** —— 它只带附注 tag，本仓库用轻量 tag，会被静默略过；
+- 每条 tag 的内容必须自带该版本（`npm run check` 已逐条校验）。
+
+### 验证
+
+```
+远端 main          = bc1bd7b（与本地 HEAD 一致）
+本地 tag 58 个 / 远端 tag 58 个，逐一 diff 为空
+v0.1.44–v0.1.60   每条 tag 的 package.json 与 CHANGELOG 首条都等于该版本（17/17）
+全部 58 个 tag    逐条校验「自带版本」0 不一致
+```
+
+`npx tsc --noEmit`、`npm test`（40 套件）、`npm run check`、`npm run check:css` 全过。
+
 ## [0.1.60] - 2026-10-30
 
 做成可安装的应用（PWA）：浏览器可以「安装到桌面」，装完是独立窗口、没有地址栏。

@@ -342,6 +342,40 @@ function checkVersion(): void {
   }
 
   if (tags.length) {
+    // Every tag's own tree must carry its own version.
+    //
+    // Comparing only HEAD against the newest tag says nothing about the other 57:
+    // a release tagged on the wrong commit, or a tag re-created by hand, would
+    // keep passing. Reading `package.json` *at the tag* is the offline check for
+    // that, and it is how a lightweight tag created during a test here was caught
+    // — the tag existed, pointed at the right commit, and was still wrong, because
+    // its type had changed from annotated to lightweight and the remote rejected it.
+    const mismatched: string[] = [];
+    for (const tag of tags) {
+      const raw = execFileSync("git", ["show", `v${tag}:package.json`], {
+        cwd: ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      const versionAtTag = (JSON.parse(raw) as { version?: string }).version;
+      const changelogAtTag = execFileSync("git", ["show", `v${tag}:CHANGELOG.md`], {
+        cwd: ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      const newestAtTag = changelogAtTag.match(/^## \[(\d+\.\d+\.\d+)\]/m)?.[1];
+      if (versionAtTag !== tag) mismatched.push(`v${tag}: package.json says ${versionAtTag}`);
+      else if (newestAtTag !== tag) mismatched.push(`v${tag}: CHANGELOG newest is ${newestAtTag}`);
+    }
+    if (mismatched.length) {
+      fail(
+        "version",
+        `${mismatched.length} tag(s) do not carry their own version:\n    ${mismatched
+          .slice(0, 10)
+          .join("\n    ")}`,
+      );
+    }
+
     const tagged = new Set(tags);
     const documentedSet = new Set(documented);
     const tagWithoutEntry = tags.filter((t) => !documentedSet.has(t));

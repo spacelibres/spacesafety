@@ -3,7 +3,7 @@
 本文件是项目的**约束性规范**。任何代码改动、提交、发布都必须满足这里的条款；
 与之冲突的实现不予合入。规则的修改本身也需要走版本流程，并写入 `CHANGELOG.md`。
 
-版本：这一版对应 `0.1.60`。
+版本：这一版对应 `0.1.61`。
 
 ---
 
@@ -60,6 +60,13 @@
 - **每次迭代只递增补丁号**：`0.1.4` → `0.1.5` → …。不跳号、不并行多分支各改各的版本。
 - 一次提交对应一个版本，四处必须一致，提交前逐项核对：
   `package.json` / `package-lock.json` / git tag（`vX.Y.Z`）/ `CHANGELOG.md` 首条。
+- **"四处一致"包含推送到远端。** 本地打完 tag 不等于发布完成：远端没有这个 tag，GitHub 的
+  Releases/Tags 页面就是空的，别人按版本号 checkout 会失败。发布流程的最后一步是
+  `git push origin main && git push origin --tags`，并且要回读 `git ls-remote --tags origin`
+  确认数量与本地一致。
+  `git push --follow-tags` **不够**：它只带附注 tag，本仓库的 tag 是轻量 tag，会被静默略过。
+- 每条 tag 的内容必须自带该版本：`git show vX.Y.Z:package.json` 的 `version` 与
+  `git show vX.Y.Z:CHANGELOG.md` 的首条都必须是 `X.Y.Z`。`npm run check` 已逐条校验全部 tag。
 - `CHANGELOG.md` 每条写清**为什么改**；影响计算结果的改动必须写验证方式。
 - 提交信息首行为 `vX.Y.Z: 一句话摘要`，正文说明动机与验证。
 
