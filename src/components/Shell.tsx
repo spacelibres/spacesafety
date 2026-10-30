@@ -20,6 +20,7 @@ const NAV = [
   { href: "/catalogue", labelKey: "nav.catalogue", icon: "satellite" },
   { href: "/trajectories", labelKey: "nav.trajectories", icon: "orbit" },
   { href: "/conjunctions", labelKey: "nav.conjunctions", icon: "alert" },
+  { href: "/screening/socrates", labelKey: "nav.socrates", icon: "alert" },
   { href: "/keys", labelKey: "nav.keys", icon: "key" },
 ] as const;
 
