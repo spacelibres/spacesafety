@@ -1,24 +1,51 @@
 import "server-only";
 
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 
 import * as schema from "./schema";
+import { attachOrbits, defaultStorePaths } from "./store";
 
 export type AppDatabase = BetterSQLite3Database<typeof schema>;
 
 export interface DbHandle {
   db: AppDatabase;
   sqlite: Database.Database;
+  /** True when the orbit store is attached and propagation can run. */
+  orbitsAttached: boolean;
+  /** Why it is not attached, when it is not. */
+  orbitsReason?: string;
+  /** True when the three-source wide catalogue is attached for per-source views. */
+  wideAttached: boolean;
 }
 
 let instance: DbHandle | undefined;
 
 export function databasePath(): string {
   return process.env.SPACE_SAFETY_DB ?? "./data/spacesafety.sqlite";
+}
+
+/**
+ * Open the catalogue and attach the orbit store when it is available.
+ *
+ * Two layouts are supported, and which one is in use is decided by the
+ * environment, not by a flag in code:
+ *
+ *   split (default)  `SPACE_SAFETY_BASE_DB` + `SPACE_SAFETY_ORBIT_DB`
+ *                    the base is 102 MB, the orbit store is ~54 GB and optional
+ *   single           `SPACE_SAFETY_DB`
+ *                    one file, which is what a fresh checkout and the test
+ *                    suite use
+ *
+ * The single-file layout is not deprecated: it is what makes `npm run dev` work
+ * without a 54 GB download, and what the tests use so they do not depend on local
+ * data.
+ */
+function useSplitLayout(): boolean {
+  return Boolean(process.env.SPACE_SAFETY_BASE_DB || process.env.SPACE_SAFETY_DATA_DIR);
 }
 
 /**
@@ -32,7 +59,9 @@ export function databasePath(): string {
 export function getDb(): DbHandle {
   if (instance) return instance;
 
-  const path = databasePath();
+  const split = useSplitLayout();
+  const paths = defaultStorePaths();
+  const path = split ? paths.base : databasePath();
   mkdirSync(dirname(path), { recursive: true });
 
   const sqlite = new Database(path);
@@ -42,9 +71,52 @@ export function getDb(): DbHandle {
   sqlite.pragma("synchronous = NORMAL");
 
   applySchema(sqlite);
+
+  // Only the split layout has a separate orbit file. In the single-file layout the
+  // ephemeris text lives in the same database, which is why `trajectory_files`
+  // still exists in the DDL.
+  let orbitsAttached = false;
+  let orbitsReason: string | undefined;
+  if (split) {
+    const result = attachOrbits(sqlite, paths);
+    orbitsAttached = result.attached;
+    orbitsReason = result.reason;
+    if (!orbitsAttached) {
+      console.warn(`[db] ${result.reason}`);
+    }
+  } else {
+    orbitsAttached = true;
+  }
+
   const db = drizzle(sqlite, { schema });
-  instance = { db, sqlite };
+  const wideAttached = attachWide(sqlite);
+  instance = { db, sqlite, orbitsAttached, orbitsReason, wideAttached };
   return instance;
+}
+
+/**
+ * Attach the three-source wide catalogue, when it has been built.
+ *
+ * The wide table is produced by `npx tsx tools/build-wide-catalogue.ts` and is a
+ * separate file because it is rebuilt from the provider downloads, not written by
+ * the application. Attaching it read-only keeps that separation: the web process
+ * cannot corrupt a table that took a rebuild to produce.
+ *
+ * Absent is not an error. A checkout without the wide build still serves the
+ * catalogue; the pages that need per-source comparison say so explicitly rather
+ * than silently falling back to the merged value.
+ */
+function attachWide(sqlite: Database.Database): boolean {
+  const already = sqlite
+    .prepare("SELECT COUNT(*) AS n FROM pragma_database_list WHERE name = 'wide'")
+    .get() as { n: number };
+  if (already.n > 0) return true;
+
+  const path = process.env.SPACE_SAFETY_WIDE_DB ?? "data/catalogue-wide.sqlite";
+  if (!existsSync(path)) return false;
+
+  sqlite.exec(`ATTACH DATABASE '${path.replace(/'/g, "''")}' AS wide`);
+  return true;
 }
 
 /** Close the handle (tests / graceful shutdown). */
@@ -108,6 +180,99 @@ function migrate(sqlite: Database.Database): void {
       table: "satcat",
       column: "reference_ephemeris_stop",
       ddl: "ALTER TABLE satcat ADD COLUMN reference_ephemeris_stop TEXT",
+    },
+    // Catalogue completeness fields. Space-Track's satcat is the only source that
+    // covers 100% of records for COSPAR, country and launch site, and the only one
+    // with a catalogue orbit summary; these columns carry them into the master row.
+    { table: "master_object", column: "country", ddl: "ALTER TABLE master_object ADD COLUMN country TEXT" },
+    {
+      table: "master_object",
+      column: "launch_site",
+      ddl: "ALTER TABLE master_object ADD COLUMN launch_site TEXT",
+    },
+    {
+      table: "master_object",
+      column: "catalog_period_min",
+      ddl: "ALTER TABLE master_object ADD COLUMN catalog_period_min REAL",
+    },
+    {
+      table: "master_object",
+      column: "catalog_inclination_deg",
+      ddl: "ALTER TABLE master_object ADD COLUMN catalog_inclination_deg REAL",
+    },
+    {
+      table: "master_object",
+      column: "catalog_apogee_km",
+      ddl: "ALTER TABLE master_object ADD COLUMN catalog_apogee_km REAL",
+    },
+    {
+      table: "master_object",
+      column: "catalog_perigee_km",
+      ddl: "ALTER TABLE master_object ADD COLUMN catalog_perigee_km REAL",
+    },
+    {
+      table: "master_object",
+      column: "rcs_size",
+      ddl: "ALTER TABLE master_object ADD COLUMN rcs_size TEXT",
+    },
+    {
+      table: "master_object",
+      column: "current",
+      ddl: "ALTER TABLE master_object ADD COLUMN current INTEGER",
+    },
+    // Physical model and launch record. These were present in `object_physics`
+    // (71 074 rows) and `object_launch_info` (69 918 rows) but the merge never read
+    // them, so 32 648 objects carried a mass in the source tables and none in the
+    // master row — and no object carried a hard-body radius at all.
+    {
+      table: "master_object",
+      column: "hard_body_radius_m",
+      ddl: "ALTER TABLE master_object ADD COLUMN hard_body_radius_m REAL",
+    },
+    { table: "master_object", column: "span_m", ddl: "ALTER TABLE master_object ADD COLUMN span_m REAL" },
+    {
+      table: "master_object",
+      column: "diameter_m",
+      ddl: "ALTER TABLE master_object ADD COLUMN diameter_m REAL",
+    },
+    {
+      table: "master_object",
+      column: "dry_mass_kg",
+      ddl: "ALTER TABLE master_object ADD COLUMN dry_mass_kg REAL",
+    },
+    {
+      table: "master_object",
+      column: "length_m",
+      ddl: "ALTER TABLE master_object ADD COLUMN length_m REAL",
+    },
+    {
+      table: "master_object",
+      column: "ballistic_coefficient",
+      ddl: "ALTER TABLE master_object ADD COLUMN ballistic_coefficient REAL",
+    },
+    {
+      table: "master_object",
+      column: "shape_number",
+      ddl: "ALTER TABLE master_object ADD COLUMN shape_number INTEGER",
+    },
+    {
+      table: "master_object",
+      column: "manufacturer",
+      ddl: "ALTER TABLE master_object ADD COLUMN manufacturer TEXT",
+    },
+    { table: "master_object", column: "bus", ddl: "ALTER TABLE master_object ADD COLUMN bus TEXT" },
+    {
+      table: "master_object",
+      column: "orbit_type",
+      ddl: "ALTER TABLE master_object ADD COLUMN orbit_type TEXT",
+    },
+    { table: "master_object", column: "motor", ddl: "ALTER TABLE master_object ADD COLUMN motor TEXT" },
+    // Provenance of every merged value. Three catalogues disagree on 4 834
+    // inclinations; keeping only the winner makes the merge impossible to defend.
+    {
+      table: "master_object",
+      column: "value_sources",
+      ddl: "ALTER TABLE master_object ADD COLUMN value_sources TEXT",
     },
   ];
 
@@ -551,6 +716,24 @@ CREATE TABLE IF NOT EXISTS master_object (
   source_count INTEGER NOT NULL DEFAULT 0,
   covariance_start TEXT,
   covariance_stop TEXT,
+  /* Physical model. mass_kg and cross_section_avg_m2 above are the merged
+     best values; these keep the parts that only one source provides. */
+  hard_body_radius_m REAL,
+  span_m REAL,
+  diameter_m REAL,
+  dry_mass_kg REAL,
+  length_m REAL,
+  ballistic_coefficient REAL,
+  shape_number INTEGER,
+  /* Launch record (McDowell): who built it and what bus it flies on. */
+  manufacturer TEXT,
+  bus TEXT,
+  orbit_type TEXT,
+  motor TEXT,
+  /* Which source each contested value came from, as JSON: {"mass_kg":"discos",...}.
+     A merged value without its provenance cannot be defended against an operator
+     who says otherwise. */
+  value_sources TEXT,
   merged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS master_object_name_idx ON master_object(name);
@@ -599,6 +782,101 @@ CREATE TABLE IF NOT EXISTS master_conflict (
 );
 CREATE INDEX IF NOT EXISTS conflict_norad_idx ON master_conflict(norad_id);
 CREATE INDEX IF NOT EXISTS conflict_field_idx ON master_conflict(field);
+
+-- L0: every value every source gave, whether we chose it or not.
+-- Unconditional, unlike master_conflict which records only disagreements we
+-- happened to notice. This is what lets a merged value name its origin.
+CREATE TABLE IF NOT EXISTS object_field_claim (
+  norad_id INTEGER NOT NULL,
+  field TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  value_num REAL,
+  value_text TEXT,
+  unit TEXT,
+  source_field TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  PRIMARY KEY (norad_id, field, source_id)
+);
+CREATE INDEX IF NOT EXISTS claim_field_source_idx ON object_field_claim(field, source_id);
+CREATE INDEX IF NOT EXISTS claim_source_idx ON object_field_claim(source_id);
+
+-- Physical model from Spacebook's satcat/details feed. 99.98% coverage.
+CREATE TABLE IF NOT EXISTS object_physics (
+  norad_id INTEGER PRIMARY KEY,
+  adopted_mass_kg REAL,
+  adopted_span_m REAL,
+  adopted_diameter_m REAL,
+  ballistic_coefficient REAL,
+  hbr_mean_m REAL,
+  hbr_median_m REAL,
+  hbr_lo_m REAL,
+  hbr_hi_m REAL,
+  hbr_encap_m REAL,
+  cross_section_median_m2 REAL,
+  solar_radiation_pressure REAL,
+  shape_number INTEGER,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS object_physics_hbr_idx ON object_physics(hbr_mean_m);
+
+-- Launch and identity metadata (McDowell).
+CREATE TABLE IF NOT EXISTS object_launch_info (
+  norad_id INTEGER PRIMARY KEY,
+  jcat TEXT,
+  launch_tag TEXT,
+  piece TEXT,
+  object_type TEXT,
+  payload_name TEXT,
+  launch_date TEXT,
+  separation_date TEXT,
+  decay_date TEXT,
+  owner TEXT,
+  state TEXT,
+  manufacturer TEXT,
+  bus TEXT,
+  mass_kg REAL,
+  dry_mass_kg REAL,
+  length_m REAL,
+  diameter_m REAL,
+  span_m REAL,
+  shape TEXT,
+  perigee_km REAL,
+  apogee_km REAL,
+  inclination_deg REAL,
+  orbit_type TEXT,
+  motor TEXT,
+  alt_names TEXT,
+  updated_at TEXT NOT NULL
+);
+
+-- Space-Track satellite catalogue: the only 100%-complete identity source, and
+-- the source of the catalogue orbit summary and launch country.
+CREATE TABLE IF NOT EXISTS space_track_satcat (
+  norad_id INTEGER PRIMARY KEY,
+  intl_des TEXT,
+  object_type TEXT,
+  sat_name TEXT,
+  country TEXT,
+  launch TEXT,
+  site TEXT,
+  decay TEXT,
+  period_min REAL,
+  inclination_deg REAL,
+  apogee_km REAL,
+  perigee_km REAL,
+  rcs_value REAL,
+  rcs_size TEXT,
+  current TEXT,
+  comment TEXT,
+  comment_code TEXT,
+  file_ref TEXT,
+  launch_year INTEGER,
+  launch_num INTEGER,
+  launch_piece TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS st_satcat_country_idx ON space_track_satcat(country);
+CREATE INDEX IF NOT EXISTS st_satcat_type_idx ON space_track_satcat(object_type);
 `;
 
 /**

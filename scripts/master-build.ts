@@ -26,6 +26,7 @@ async function main(): Promise<void> {
   const { getDb } = await import("../src/db");
   const { MasterMerge } = await import("../src/lib/sources/master-merge");
   const { DerivedLayer } = await import("../src/lib/sources/derived-layer");
+  const { ClassNormaliser } = await import("../src/lib/sources/class-normalise");
 
   const argv = process.argv.slice(2);
   const skipOrbits = argv.includes("--skip-orbits");
@@ -51,6 +52,19 @@ async function main(): Promise<void> {
       console.log(`    ${src.padEnd(24)} ${n}`);
     }
     console.log(`  耗时               ${(merge.ms / 1000).toFixed(1)}s`);
+
+    // Classification is a separate, auditable decision on top of the merge. It
+    // rewrites only `object_class` and `maneuverable`, so a change to the scheme
+    // never requires re-merging 72 000 objects.
+    const normalised = new ClassNormaliser(sqlite).run();
+    console.log("\n=== 编目归一 ===\n");
+    console.log(`  分类值改写         ${normalised.changed}`);
+    console.log(`  机动性纠正         ${normalised.manoeuvrabilityFixed}`);
+    console.log(`  耗时               ${(normalised.ms / 1000).toFixed(1)}s`);
+    console.log(`\n  归一后的分类：`);
+    for (const [cls, n] of Object.entries(normalised.after)) {
+      console.log(`    ${cls.padEnd(34)} ${String(n).padStart(7)}`);
+    }
 
     console.log("\n=== L2 派生：我们计算出来的数 ===\n");
     const derived = new DerivedLayer(sqlite, { skipOrbits, log: () => {} }).run();

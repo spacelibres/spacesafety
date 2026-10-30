@@ -12,7 +12,82 @@
 
 ---
 
-## [0.1.16] - 2026-10-29
+## [0.1.18] - 2026-10-30
+
+编目宽表：三源原值并列一表，由用户选择采用哪个，不由我们裁定。
+
+### 变更
+
+- **`data/catalogue-wide.sqlite`**（`docs/WIDE-CATALOGUE.md`）：71 201 行 × 105 列。
+  26 个字段每个 4 列（`__spacetrack` `__spacebook` `__discos` `__chosen`），
+  由 `npx tsx tools/build-wide-catalogue.ts` 从三源原始下载直接生成，42.3 MB。
+- **`/catalogue` 编目页与 `/catalogue/[norad]` 详情页**：每个字段并排展示三源值，
+  标出当前采用哪个，并显示来源分歧数。
+- **`PATCH /api/v1/catalogue/choice`**：按对象逐字段更改采用来源。
+- 宽表以 **ATTACH** 方式只读挂载（`SPACE_SAFETY_WIDE_DB`），缺失时页面明确提示
+  而非静默回退。
+
+### 采用规则（Space-Track 优先）
+
+用户明确：Space-Track 是美国官方基准编目，凡它有值的字段默认采用 Space-Track——
+`name` `cospar_id` `object_class` `country` `launch_site` `launch_date` `decay_date`
+`inclination` `period` `apogee` `perigee` `rcs_size`。
+
+Space-Track 不提供的 6 个字段只能取自他源：`shape`（DISCOS 唯一）、
+`hard_body_radius_m` `ballistic_coefficient` `manufacturer` `bus` `orbit_type`（Spacebook 唯一）。
+
+### 实测发现
+
+- **Space-Track 不发布质量**（71 198 条中 0 条），故 `mass_kg` 只能在
+  DISCOS（38 427 条实测）与 Spacebook（71 074 条推导）间选，现为 DISCOS 优先。
+- **三源不一致率**：`object_class` 100%（体系不同，非错误）、`name` 97.56%
+  （仅大小写差异）、`decay_date` 99.94%（实测 vs 预测）、`inclination` 79.40%
+  （GCAT 记发射时值）、**`mass_kg` 仅 0.07%**（两源高度互证）。
+
+### 验证
+
+- `tsc --noEmit` 无错误；`npm run check` 除版本标签外全过
+- `tests/catalogue.test.ts` 13 项、`tests/master-merge.test.ts` 33 项全过
+- `/catalogue` 与 `/catalogue/44713` 均 HTTP 200；选择来源 API 写入并回读正确
+
+---
+
+## [0.1.17] - 2026-10-30
+
+把编目数据库独立出来，并补上主库一直没吃进去的物理模型。
+
+### 变更
+
+- **独立编目库**（`docs/CATALOGUE.md`）：`npm run catalogue:build` 从 57 GB 工作库
+  导出 `data/catalogue.sqlite`（**187 MB**，0.33%），13 张表逐表比对行数、
+  `integrity_check` 通过。应用改由 `SPACE_SAFETY_DB` 只读这一个文件。
+- **`npm run catalogue:report`**：按「在轨 / 全库」两个口径打印 17 个字段的覆盖率，
+  并列出缺物理模型的对象。
+- 主库新增 11 列：`hard_body_radius_m` `span_m` `diameter_m` `dry_mass_kg`
+  `length_m` `ballistic_coefficient` `shape_number` `manufacturer` `bus`
+  `orbit_type` `motor`。
+- `/objects` 列表增加 COSPAR、目标分类、质量、国家四列。
+
+### 修复
+
+- **主库质量覆盖率 53% → 98%**：合并器只读 DISCOS（38 427 条），从未读
+  `object_physics`（71 074 条，99.98%）与 `object_launch_info`（69 918 条）。
+  32 648 个对象在源表里有质量、在主库里没有。现按 DISCOS 优先、物理表兜底合并。
+- **硬体半径回填**：29 条新发射 Starlink 仍带旧的 8.83 m（翼展误作半径），
+  已按 `hbr_mean_m` 重刷，残留清零。
+
+### 验证
+
+- `catalogue:build`：13 张表行数与源库完全一致，`integrity_check ok`
+- `catalogue:report`：在轨 36 570 / 全库 72 311；质量、硬体半径、横截面积在轨 **96.65%**
+- `tests/master-merge.test.ts` 33 项、`tests/catalogue.test.ts` 13 项全过
+- `tsc --noEmit` 无错误
+
+### 已知问题
+
+- 1 226 个在轨对象无物理模型：1 143 个是 Analyst Sat（任何源都没有参数），
+  73 个是 2026-10 新发射卫星（模型未入库），随 Spacebook 更新补齐
+- 54 条未决冲突（53 条 DISCOS 衰降预测异常、1 条 SKYNET 4F 倾角差 2.5°）待人工判定
 
 建立我们自己的主数据库：三源合并成一份事实，观测与计算严格分层。
 

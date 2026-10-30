@@ -150,6 +150,22 @@ export const trajectoryFiles = sqliteTable("trajectory_files", {
   fileText: text("file_text").notNull(),
 });
 
+/**
+ * Raw ephemeris text, living in its own database file.
+ *
+ * Same shape as `trajectoryFiles`, but physically separated because it is 53.8 GB
+ * of the 56.7 GB total. A deployment that only shows the catalogue attaches no
+ * orbit file at all and runs from a 102 MB database.
+ *
+ * Queries reach it through the `orbits` schema alias (`ATTACH`) when the file is
+ * present; `src/db/store.ts` owns that decision and the error message when it is
+ * not.
+ */
+export const orbitTrajectoryFiles = sqliteTable("trajectory_files", {
+  trajectoryId: text("trajectory_id").primaryKey(),
+  fileText: text("file_text").notNull(),
+});
+
 export const events = sqliteTable(
   "events",
   {
@@ -495,6 +511,9 @@ export type MasterObjectRow = typeof masterObject.$inferSelect;
 export type MasterElementSetRow = typeof masterElementSet.$inferSelect;
 export type DerivedStateRow = typeof derivedState.$inferSelect;
 export type MasterConflictRow = typeof masterConflict.$inferSelect;
+export type ObjectPhysicsRow = typeof objectPhysics.$inferSelect;
+export type ObjectLaunchInfoRow = typeof objectLaunchInfo.$inferSelect;
+export type SpaceTrackSatcatRow = typeof spaceTrackSatcat.$inferSelect;
 export type TrajectoryRow = typeof trajectories.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type CdmRow = typeof cdms.$inferSelect;
@@ -635,6 +654,38 @@ export const masterObject = sqliteTable(
     /** Lifecycle status from the supplemental feed. */
     status: text("status"),
     /**
+     * Launch country / owner code, as Space-Track records it (`US`, `CIS`, `PRC`, …).
+     *
+     * 121 distinct values across the catalogue, and Space-Track is the only source
+     * that covers all 71 198 of its records — the DISCOS `owner` field is sparse and
+     * uses a different vocabulary.
+     */
+    country: text("country"),
+    /** Launch site code, e.g. `AFETR`, `TTMTR`. 38 distinct codes. */
+    launchSite: text("launch_site"),
+    /**
+     * Catalogue orbit summary: period, inclination, apogee, perigee.
+     *
+     * These are **not** the same quantity as the derived values in
+     * `derived_state`: they are the catalogue's own statement, taken a different
+     * epoch and often from a different orbit fit. Kept separate on purpose, because
+     * replacing one with the other is how a stale catalogue number gets quoted as
+     * the current orbit.
+     */
+    catalogPeriodMin: real("catalog_period_min"),
+    catalogInclinationDeg: real("catalog_inclination_deg"),
+    catalogApogeeKm: real("catalog_apogee_km"),
+    catalogPerigeeKm: real("catalog_perigee_km"),
+    /** RCS size class (`LARGE` | `MEDIUM` | `SMALL`), when a source states one. */
+    rcsSize: text("rcs_size"),
+    /**
+     * Whether the object is still tracked as current.
+     *
+     * Space-Track's `CURRENT` flag. Distinct from `decayDate is null`: an object
+     * can be on orbit but no longer tracked, and the two mean different things.
+     */
+    current: integer("current", { mode: "boolean" }),
+    /**
      * Whether the object is believed to be able to manoeuvre.
      * Derived from `objectClass` by one rule, recorded rather than re-derived so
      * two consumers cannot apply it differently.
@@ -744,6 +795,170 @@ export const masterConflict = sqliteTable(
   (t) => [
     index("conflict_norad_idx").on(t.noradId),
     index("conflict_field_idx").on(t.field),
+  ],
+);
+
+/**
+ * Derived physical model from Spacebook's `satcat/details` feed.
+ *
+ * ## Why this table matters more than it looks
+ *
+ * The hard-body radius is the single largest lever on a collision probability:
+ * Pc scales with the square of the combined radii. Before this table the replica
+ * estimated radius from an RCS class band (LARGE → 5 m, MEDIUM → 1.5 m,
+ * SMALL → 0.5 m). Measured against the values below, that estimate was wrong by a
+ * factor of four for the most common satellite in the catalogue:
+ *
+ * | object | RCS-band guess | `hbrMeanMeters` | error |
+ * |---|---|---|---|
+ * | STARLINK-1008 | 5.0 m | **1.14 m** | 4.4× too large |
+ * | ISS (ZARYA) | 5.0 m | 36.49 m | 14.6× too small |
+ *
+ * A 4.4× radius error is a 19× error in Pc. This is exactly the kind of number
+ * that cannot be guessed.
+ *
+ * ## Coverage
+ *
+ * 71 074 of 71 088 records carry `comspocDerivedMessage` (99.98%), against 42 327
+ * masses in the DISCOS feed and none at all in Space-Track. So for the physical
+ * model this is now the primary source, not a supplement.
+ */
+export const objectPhysics = sqliteTable(
+  "object_physics",
+  {
+    noradId: integer("norad_id").primaryKey(),
+    /** kg, operator-adopted. */
+    adoptedMassKg: real("adopted_mass_kg"),
+    /** m, largest physical extent. */
+    adoptedSpanM: real("adopted_span_m"),
+    adoptedDiameterM: real("adopted_diameter_m"),
+    /**
+     * Ballistic coefficient, m²/kg, used by the drag model.
+     *
+     * Preferred over a TLE's `B*`, which is fitted to a week of elements and
+     * carries that arc's atmospheric conditions with it.
+     */
+    ballisticCoefficient: real("ballistic_coefficient"),
+    /**
+     * Hard-body radius, metres. The `hbr*` family are variants of the same
+     * quantity; `mean` is the one the collision model should use and the others are
+     * kept so a different convention can be applied without re-fetching.
+     */
+    hbrMeanM: real("hbr_mean_m"),
+    hbrMedianM: real("hbr_median_m"),
+    hbrLowM: real("hbr_lo_m"),
+    hbrHighM: real("hbr_hi_m"),
+    /** Enclosing-sphere radius, m. */
+    hbrEncapM: real("hbr_encap_m"),
+    /** Median cross-section, m². */
+    crossSectionMedianM2: real("cross_section_median_m2"),
+    /** Solar radiation pressure coefficient, m²/kg. */
+    solarRadiationPressure: real("solar_radiation_pressure"),
+    /** Provider shape code; the human-readable `shape` stays in `discos_objects`. */
+    shapeNumber: integer("shape_number"),
+    updatedAt: text("updated_at").notNull(),
+  },
+);
+
+/**
+ * Launch and identity metadata from Jonathan McDowell's catalogue, as relayed by
+ * Spacebook.
+ *
+ * Kept apart from `object_physics` because it answers a different question —
+ * *what is this object and where did it come from* — and because a missing value
+ * here must not affect a collision calculation.
+ */
+export const objectLaunchInfo = sqliteTable("object_launch_info", {
+  noradId: integer("norad_id").primaryKey(),
+  /** Launch designation in McDowell's scheme, e.g. `S25544`. */
+  jcat: text("jcat"),
+  launchTag: text("launch_tag"),
+  piece: text("piece"),
+  /** `PAY` | `R/B` | `DEB` | … as McDowell classifies it. */
+  objectType: text("object_type"),
+  payloadName: text("payload_name"),
+  launchDate: text("launch_date"),
+  separationDate: text("separation_date"),
+  decayDate: text("decay_date"),
+  owner: text("owner"),
+  /** `O` = operational, `N` = non-operational, … */
+  state: text("state"),
+  manufacturer: text("manufacturer"),
+  bus: text("bus"),
+  /** kg, as McDowell reports it (possibly an estimate). */
+  massKg: real("mass_kg"),
+  dryMassKg: real("dry_mass_kg"),
+  lengthM: real("length_m"),
+  diameterM: real("diameter_m"),
+  spanM: real("span_m"),
+  shape: text("shape"),
+  perigeeKm: real("perigee_km"),
+  apogeeKm: real("apogee_km"),
+  inclinationDeg: real("inclination_deg"),
+  orbitType: text("orbit_type"),
+  motor: text("motor"),
+  altNames: text("alt_names"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * Space-Track's satellite catalogue, as published.
+ *
+ * The third identity source, and the only one that covers **100% of its own
+ * records** for the fields a catalogue entry needs: international designator
+ * (71 198), country (71 198), launch site (71 198), plus catalogue orbit
+ * parameters for 69 086.
+ *
+ * Compared with the other two:
+ *
+ * | field | Space-Track | Spacebook SATCAT | DISCOS |
+ * |---|---|---|---|
+ * | COSPAR | **71 198** | 71 174 | ~70 000 |
+ * | country | **71 198** | 0 | sparse, other vocabulary |
+ * | launch site | **71 198** | 71 174 | launch records only |
+ * | period / apogee / perigee | **69 086** | 71 174 | no |
+ * | mass | 0 | 0 | 42 327 |
+ *
+ * So it adds the fields nobody else has, and it is the source for the catalogue
+ * orbit summary that this replica previously dropped on the floor.
+ */
+export const spaceTrackSatcat = sqliteTable(
+  "space_track_satcat",
+  {
+    noradId: integer("norad_id").primaryKey(),
+    /** International designator, e.g. `1957-001A`. */
+    intlDes: text("intl_des"),
+    objectType: text("object_type"),
+    satName: text("sat_name"),
+    /** ISO country code of the launch state, e.g. `US`, `CIS`, `PRC`. */
+    country: text("country"),
+    /** `YYYY-MM-DD`. */
+    launch: text("launch"),
+    /** Launch site code, e.g. `AFETR`, `TTMTR`. */
+    site: text("site"),
+    /** `YYYY-MM-DD`; empty while on orbit. */
+    decay: text("decay"),
+    periodMin: real("period_min"),
+    inclinationDeg: real("inclination_deg"),
+    apogeeKm: real("apogee_km"),
+    perigeeKm: real("perigee_km"),
+    rcsValue: real("rcs_value"),
+    rcsSize: text("rcs_size"),
+    /** `Y` while the object is tracked as current. */
+    current: text("current"),
+    /** Free-text remark, and its numeric code. */
+    comment: text("comment"),
+    commentCode: text("comment_code"),
+    /** `9552` in the sample; a provider-internal file reference. */
+    fileRef: text("file_ref"),
+    launchYear: integer("launch_year"),
+    launchNum: integer("launch_num"),
+    launchPiece: text("launch_piece"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("st_satcat_country_idx").on(t.country),
+    index("st_satcat_type_idx").on(t.objectType),
   ],
 );
 

@@ -8,6 +8,12 @@ export const zhCN: MessageTable = {
   "nav.home": "首页",
   "nav.docs": "文档",
   "nav.operators": "运营方",
+  "catalogue.norad": "NORAD",
+  "catalogue.cospar": "COSPAR 编号",
+  "catalogue.sourceSpaceTrack": "Space-Track",
+  "catalogue.sourceSpacebook": "Spacebook",
+  "catalogue.sourceDiscos": "DISCOS",
+  "nav.catalogue": "编目数据库",
   "nav.objects": "空间物体",
   "nav.trajectories": "轨迹",
   "nav.conjunctions": "交会事件",
@@ -239,6 +245,14 @@ export const zhCN: MessageTable = {
   "chart.noPcReason": "只要任一条轨迹不带协方差，Pc 即为 NULL。",
   "chart.pcHistoryLabel": "碰撞概率历史",
   "chart.cdmSequence": "CDM 序号（{count}）",
+
+  "column.cospar": "COSPAR 编号",
+
+  "column.objectClass": "目标分类",
+
+  "column.mass": "质量 (kg)",
+
+  "column.country": "国家/地区",
 
   "column.hardBodyRadius": "刚体半径 (m)",
   "column.noradId": "NORAD 编号",

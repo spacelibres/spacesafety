@@ -8,6 +8,12 @@ export const es: MessageTable = {
   "nav.home": "Inicio",
   "nav.docs": "Documentación",
   "nav.operators": "Operadores",
+  "catalogue.norad": "NORAD",
+  "catalogue.cospar": "COSPAR",
+  "catalogue.sourceSpaceTrack": "Space-Track",
+  "catalogue.sourceSpacebook": "Spacebook",
+  "catalogue.sourceDiscos": "DISCOS",
+  "nav.catalogue": "Catálogo",
   "nav.objects": "Objetos",
   "nav.trajectories": "Trayectorias",
   "nav.conjunctions": "Conjunciones",
@@ -244,6 +250,14 @@ export const es: MessageTable = {
   "chart.noPcReason": "Pc es NULL cuando alguna de las trayectorias no incluye covarianza.",
   "chart.pcHistoryLabel": "Historial de probabilidad de colisión",
   "chart.cdmSequence": "Secuencia de CDM ({count})",
+
+  "column.cospar": "COSPAR",
+
+  "column.objectClass": "Clase de objeto",
+
+  "column.mass": "Masa (kg)",
+
+  "column.country": "País",
 
   "column.hardBodyRadius": "Radio del cuerpo rígido (m)",
   "column.noradId": "ID NORAD",

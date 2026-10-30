@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { getDb, nextSeq } from "@/db";
-import { catalog, objects, operators, trajectoryFiles, trajectories } from "@/db/schema";
+import { catalog, objectPhysics, objects, operators, trajectoryFiles, trajectories } from "@/db/schema";
 import { selectReference } from "@/lib/orbit/catalog-policy";
 import { normaliseTrajectory } from "@/lib/api/validate-trajectory";
 import { sourcePolicy } from "@/lib/orbit/source-policy";
@@ -100,6 +100,35 @@ export interface IngestResult {
  */
 function contentHash(text: string): string {
   return createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * Hard-body radius to fall back on when the physical table has no row, metres.
+ *
+ * This used to be **8.83 m** for every Starlink, which was the vehicle's *span*
+ * (8.86 m) mistaken for a radius — an error of 7.8× in radius and 60× in collision
+ * cross-section. The value below is the published `hbrMeanMeters` for
+ * STARLINK-1008 from Spacebook's derived physical model, used only when
+ * `object_physics` has no row for the object.
+ */
+const STARLINK_FALLBACK_HBR_M = 1.139;
+
+/**
+ * The hard-body radius to store for an object, in metres.
+ *
+ * Prefers Spacebook's derived `hbrMeanMeters`, falling back to a documented
+ * constant. Never an RCS class band: measured against the real values, a band
+ * estimate is 4.4× too large for a Starlink and 14.6× too small for the ISS.
+ */
+export function hardBodyRadiusFor(noradId: number | null, fallbackM = STARLINK_FALLBACK_HBR_M): number {
+  if (noradId === null) return fallbackM;
+  const { db } = getDb();
+  const row = db
+    .select({ hbr: objectPhysics.hbrMeanM })
+    .from(objectPhysics)
+    .where(eq(objectPhysics.noradId, noradId))
+    .get();
+  return row?.hbr ?? fallbackM;
 }
 
 /** Ensure an object row exists, returning its id. */
@@ -453,7 +482,10 @@ export async function ingestStarlinkObject(
         objectName,
         operatorId,
         noradId,
-        hardBodyRadiusM: 8.83,
+        // 8.83 m was the span, not a radius. Measured against the published model
+        // the true mean hard-body radius is 1.14 m — a 60× error in the collision
+        // cross-section of the largest constellation in the catalogue.
+        hardBodyRadiusM: hardBodyRadiusFor(noradId),
       });
 
       const stored = storeTrajectory({
@@ -501,7 +533,7 @@ export async function ingestStarlinkObject(
           objectName,
           operatorId,
           noradId,
-          hardBodyRadiusM: 8.83,
+          hardBodyRadiusM: hardBodyRadiusFor(noradId),
         });
       }
 

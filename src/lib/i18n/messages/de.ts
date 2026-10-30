@@ -8,6 +8,12 @@ export const de: MessageTable = {
   "nav.home": "Start",
   "nav.docs": "Dokumentation",
   "nav.operators": "Betreiber",
+  "catalogue.norad": "NORAD",
+  "catalogue.cospar": "COSPAR",
+  "catalogue.sourceSpaceTrack": "Space-Track",
+  "catalogue.sourceSpacebook": "Spacebook",
+  "catalogue.sourceDiscos": "DISCOS",
+  "nav.catalogue": "Katalog",
   "nav.objects": "Objekte",
   "nav.trajectories": "Trajektorien",
   "nav.conjunctions": "Konjunktionen",
@@ -244,6 +250,14 @@ export const de: MessageTable = {
   "chart.noPcReason": "Pc ist NULL, wenn eine der Trajektorien keine Kovarianz mitführt.",
   "chart.pcHistoryLabel": "Verlauf der Kollisionswahrscheinlichkeit",
   "chart.cdmSequence": "CDM-Folge ({count})",
+
+  "column.cospar": "COSPAR",
+
+  "column.objectClass": "Objektklasse",
+
+  "column.mass": "Masse (kg)",
+
+  "column.country": "Land",
 
   "column.hardBodyRadius": "Radius des starren Körpers (m)",
   "column.noradId": "NORAD-ID",

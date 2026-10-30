@@ -70,7 +70,11 @@ export default async function ObjectsPage() {
                 <tr>
                   <th>{t.t("column.name")}</th>
                   <th>{t.t("column.noradId")}</th>
+                  <th>{t.t("column.cospar")}</th>
+                  <th>{t.t("column.objectClass")}</th>
+                  <th className="num">{t.t("column.mass")}</th>
                   <th className="num">{t.t("column.hardBodyRadius")}</th>
+                  <th>{t.t("column.country")}</th>
                   <th>{t.t("column.operator")}</th>
                   <th>{t.t("column.alive")}</th>
                   <th>{t.t("column.maneuverable")}</th>
@@ -83,10 +87,18 @@ export default async function ObjectsPage() {
                       <Link href={`/objects/${o.id}`}>{o.objectName}</Link>
                     </td>
                     <td className="mono-sm muted">{o.noradId ?? t.t("common.none")}</td>
+                    <td className="mono-sm muted">{o.cosparId ?? t.t("common.none")}</td>
+                    <td className="muted">{o.objectClass ?? t.t("common.none")}</td>
+                    <td className="num">
+                      {o.massKg === null
+                        ? t.t("common.none")
+                        : t.number(o.massKg, { maximumFractionDigits: 1 })}
+                    </td>
                     <td className="num">{t.number(o.hardBodyRadius, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}</td>
+                    <td className="muted">{o.country ?? t.t("common.none")}</td>
                     <td className="muted">{o.operatorName}</td>
                     <td>
                       <span className={`chip ${o.alive}`}>{String(o.alive)}</span>
@@ -100,7 +112,7 @@ export default async function ObjectsPage() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="empty">
+                    <td colSpan={10} className="empty">
                       {t.t("objectsPage.empty")}{" "}
                       <code className="mono">{"POST /api/v1/object"}</code>
                     </td>

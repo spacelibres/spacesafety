@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { PreferenceDock } from "@/components/PreferenceDock";
-import { useTranslator } from "@/lib/i18n/client";
+import { LanguageSwitcher, useTranslator } from "@/lib/i18n/client";
 
 /**
  * Navigation items, matching the official sidebar (docs/UI-SPEC.md).
@@ -18,6 +17,7 @@ const NAV = [
   { href: "/docs", labelKey: "nav.docs", icon: "docs" },
   { href: "/operators", labelKey: "nav.operators", icon: "people" },
   { href: "/objects", labelKey: "nav.objects", icon: "satellite" },
+  { href: "/catalogue", labelKey: "nav.catalogue", icon: "satellite" },
   { href: "/trajectories", labelKey: "nav.trajectories", icon: "orbit" },
   { href: "/conjunctions", labelKey: "nav.conjunctions", icon: "alert" },
   { href: "/keys", labelKey: "nav.keys", icon: "key" },
@@ -72,16 +72,7 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      {/*
-        The mark comes from the VI masters in public/vi and must not be
-        reconstructed from type. The horizontal lockup suits this navigation
-        rail; the icon carries the compact breakpoint. `alt` is empty because the
-        adjacent nav already names the product — a screen reader would otherwise
-        hear it twice.
-      */}
-      <Link className="sidebar-brand" href="/" aria-label={t.t("app.name")}>
-        <img src="/vi/stacked-primary-dark.svg" alt="" width={152} height={105} />
-      </Link>
+      <div className="sidebar-brand">{t.t("app.name")}</div>
       {showBanner && <div className="sidebar-env">{env}</div>}
       <div className="sidebar-clock">{clock}</div>
 
@@ -92,8 +83,7 @@ export function Sidebar() {
         />
       </div>
 
-      {/* Pushes the preference dock to the bottom-left of the rail. */}
-      <div className="sidebar-spacer" />
+      <LanguageSwitcher />
 
       <nav className="sidebar-nav" aria-label={t.t("a11y.sidebar")}>
         {NAV.map((item) => {
@@ -111,8 +101,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      <PreferenceDock />
     </aside>
   );
 }

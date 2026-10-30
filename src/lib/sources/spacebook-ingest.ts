@@ -72,12 +72,21 @@ export interface TleIngestSummary {
 }
 
 /**
- * Hard-body radius by RCS class, metres.
+ * Hard-body radius by RCS class, metres — a **fallback only**.
  *
- * The vendor's CDM/API model uses a single `hardBodyRadius`; SATCAT gives an RCS
- * size *class*, not a radius. These are deliberately generous mid-points for
- * each class so the collision sphere is never smaller than the real body — a
- * missed conjunction is worse than a conservative one. `512` is the API maximum.
+ * Prefer `object_physics.hbr_mean_m`. Measured against that table, an RCS band is
+ * not a usable estimate:
+ *
+ * | object | band | true `hbrMeanMeters` | error |
+ * |---|---|---|---|
+ * | STARLINK-1008 | LARGE → 5.0 m | 1.139 m | 4.4× too large |
+ * | ISS (ZARYA) | LARGE → 5.0 m | 36.49 m | 14.6× too small |
+ *
+ * The band cannot be fixed by nudging the constants: it has one number for objects
+ * whose radii differ by 32×. It survives because a row with no physical model must
+ * still produce *a* number, and dropping the object entirely would be worse. The
+ * collision model should read the real value whenever it exists, which is 99.98%
+ * of the catalogue.
  */
 const HBR_BY_RCS: Record<string, number> = {
   LARGE: 5.0,

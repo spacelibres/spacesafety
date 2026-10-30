@@ -8,6 +8,12 @@ export const ja: MessageTable = {
   "nav.home": "ホーム",
   "nav.docs": "ドキュメント",
   "nav.operators": "運用者",
+  "catalogue.norad": "NORAD",
+  "catalogue.cospar": "COSPAR",
+  "catalogue.sourceSpaceTrack": "Space-Track",
+  "catalogue.sourceSpacebook": "Spacebook",
+  "catalogue.sourceDiscos": "DISCOS",
+  "nav.catalogue": "カタログ",
   "nav.objects": "オブジェクト",
   "nav.trajectories": "軌道データ",
   "nav.conjunctions": "接近事象",
@@ -244,6 +250,14 @@ export const ja: MessageTable = {
   "chart.noPcReason": "どちらかの軌道データに共分散がない場合、Pc は NULL になります。",
   "chart.pcHistoryLabel": "衝突確率の履歴",
   "chart.cdmSequence": "CDM の連番（{count}）",
+
+  "column.cospar": "COSPAR 識別子",
+
+  "column.objectClass": "物体分類",
+
+  "column.mass": "質量 (kg)",
+
+  "column.country": "国・地域",
 
   "column.hardBodyRadius": "硬体半径 (m)",
   "column.noradId": "NORAD ID",

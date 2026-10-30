@@ -215,27 +215,56 @@ export interface ObjectRow {
   hardBodyRadius: number;
   maneuverability: boolean;
   alive: boolean;
+  /** Catalogue fields from `master_object`; null when the object is not merged. */
+  cosparId: string | null;
+  objectClass: string | null;
+  country: string | null;
+  massKg: number | null;
+  crossSectionM2: number | null;
+  manufacturer: string | null;
 }
 
+/**
+ * The object list, with the merged catalogue fields.
+ *
+ * `objects` holds what an operator uploaded; `master_object` holds what the three
+ * catalogues agree on. They join on NORAD — an object with no NORAD (a manually
+ * added test body) simply has no catalogue row, which is why every field is
+ * nullable rather than defaulted.
+ */
 export function listObjects(limit = 200): ObjectRow[] {
-  const { db } = getDb();
-  const rows = db
-    .select({ o: objects, opName: operators.name })
-    .from(objects)
-    .leftJoin(operators, eq(operators.id, objects.operatorId))
-    .orderBy(objects.objectName)
-    .limit(limit)
-    .all();
+  const { sqlite } = getDb();
+  const rows = sqlite
+    .prepare(
+      `SELECT o.id, o.operator_id AS operatorId, COALESCE(op.name, 'UNKNOWN') AS operatorName,
+              o.object_name AS objectName, o.norad_id AS noradId,
+              o.hard_body_radius AS hardBodyRadius, o.maneuverability, o.alive,
+              m.cospar_id AS cosparId, m.object_class AS objectClass, m.country,
+              m.mass_kg AS massKg, m.cross_section_avg_m2 AS crossSectionM2,
+              m.manufacturer
+         FROM objects o
+         LEFT JOIN operators op ON op.id = o.operator_id
+         LEFT JOIN master_object m ON m.norad_id = o.norad_id
+        ORDER BY o.object_name
+        LIMIT ?`,
+    )
+    .all(limit) as Array<Record<string, unknown>>;
 
   return rows.map((r) => ({
-    id: r.o.id,
-    operatorId: r.o.operatorId,
-    operatorName: r.opName ?? "UNKNOWN",
-    objectName: r.o.objectName,
-    noradId: r.o.noradId,
-    hardBodyRadius: r.o.hardBodyRadius,
-    maneuverability: r.o.maneuverability,
-    alive: r.o.alive,
+    id: String(r.id),
+    operatorId: String(r.operatorId),
+    operatorName: String(r.operatorName),
+    objectName: String(r.objectName),
+    noradId: r.noradId === null ? null : Number(r.noradId),
+    hardBodyRadius: Number(r.hardBodyRadius),
+    maneuverability: Boolean(r.maneuverability),
+    alive: Boolean(r.alive),
+    cosparId: (r.cosparId as string | null) ?? null,
+    objectClass: (r.objectClass as string | null) ?? null,
+    country: (r.country as string | null) ?? null,
+    massKg: r.massKg === null ? null : Number(r.massKg),
+    crossSectionM2: r.crossSectionM2 === null ? null : Number(r.crossSectionM2),
+    manufacturer: (r.manufacturer as string | null) ?? null,
   }));
 }
 
