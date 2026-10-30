@@ -12,6 +12,58 @@
 
 ---
 
+## [0.1.53] - 2026-10-30
+
+实现限流：`api-keys.md` 承诺的 HTTP 503 之前只是个没被调用过的函数。
+
+### 缺口
+
+`api-keys.md`：
+
+> APIs may return HTTP 503 responses if they exceed API rate limits.
+> Our goal is that our rate limits provide no practical impediment to operators
+> using the screening system.
+
+`ApiError.rateLimited()` 写好了、带 `retry_after_seconds` 元数据，**但 `grep` 全仓
+没有任何调用点**。也就是说限流从来不存在，而这个函数的存在让代码看起来像是有。
+
+### 改法
+
+- 新增 `src/lib/api/rate-limit.ts`：每 operator 一个令牌桶（class，符合 §2 对
+  "有状态横切能力"的要求）。**读请求 1 个令牌，写请求 10 个** —— 一个预算同时约束两类
+  流量，不必再引入第二个配置项；只读的客户端拿到全部读速率，上传流则被压到十分之一，
+  大致对应"轮询"与"发布"的差别。
+- 在 `route()` 包装器里、**任何业务逻辑之前**计费，让失控客户端被最便宜的代码路径挡住。
+- 额度读自 `SPACE_SAFETY_RATE_LIMIT_PER_MINUTE`，默认每分钟 600（读），每次调用重新读取，
+  测试与部署都不必重启。
+- 503 现在带 `Retry-After` 头。**不带这个头的 503 在教客户端立刻重试**，正是把限流变成
+  自伤式拒绝服务的方式；这是 `api-keys.md` 那条契约里唯一能让人行动的部分。
+- 空闲一分钟后回收桶，避免长跑进程按 operator 无限累积。
+
+### 为什么默认值不是"官方数值"
+
+文档只给了「不应妨碍正常运营方」这个目标，没给 QPS/窗口/配额。所以默认值按目标反推：
+每几秒轮询、每几分钟上传一条轨迹的客户端永远碰不到 503，而一个跑飞的循环会在耗尽机器
+之前被挡住。这个取舍写在代码注释里，不假装是抄来的常量。
+
+### 验证
+
+`tests/api-contract.test.ts` 扩到 **20 passed**，其中 4 条针对本项：
+
+- 超出上限的请求返回 **503**；
+- 503 带 `Retry-After: 60`；
+- 限流响应体仍是标准信封 `{correlation_id, error, error_type, metadata}`，`error_type = rate_limited`；
+- 写请求消耗的配额是读请求的 10 倍（30 令牌下：写→读→写后，第三次写被拒而读仍可通过）。
+
+线上实测：连续 10 次 `GET /api/v1/operator` 全部 200，首页 200 —— 正常流量不受影响。
+
+`npx tsc --noEmit`、`npm test`（39 套件）、`npm run check` 全过。
+
+### 已知边界
+
+限流是**进程内**的。多实例部署时每个实例各有各的桶，真实上限是「实例数 × 每分钟 600」。
+要跨实例统一，得把桶挪到共享存储（Redis 之类），那是部署形态问题，不在本次范围。
+
 ## [0.1.52] - 2026-10-30
 
 实现 `GET /api/v1/trajectory/:id?reference_frame=` —— 官方文档化的参数，我们之前直接忽略。

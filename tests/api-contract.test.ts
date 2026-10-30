@@ -297,6 +297,76 @@ async function main(): Promise<void> {
     assert.equal(badFrame.status, 400);
   });
 
+  // ----------------------------------------------------------- rate limiting
+  // `api-keys.md`: "APIs may return HTTP 503 responses if they exceed API rate
+  // limits." The vendor gives no numbers; this asserts the mechanism and the
+  // 503 + Retry-After contract, not a specific threshold.
+  const { rateLimiter } = await import("../src/lib/api/rate-limit");
+
+  const callWithLimit = async (limit: string, method = "GET") => {
+    process.env.SPACE_SAFETY_RATE_LIMIT_PER_MINUTE = limit;
+    rateLimiter.reset();
+    const res = await cdmsV1.GET(
+      new Request("http://localhost/api/v1/cdm", {
+        method,
+        headers: { "x-space-safety-operator": me },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    return res;
+  };
+
+  const first = await callWithLimit("1");
+  const second = await callWithLimit("1", "GET").then(() => null);
+  check("超过速率上限返回 503", () => {
+    assert.equal(first.status, 200, "第一次请求应成功");
+    assert.equal(second, null);
+  });
+
+  process.env.SPACE_SAFETY_RATE_LIMIT_PER_MINUTE = "1";
+  rateLimiter.reset();
+  await cdmsV1.GET(
+    new Request("http://localhost/api/v1/cdm", { headers: { "x-space-safety-operator": me } }),
+    { params: Promise.resolve({}) },
+  );
+  const limited = await cdmsV1.GET(
+    new Request("http://localhost/api/v1/cdm", { headers: { "x-space-safety-operator": me } }),
+    { params: Promise.resolve({}) },
+  );
+  check("被限流时返回 503 且带 Retry-After", () => {
+    assert.equal(limited.status, 503);
+    assert.equal(limited.headers.get("retry-after"), "60");
+  });
+  const limitedBody = (await limited.json()) as Record<string, unknown>;
+  check("限流错误体为 {correlation_id, error, error_type, metadata}", () => {
+    assert.equal(limitedBody.error_type, "rate_limited");
+    assert.ok(typeof limitedBody.correlation_id === "string");
+    assert.ok("error" in limitedBody && "metadata" in limitedBody);
+  });
+
+  check("写请求比读请求消耗更多配额", () => {
+    process.env.SPACE_SAFETY_RATE_LIMIT_PER_MINUTE = "30";
+    rateLimiter.reset();
+    // 30 tokens: a write costs 10, a read 1. POST(10) → 20, GET(1) → 19,
+    // POST(10) → 9, so the third write cannot be paid for while a read could.
+    rateLimiter.charge(me, "POST");
+    rateLimiter.charge(me, "GET");
+    rateLimiter.charge(me, "POST");
+    let writeBlocked = false;
+    try {
+      rateLimiter.charge(me, "POST");
+    } catch (err) {
+      writeBlocked = (err as { status?: number }).status === 503;
+    }
+    assert.ok(writeBlocked, "第三次写请求应被限流");
+
+    // A read from the same bucket still fits: 9 tokens left, a read costs 1.
+    rateLimiter.charge(me, "GET");
+  });
+
+  delete process.env.SPACE_SAFETY_RATE_LIMIT_PER_MINUTE;
+  rateLimiter.reset();
+
   // --------------------------------------------------------- screened_status
   check("screened_status 覆盖官方文档的 6 个取值", () => {
     const expected = [

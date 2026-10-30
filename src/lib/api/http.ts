@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { ApiError, errorBody, validationError } from "./errors";
 import { TrajectoryValidationError } from "./validate-trajectory";
 import { authenticateRequest, type Principal } from "./auth";
+import { rateLimiter } from "./rate-limit";
 
 export interface RouteContext {
   request: Request;
@@ -45,6 +46,14 @@ export function route(
           } satisfies Principal)
         : authenticateRequest(request.headers);
 
+      // Charge the request before doing any work, so a runaway client is
+      // stopped by the cheapest possible code path. Reads cost one token,
+      // writes ten — see `rate-limit.ts` for why the vendor's 503 is modelled
+      // this way and what the defaults are.
+      if (principal.operatorId) {
+        rateLimiter.charge(principal.operatorId, request.method);
+      }
+
       const res = await handler({ request, params, correlationId, principal });
       res.headers.set("x-correlation-id", correlationId);
       return res;
@@ -56,7 +65,16 @@ export function route(
 
 export function errorResponse(err: unknown, correlationId: string): Response {
   if (err instanceof ApiError) {
-    return json(err.status, errorBody(err, correlationId), correlationId);
+    // A 503 that does not say when to retry invites a client to retry
+    // immediately, which is how a rate limit turns into a self-inflicted
+    // denial of service. `api-keys.md` documents the 503; the header is the
+    // part of the contract that makes it actionable.
+    const headers: Record<string, string> = {};
+    const retry = err.metadata.retry_after_seconds;
+    if (err.status === 503 && typeof retry === "number") {
+      headers["retry-after"] = String(Math.max(1, Math.ceil(retry)));
+    }
+    return json(err.status, errorBody(err, correlationId), correlationId, headers);
   }
 
   if (err instanceof TrajectoryValidationError) {
