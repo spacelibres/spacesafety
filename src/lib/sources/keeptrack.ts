@@ -35,6 +35,8 @@
 
 import type Database from "better-sqlite3";
 
+import { ACCEPT_ENCODING } from "../net/encoding";
+
 const BASE = "https://api.keeptrack.space/v4";
 
 export function keepTrackApiKey(): string {
@@ -174,7 +176,7 @@ export async function fetchAllKeepTrack(): Promise<FetchResult> {
   let res: Response;
   try {
     res = await fetch(`${BASE}/sats`, {
-      headers: { "X-API-Key": key, Accept: "application/json" },
+      headers: { "X-API-Key": key, Accept: "application/json", "accept-encoding": ACCEPT_ENCODING },
       signal: AbortSignal.timeout(180_000),
     });
   } catch (err) {
@@ -278,7 +280,7 @@ export async function fetchOneKeepTrack(noradId: number): Promise<KeepTrackRecor
   const key = keepTrackApiKey();
   if (!key) return null;
   const res = await fetch(`${BASE}/sat/${noradId}`, {
-    headers: { "X-API-Key": key, Accept: "application/json" },
+    headers: { "X-API-Key": key, Accept: "application/json", "accept-encoding": ACCEPT_ENCODING },
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) return null;

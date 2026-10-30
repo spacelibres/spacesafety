@@ -35,6 +35,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { ACCEPT_ENCODING } from "../net/encoding";
 
 import { request } from "undici";
 
@@ -312,6 +313,7 @@ export class PagedCrawler {
       method: "GET",
       headers: {
         accept: "application/vnd.api+json",
+        "accept-encoding": ACCEPT_ENCODING,
         "discosweb-api-version": DISCOS_API_VERSION,
         authorization: `Bearer ${this.options.token}`,
       },

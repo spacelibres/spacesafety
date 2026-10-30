@@ -210,10 +210,16 @@ npm run release:verify   # 工作区干净 / HEAD 已打 tag / 每条 tag 自带
    实测数据与例外全部记在 `docs/DATA-SOURCES.md`。
 5. **归档层继续用 SHA-256 兜底。** 服务端不给 validator、或给了但内容其实变了，
    `archive.store()` 的同哈希判断仍然保证不写重复档。
-6. **必须显式要 gzip。** `download()` 固定发 `accept-encoding: gzip, deflate`。
-   不能留给运行时默认协商：undici 默认要 brotli，实测在 30 MB 的主体上
-   gzip 传 7.23 MB / 1.3 s，brotli 传 8.59 MB / 2.5 s——更慢也更大。
+6. **每个出口都必须显式要 gzip。** 常量在 `src/lib/net/encoding.ts`
+   （`ACCEPT_ENCODING = "gzip, deflate"`），新增任何出站 HTTP 都要用它，
+   包括自建的 socket 传输。不能留给运行时默认协商：undici 默认要 brotli，
+   实测在 30 MB 的主体上 gzip 传 7.23 MB / 1.3 s，brotli 传 8.59 MB / 2.5 s
+   ——更慢也更大。**不走 `fetch` 的路径必须自己调用 `decodeBody()`**：
+   `http.request` 不解压，把压缩字节交给文本流水线会以"incomplete body"
+   的形式在很久以后才炸，或者更糟——解析出一段被截断的正文。
    仓库里凡是写"约 XX MB"的地方，都是**解压后**大小，不是线路传输量。
+   逐端点的实测压缩比见 `docs/DATA-SOURCES.md`：12 个端点里只有 5 个会压缩，
+   **能省多少由服务端决定**，不得宣称一个客户端做不到的比例。
 7. **验证方式不能只靠连上游。** `tests/http-conditional.test.ts` 起本地 `node:http`
    文件服务，断言第二次请求是 304 且**写入 socket 的主体字节为 0**。
    改这条链路却让该测试变红，就是改坏了。

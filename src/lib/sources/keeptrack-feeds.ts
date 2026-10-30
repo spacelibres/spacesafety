@@ -36,6 +36,8 @@
 
 import type Database from "better-sqlite3";
 
+import { ACCEPT_ENCODING } from "../net/encoding";
+
 const BASE = "https://api.keeptrack.space/v4";
 
 function key(): string {
@@ -46,7 +48,7 @@ async function get<T>(path: string): Promise<{ data: T | null; note?: string }> 
   if (!key()) return { data: null, note: "未配置 API key" };
   try {
     const res = await fetch(`${BASE}${path}`, {
-      headers: { "X-API-Key": key(), Accept: "application/json" },
+      headers: { "X-API-Key": key(), Accept: "application/json", "accept-encoding": ACCEPT_ENCODING },
       signal: AbortSignal.timeout(120_000),
     });
     if (!res.ok) return { data: null, note: `HTTP ${res.status}` };

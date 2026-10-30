@@ -12,6 +12,64 @@
 
 ---
 
+## [0.1.68] - 2026-10-30
+
+按你的决定走压缩。0.1.66 只在 `download()` 里加了 `accept-encoding`，这次把它推到
+**每一个出口**，并把"能省多少"从估计换成逐端点实测。
+
+### 五个传输路径统一用 `ACCEPT_ENCODING`
+
+新增 `src/lib/net/encoding.ts`：`ACCEPT_ENCODING = "gzip, deflate"` 与 `decodeBody()`。
+接进去的是 `download()`、旧 `EphemerisDownloader` 的两条分支、DISCOS 分页爬取、
+KeepTrack 全量 + `/sat/:id` + 五类 feeds、网页抓取与 robots.txt。
+
+**SOCKS5 分支原先是个隐患**：它用裸 `http.request`，既没要压缩，也没有解码器。
+一旦按 `SPACE_SAFETY_PROXY` 走代理，服务端若回 gzip，压缩字节就会被当成正文交给
+完整性检查，表现是"incomplete body"重试四次后失败——看起来像上游坏了。
+现在它发送 `ACCEPT_ENCODING` 并调用 `decodeBody()`，同时删掉
+`content-encoding` / `content-length` 这两个描述"编码后"的响应头。
+`decodeBody()` 对无法解码的编码**直接抛错**，不把压缩字节原样交回去。
+
+### 实测：每日 1.13 GB → 0.63 GB（省 43%）
+
+12 个 Spacebook 端点逐个用 curl 计 `size_download`，完整表格在
+`docs/DATA-SOURCES.md`。要点：
+
+| 端点 | 未压缩 | gzip | 压缩比 |
+|---|---|---|---|
+| `entity/satcat/details` | 69.42 MB | 12.33 MB | **−82%** |
+| `entity/satcat/supplemental` | 14.82 MB | 3.37 MB | −77% |
+| `entity/omm/json` | 30.37 MB | 7.23 MB | −76% |
+| `entity/satcat` | 21.18 MB | 5.72 MB | −73% |
+| `entity/omm/kvn`、`entity/tle`、`csv` 两个、`omm/xml`、`eop`、`weather` | — | 不变 | **0%** |
+
+**12 个端点里只有 5 个会压缩。** 这是服务端行为，客户端选不了，所以不宣称 76%——
+全量只降 43%。`omm/kvn` 试过 `accept-encoding: br` 也不压缩（而且该请求直接挂住超时）。
+
+### 顺带发现：同一份元素集取了三遍
+
+`omm/kvn`（304 MB/日，未压缩）与 `omm/json`（87 MB/日）、`omm/xml`（48 MB/日）
+是**同一批 OMM 记录的不同序列化**，合计 439 MB/日，占全部的 68%。
+kvn 与 xml 的作用是"确认字段集与格式无关"，不是最新鲜的源。
+**没有擅自改频率**——节奏是你定的。要省这 300 MB/日，只需把
+`spacebook-omm-kvn` 的 `refreshMinutes` 从 120 改成 1440，全量降到约 365 MB/日；
+这一步等你点头。
+
+### 验证
+
+- 新增 `tests/http-encoding.test.ts`（9 条）：`decodeBody` 对 identity / gzip /
+  x-gzip / br / zlib-deflate / 裸-deflate 全部往返正确，未知编码抛错，
+  已解码正文二次解码抛错；本地 `node:http` 夹具只在被要求时压缩，
+  断言 `download()` 实际发出的 `accept-encoding` **等于** `ACCEPT_ENCODING`、
+  拿到的是解压后的原文、**写入 socket 的字节数小于原文的 1/4**。
+- 全量 `npm test`：**42 个套件、864 条断言全过**；`npm run check` 十项全过。
+- 真实链路复核：`download()` 打 `/api/entity/omm/json` 返回
+  `content-encoding: gzip`、解压后 30,371,355 字节、合法 JSON。
+- **未端到端跑过的部分**：SOCKS5 分支（本机 `SPACE_SAFETY_PROXY` 为空，没有代理节点）。
+  该分支的解码器已由 `decodeBody` 单测覆盖，但整条代理链路没有实测。
+
+---
+
 ## [0.1.67] - 2026-10-30
 
 把 0.1.66 的四层去重如实记进缺口清单，包括它**没解决**的部分。

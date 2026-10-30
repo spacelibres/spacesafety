@@ -17,6 +17,8 @@
  * names may quote a star name.
  */
 
+import { ACCEPT_ENCODING } from "../net/encoding";
+
 /**
  * Domains whose content counts as a first-party or named-source record.
  *
@@ -130,7 +132,10 @@ export async function robotsAllows(url: string): Promise<{ allowed: boolean; rea
 
   let body: string;
   try {
-    const res = await fetch(robotsUrl, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(robotsUrl, {
+      headers: { "accept-encoding": ACCEPT_ENCODING },
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) return { allowed: true };
     body = await res.text();
   } catch {
@@ -200,6 +205,8 @@ export async function fetchPage(url: string): Promise<FetchedPage> {
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36",
       Accept: "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9",
+      // Small pages, but the rule is the same as on the bulk paths: ask for gzip.
+      "accept-encoding": ACCEPT_ENCODING,
     },
     redirect: "follow",
     signal: AbortSignal.timeout(45_000),

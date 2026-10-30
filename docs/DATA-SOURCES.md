@@ -132,16 +132,52 @@ Space-Track 官方再入预测 26,184 条、公开 CDM 3,161 条、DISCOS 碎片
 一旦上游（或中间的 CDN）开始发 validator，这一层立刻生效，不需要改代码；
 而且它没有代价——不发 validator 时不加条件头，行为与以前完全一致。
 
-**真正省下带宽的是压缩。** 实测 `/api/entity/omm/json`（同一份数据）：
+**真正省下带宽的是压缩。** `src/lib/net/encoding.ts` 里的 `ACCEPT_ENCODING`
+（`gzip, deflate`）被**每个出口**使用：`download()`、旧 `EphemerisDownloader` 的
+fetch 与 SOCKS5 两条分支、DISCOS 分页爬取、KeepTrack 全量与五类 feeds、网页抓取。
+
+不提 brotli 是实测结论。undici 默认会协商到 brotli，而在这里它是更差的选择：
 
 | 请求头 | 传输 | 耗时 |
 |---|---|---|
 | `identity` | 30.37 MB | 7.2 s |
 | `gzip` | **7.23 MB** | **1.3 s** |
-| `br`（undici 默认协商到的） | 8.59 MB | 2.5 s |
+| `br`（原来协商到的） | 8.59 MB | 2.5 s |
 
-所以 `download()` 显式声明 `accept-encoding: gzip, deflate`：比默认的 brotli
-少传 16%，解压也快。上表的 `approxMB` 是**解压后**大小，不是线路上真实传输量。
+**12 个 Spacebook 端点逐个实测（2026-10-30，curl 计 `size_download`）：**
+
+| 端点 | 未压缩 | gzip | 压缩比 | 节奏 | 原 MB/日 | 现 MB/日 |
+|---|---|---|---|---|---|---|
+| `entity/omm/json` | 30.37 | 7.23 | −76% | 2 h | 364 | **87** |
+| `entity/omm/kvn` | 25.31 | 25.31 | 0% | 2 h | 304 | 304 |
+| `entity/omm/xml` | 48.24 | 48.24 | 0% | 1 d | 48 | 48 |
+| `entity/tle` | 4.60 | 4.60 | 0% | 2 h | 55 | 55 |
+| `entity/xp-tle` | 4.15 | 4.15 | 0% | 2 h | 50 | 50 |
+| `entity/satcat` | 21.18 | 5.72 | −73% | 1 d | 21 | **6** |
+| `entity/satcat/details` | 69.42 | 12.33 | −82% | 1 d | 69 | **12** |
+| `entity/satcat/supplemental` | 14.82 | 3.37 | −77% | 2 h | 178 | **40** |
+| `entity/satcat/csv` | 11.24 | 11.24 | 0% | 1 d | 11 | 11 |
+| `entity/satcat/details/csv` | 24.12 | 24.12 | 0% | 1 d | 24 | 24 |
+| `spaceweather/full` | 3.47 | 3.47 | 0% | 1 d | 3 | 3 |
+| `eop/full` | 2.48 | 2.48 | 0% | 1 d | 2 | 2 |
+| **合计** | | | | | **1131** | **644** |
+
+**每日 1.13 GB → 0.63 GB，省 43%（约 0.5 GB/日）。**
+
+只有 5 个端点会压缩，8 个端点不发 `content-encoding`（`omm/kvn` 试过 `br` 也不行）。
+所以**节省比例由端点的服务端决定，不是客户端能选的**。
+下表里的 `approxMB` 是**解压后**大小，从来不是线路传输量。
+
+### 顺带发现的浪费：同一份元素集取了三遍
+
+上表里 `omm/kvn` 是单笔最大开销（**304 MB/日**），而它和 `omm/json`
+（87 MB/日）、`omm/xml`（48 MB/日）是**同一批 OMM 记录的不同序列化**——
+三种编码合计 439 MB/日，占当前 644 MB/日的 68%。kvn 与 xml 存在的理由是
+"确认字段集与格式无关"（见 `downloads.ts` 的 `purpose`），不是最新鲜的数据源。
+
+**没有擅自改频率**：节奏是你定的，而且 kvn 服务端不压缩这一点也不是客户端的错。
+如果要省这 300 MB/日，最直接的一步是把 `spacebook-omm-kvn` 从 2 h 降到 1 d
+（改 `downloads.ts` 一个字段），全量降到约 **365 MB/日**。这一步要不要做，等你决定。
 
 validator 存在 `source_fetches.etag` / `source_fetches.last_modified`，
 由 `SourceLedger.lastValidators()` 读出、`finish()` 写回；

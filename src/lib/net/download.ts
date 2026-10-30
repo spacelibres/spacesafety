@@ -24,6 +24,8 @@
  * what the browser uses and is the route that works here.
  */
 
+import { ACCEPT_ENCODING } from "./encoding";
+
 export interface DownloadOptions {
   timeoutMs?: number;
   retries?: number;
@@ -107,7 +109,7 @@ export async function download(
           "user-agent": BROWSER_USER_AGENT,
           accept: "text/html,application/xhtml+xml,text/plain,*/*",
           acceptLanguage: "en-US,en;q=0.9",
-          "accept-encoding": "gzip, deflate",
+          "accept-encoding": ACCEPT_ENCODING,
           ...conditionalHeaders,
           ...headers,
         },

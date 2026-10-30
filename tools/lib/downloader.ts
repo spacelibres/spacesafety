@@ -47,6 +47,8 @@ import { connect as tlsConnect } from "node:tls";
 
 import { SocksClient } from "socks";
 
+import { ACCEPT_ENCODING, decodeBody } from "../../src/lib/net/encoding";
+
 export interface DownloaderOptions {
   /** Where files land. */
   outDir: string;
@@ -333,6 +335,7 @@ async function fetchThroughSocket(
         "user-agent": UA,
         accept: "text/html,application/xhtml+xml,text/plain,*/*",
         "accept-language": "en-US,en;q=0.9",
+        "accept-encoding": ACCEPT_ENCODING,
       },
       redirect: "follow",
       signal: AbortSignal.timeout(timeoutMs),
@@ -364,6 +367,9 @@ async function fetchThroughSocket(
           "user-agent": UA,
           accept: "text/html,application/xhtml+xml,text/plain,*/*",
           "accept-language": "en-US,en;q=0.9",
+          // The socket path speaks raw `http.request`, so nothing decodes this
+          // for us: see the `decodeBody` call below.
+          "accept-encoding": ACCEPT_ENCODING,
           host: url.hostname,
           connection: "close",
         },
@@ -390,5 +396,16 @@ async function fetchThroughSocket(
   // is released before the promise resolves.
   const chunks: Buffer[] = [];
   for await (const chunk of body) chunks.push(chunk as Buffer);
-  return new Response(Buffer.concat(chunks), { status, headers });
+
+  // `fetch` would have decoded this for us; `http.request` does not. Handing the
+  // caller gzip bytes would make the text completeness check fail with no clue,
+  // so decode here and drop the headers that describe the encoded body.
+  const encoding = headers.get("content-encoding");
+  const decoded = decodeBody(Buffer.concat(chunks), encoding);
+  headers.delete("content-encoding");
+  headers.delete("content-length");
+  // `Response` only accepts an ArrayBuffer-backed view; zlib's return type is
+  // the generic `Buffer`, so copy once. This path already buffers the whole
+  // body, so the copy is not the bottleneck.
+  return new Response(new Uint8Array(decoded), { status, headers });
 }
