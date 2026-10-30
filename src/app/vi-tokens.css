@@ -9,14 +9,14 @@
   --card: #0C1B2A;
   --text: #ECECED;
   --text-dim: #9EA2A6;
-  --text-faint: #73787E;
+  --text-faint: #7E8388;
   --border: #0A2B4D;
   --border-strong: #09396C;
-  --primary: #007BFF;
-  --success: #488C79;
-  --warning: #9D7B3C;
-  --danger: #D05769;
-  --color-primary: #007BFF;
+  --primary: #057EFF;
+  --success: #4A8E7A;
+  --warning: #9E7D3E;
+  --danger: #D25C6D;
+  --color-primary: #057EFF;
   --color-secondary: #FF3733;
   --color-accent: #F4F764;
   --color-success: #176E55;
@@ -25,10 +25,10 @@
   --risk-high: #C01C34;
   --risk-medium: #845A0B;
   --risk-low: #176E55;
-  --risk-unknown: #73787E;
+  --risk-unknown: #7E8388;
   --color-planet: #FF3733;
-  --glow-primary: rgba(0, 123, 255, 0.28);
-  --tint-primary: rgba(0, 123, 255, 0.08);
+  --glow-primary: rgba(5, 126, 255, 0.28);
+  --tint-primary: rgba(5, 126, 255, 0.08);
   --tint-success: rgba(23, 110, 85, 0.12);
   --tint-danger: rgba(192, 28, 52, 0.12);
   --tint-warning: rgba(132, 90, 11, 0.12);
@@ -40,7 +40,7 @@
   --bg-label: #0C2137;
   --ok: #176E55;
   --bad: #C01C34;
-  --operator-ephemeris: #007BFF;
+  --operator-ephemeris: #057EFF;
   --spacex-optical: #F4F764;
   --sidebar-w: 272px;
 }
@@ -52,7 +52,7 @@
   --card: #FCFDFE;
   --text: #122A44;
   --text-dim: #627180;
-  --text-faint: #949FAA;
+  --text-faint: #697179;
   --border: #C9D0D8;
   --border-strong: #929EAC;
   --primary: #006CE0;
@@ -68,7 +68,7 @@
   --risk-high: #C01C34;
   --risk-medium: #845A0B;
   --risk-low: #176E55;
-  --risk-unknown: #949FAA;
+  --risk-unknown: #697179;
   --color-planet: #E00400;
   --glow-primary: rgba(0, 108, 224, 0.28);
   --tint-primary: rgba(0, 108, 224, 0.08);

@@ -112,14 +112,26 @@ export function themeSurfaces(palette: ViPalette, mode: "dark" | "light"): Theme
       card: mix(palette.deep, palette.primary, 0.04),
       text: mix(palette.deep, "#FFFFFF", 0.92),
       textDim: mix(palette.deep, "#FFFFFF", 0.6),
-      textFaint: mix(palette.deep, "#FFFFFF", 0.42),
+      // Faint is the smallest text in the UI (token labels, axis legends), so it
+      // is body copy and must clear 4.5:1 — measured against the *card*, which is
+      // lighter than the page background and therefore the harder target. The raw
+      // 42% blend measured 4.06:1 on the background and 3.91:1 on cards, which is
+      // below the VI's readability floor.
+      textFaint: legibleOnSurfaces(mix(palette.deep, "#FFFFFF", 0.42), [
+        mix(palette.deep, palette.primary, 0.04),
+        palette.deep,
+      ]),
       border: mix(palette.deep, palette.primary, 0.2),
       borderStrong: mix(palette.deep, palette.primary, 0.34),
-      primary: palette.primaryOnDark,
-      // Status colours are tuned for white paper; lift them onto the dark canvas.
-      success: legibleOn(palette.success, palette.deep),
-      warning: legibleOn(palette.warning, palette.deep),
-      danger: legibleOn(palette.danger, palette.deep),
+      primary: legibleOnSurfaces(palette.primaryOnDark, [
+        palette.deep,
+        mix(palette.deep, palette.primary, 0.04),
+      ]),
+      // Status colours are tuned for white paper; lift them onto the dark canvas
+      // and onto the cards that sit on it.
+      success: legibleOnSurfaces(palette.success, [palette.deep, mix(palette.deep, palette.primary, 0.04)]),
+      warning: legibleOnSurfaces(palette.warning, [palette.deep, mix(palette.deep, palette.primary, 0.04)]),
+      danger: legibleOnSurfaces(palette.danger, [palette.deep, mix(palette.deep, palette.primary, 0.04)]),
     };
   }
   return {
@@ -130,13 +142,16 @@ export function themeSurfaces(palette: ViPalette, mode: "dark" | "light"): Theme
     card: palette.card,
     text: palette.ink,
     textDim: palette.muted,
-    textFaint: mix(palette.muted, palette.surface, 0.35),
+    textFaint: legibleOnSurfaces(mix(palette.muted, palette.surface, 0.35), [
+      palette.surface,
+      palette.card,
+    ]),
     border: palette.line,
     borderStrong: mix(palette.line, palette.ink, 0.3),
-    primary: palette.primaryOnLight,
-    success: legibleOn(palette.success, palette.surface),
-    warning: legibleOn(palette.warning, palette.surface),
-    danger: legibleOn(palette.danger, palette.surface),
+    primary: legibleOnSurfaces(palette.primaryOnLight, [palette.surface, palette.card]),
+    success: legibleOnSurfaces(palette.success, [palette.surface, palette.card]),
+    warning: legibleOnSurfaces(palette.warning, [palette.surface, palette.card]),
+    danger: legibleOnSurfaces(palette.danger, [palette.surface, palette.card]),
   };
 }
 
@@ -155,11 +170,47 @@ export function themeSurfaces(palette: ViPalette, mode: "dark" | "light"): Theme
  */
 export function legibleOn(color: string, background: string, target = 4.5): string {
   if (contrastRatio(color, background) >= target) return color;
+  // Direction matters. Blending toward white raises contrast on a dark
+  // background and *lowers* it on a light one, so the light theme needs the
+  // blend toward the ink instead. Doing only the white blend left the light
+  // theme's faint text at 2.46:1 — the lowest contrast anywhere in the tokens.
+  const toward = isLight(background) ? "#000000" : "#FFFFFF";
   for (let step = 1; step <= 100; step += 1) {
-    const candidate = mix(color, "#FFFFFF", step / 100);
+    const candidate = mix(color, toward, step / 100);
     if (contrastRatio(candidate, background) >= target) return candidate;
   }
-  return "#FFFFFF";
+  return toward;
+}
+
+/**
+ * Raise a colour until it clears `target` against **every** surface it can be
+ * drawn on.
+ *
+ * Clearing only the page background is not enough: cards are lighter than the
+ * dark background (and darker than the light one), so a token that passed on the
+ * background could still sit at 3.9:1 on a card. Deriving per-surface was the
+ * bug — the status colours were raised against `deep` and then used on cards.
+ */
+export function legibleOnSurfaces(color: string, backgrounds: string[], target = 4.5): string {
+  const passes = (c: string) => backgrounds.every((b) => contrastRatio(c, b) >= target);
+  if (passes(color)) return color;
+  const toward = backgrounds.some((b) => isLight(b)) ? "#000000" : "#FFFFFF";
+  for (let step = 1; step <= 100; step += 1) {
+    const candidate = mix(color, toward, step / 100);
+    if (passes(candidate)) return candidate;
+  }
+  return toward;
+}
+
+/** Is this colour a light surface? Used only to aim the contrast blend. */
+function isLight(hex: string): boolean {
+  const [r, g, b] = parseHex(hex);
+  const channel = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+  return luminance > 0.5;
 }
 
 /** Blend two hex colours; `weight` is the share of `b`. */

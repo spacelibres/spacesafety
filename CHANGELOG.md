@@ -12,6 +12,70 @@
 
 ---
 
+## [0.1.56] - 2026-10-30
+
+按 VI §9.4 的可读性要求修正色系：**三个 token 低于 4.5:1 的底线**，且 `legibleOn` 只往
+白色方向提升，在浅色主题上是反的。
+
+### 先确认「色系对不对」
+
+先把调色板与官方预设逐字段核对（取
+`https://vi.spacelibre.cn/07-palettes/01-electric-orbit.svg`，标题写着
+"01-electric-orbit / 16-role palette"）：
+
+| 角色 | 官方 | `palette.ts` |
+|---|---|---|
+| PRIMARY | #007BFF | #007BFF |
+| SECONDARY | #FF3733 | #FF3733 |
+| ACCENT | #F4F764 | #F4F764 |
+| DEEP | #0D1721 | #0D1721 |
+| SURFACE / INK / CARD / MUTED / BORDER | #F1F5F9 / #122A44 / #FCFDFE / #627180 / #C9D0D8 | 一致 |
+| SUCCESS / WARNING / ERROR | #176E55 / #845A0B / #C01C34 | 一致 |
+| ON LIGHT / PLANET LIGHT | #006CE0 / #E00400 | 一致 |
+
+**16 个角色一个不差**。手册首页展示的 #002044 / #071424 / #F2F6FC 是 spacelibre 品牌
+基色（手册的通用展示），不是预设 01 的值 —— 预设 01 的背景在官方 SVG 里明确是 #0D1721。
+
+### 真正的违规在可读性
+
+VI 要求正文 ≥ 4.5:1。实测（两套主题 × 页面背景/卡片）：
+
+| token | 改前 | 改后 |
+|---|---|---|
+| `--text-faint`（dark） | **4.06** / 3.91 | 4.55 |
+| `--text-faint`（light） | **2.46** / 2.64 | 4.52 |
+| `--success` / `--warning` / `--danger`（dark，卡片上） | 4.35–4.42 | 4.51–4.55 |
+| `--primary`（dark，卡片上） | **4.38** | 4.51 |
+
+`--text-faint` 正是偏好面板标签与图表轴标签用的那种小字，2.46:1 基本等于看不见。
+
+### 两个根因
+
+1. **`legibleOn` 只会往白色方向混合。** 在深色底上这是对的，在浅色底上越混合对比度越低，
+   所以浅色主题的 faint 一直是坏的。现在按背景亮度决定方向（深底→白，浅底→墨）。
+2. **语义色只对页面背景验证过。** 卡片比深色背景更亮、比浅色背景更暗，于是"背景上达标"
+   的 token 到卡片上就不够了。新增 `legibleOnSurfaces(color, backgrounds[], target)`：
+   必须**同时**对每个会落到的底色达标才返回。
+
+调色板本身没动一个值 —— 变的是从调色板**派生**出来的 token。
+
+### 新增测试：`tests/vi-tokens.test.ts`（7 passed）
+
+- 调色板 16 个角色与官方预设逐字段一致（防止有人手改"更好看"的值）；
+- 彩色标志角色分工（圆环=辅色、轨道=主色）；
+- **两套主题 × 背景与卡片，text / text-dim / text-faint / primary / success / warning / danger 全部 ≥ 4.5:1**；
+- `legibleOnSurfaces` 只会提高不会降低对比度，已达标则原样返回；
+- 深浅两套基底确实不同（不是同一份颜色换名字）。
+
+### 验证
+
+`npx tsc --noEmit`、`npm test`（40 套件 / 此前 39）、`npm run check`、`npm run check:css`
+全过；`npm run vi` 幂等；页面 `/`、`/catalogue`、`/users` 均 200。
+
+### 仍未做
+
+VI 的"推荐面积关系 60 / 25 / 10 / 5"是建议值，本轮没有量化测量整站面积分布。
+
 ## [0.1.55] - 2026-10-30
 
 按 <https://vi.spacelibre.cn>（VI 手册 1.5.34）修正 logo 与栏宽：**侧栏本来是用文字冒充 logo 的**。
