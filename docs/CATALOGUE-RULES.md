@@ -15,7 +15,7 @@
 | `SB-ComSpoc` | Spacebook 内的 ComSpoc 物理模型 | `object_physics` | 71,074 | 推导物理量 |
 | `SB-GCAT` | Spacebook 内的 McDowell GCAT 发射记录 | `object_launch_info` | 69,918 | 历史研究数据 |
 | `DISCOS` | 欧空局 | `discos_objects` | 71,176 | 科研实测 |
-| `KeepTrack` | keeptrack.space | `keeptrack_object` | 34,110 | 编译型参考 |
+| `KeepTrack` | keeptrack.space | `keeptrack_object` | 35,175 | 编译型参考（宽表能对上 34,006 个）|
 
 **在轨对象 36,661 个**（并集 72,401）。
 

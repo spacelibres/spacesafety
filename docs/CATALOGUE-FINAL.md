@@ -4,6 +4,9 @@
 
 本文件是卫星编目数据库的**唯一权威说明**。后续任何改动必须先改本文件。
 
+其他 `docs/CATALOGUE-*.md`、`docs/KEEPTRACK-*.md`、`docs/WIDE-CATALOGUE.md`
+是各自测量时刻的分析记录，**不是定稿**；与本文件冲突时以本文件为准。
+
 ---
 
 ## 一、定稿结论
@@ -29,7 +32,7 @@
 | `spacetrack` | 美国太空军第 18 太空防御中队 | 71,198 | 美国官方基准编目 |
 | `spacebook` | AGI/STK + ComSpoc | 71,088 | 商业推导物理模型 |
 | `discos` | 欧空局 ESA | 71,176 | 科研实测数据 |
-| `keeptrack` | keeptrack.space | 34,110 | 主要贡献直径字段 |
+| `keeptrack` | keeptrack.space | 34,006 | 主要贡献直径字段（`keeptrack_object` 原表 35,175 行，能对上 NORAD 的 34,006 个）|
 | `sbsup` | Spacebook 分析型目标 | 1,112 | 无编目号的临时编号目标 |
 
 **来源集合差异（已查清，非缺陷）：**
@@ -100,7 +103,7 @@ dry_mass_kg         length_m
 | `country` | 发射国/地区代码 |
 | `constellation` | Starlink 12,972、Cosmos 13,358、Iridium 859、Planet 692 等 |
 | `operator` | 运营方 |
-| `purpose` / `purpose_group` | 通信 8,629、对地观测 670、技术试验 444 等 |
+| `purpose` / `purpose_group` | 通信 8,629、对地观测 672、技术试验 444 等 |
 | `regime` | LEO / MEO / GEO / HEO / UNKNOWN |
 | `regime_basis` | `computed`（由远近日点算）/ `stated`（来源声明）/ `unknown` |
 | `bus` | 平台型号 |
@@ -137,7 +140,8 @@ dry_mass_kg         length_m
 | Space-Track 有记录 | 337 | 上游无模型 |
 | 仅 KeepTrack/DISCOS 有 | 91 | 无模型来源 |
 
-337 个候选者中可用其他字段推算的：**仅 1 个**（KeepTrack 直径）。
+337 个候选者中可用其他字段推算的：**2 个**（KeepTrack 直径或横截面积），见
+`tools/hbr-gap-candidates.ts`。
 
 **为什么 Spacebook 有记录也没半径**（抽查 NORAD 51/52/53/115/119）：
 

@@ -19,7 +19,7 @@
  */
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import Database from "better-sqlite3";
 
@@ -131,8 +131,22 @@ check("覆盖率的并集按 OR 计算，不等于单源最大值", () => {
   }
 });
 
-// The list query, copied from `listWideObjects` minus the dynamic WHERE clause.
-// Kept as a literal so that a change to the source query must also change this.
+/**
+ * The list query as the module actually writes it.
+ *
+ * This used to be a hand-copy of `listWideObjects` with the comment "a change to
+ * the source query must also change this". It did not: a comma was left dangling
+ * before `FROM` while the copy stayed valid, `/catalogue` started returning 500,
+ * and this suite still passed. The SQL is now *read from the module*, so there is
+ * nothing to keep in sync.
+ */
+const MODULE_SQL = (() => {
+  const source = readFileSync(`${import.meta.dirname ?? "tests"}/../src/lib/wide-catalogue.ts`, "utf8");
+  const from = source.indexOf("SELECT catalogue_wide.norad_id");
+  const to = source.indexOf("${where.length", from);
+  if (from < 0 || to < 0) throw new Error("listWideObjects 的 SQL 模板换了写法，请更新本检查");
+  return `${source.slice(from, to).trimEnd()}\n ORDER BY catalogue_wide.norad_id LIMIT ? OFFSET ?`;
+})();
 const LIST_SQL = `
   SELECT catalogue_wide.norad_id AS noradId,
          cls.constellation AS constellation,
@@ -146,6 +160,15 @@ const LIST_SQL = `
 check("列表查询可执行（列名、JOIN、排序均无歧义）", () => {
   const rows = sqlite.prepare(LIST_SQL).all(5, 0) as Array<Record<string, unknown>>;
   assert.equal(rows.length, 5);
+});
+
+check("模块里真正的列表 SQL 可执行（防止改动后与副本脱节）", () => {
+  const rows = sqlite.prepare(MODULE_SQL).all(5, 0) as Array<Record<string, unknown>>;
+  assert.equal(rows.length, 5);
+  assert.ok(
+    Object.keys(rows[0]).includes("purposeGroup"),
+    `SELECT 列表缺列：${Object.keys(rows[0]).join(", ")}`,
+  );
 });
 
 check("详情查询可执行", () => {

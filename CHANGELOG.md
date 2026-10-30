@@ -12,6 +12,74 @@
 
 ---
 
+## [0.1.47] - 2026-10-30
+
+让文档与界面说的话和代码做的事一致：状态码、脚本名、依赖、数字、以及一段没人看的死代码。
+
+### 界面文案与事实不符
+
+- `/docs` 页写着未携带证书会收到 **403 RBAC: access denied**，实测 18 个端点全部返回
+  **401**（README 也写 401）。已改为 401。
+- `/keys` 页让用户执行 `npm run cert:request -- --cn … --org "Your Org"` 与
+  `npm run cert:sign` —— **这两个脚本都不存在**，`--org` 也不是参数。真正的入口是
+  `npm run cert:issue -- --ca`（建 CA）与 `npm run cert:issue -- --cn <name> --operator <uuid>`。
+  `scripts/cert.ts` 头部注释里的 `npm run cert:ca` 同样是错的，一并改。
+
+### 删掉一段算错了又没人看的代码
+
+`listWideObjects` 每行都计算一个 `disagreementCount`（"多少个字段来源不一致"），
+但**没有任何页面渲染它**；而它的目标分类项写的是
+
+```sql
+(object_class__spacetrack IS NOT NULL AND object_class__discos IS NOT NULL)
+```
+
+—— 只要两源都有值就记一次"不一致"，命中 **71,174 / 72,401** 行。真正的原因不是两源矛盾，
+而是粒度不同：Space-Track 说 `DEBRIS`，DISCOS 说 `Payload Fragmentation Debris`。
+
+已删除该字段。详情页的 `cmp.disagrees`（逐字段比较实际取值，用户能同时看到两个值）
+保留，那才是正确的做法。
+
+### 依赖与规则对齐
+
+`CONTRIBUTING.md` §1 硬性规定"渲染用 Three.js、禁止第二套 WebGL 封装"，而实际渲染
+全在 `src/components/cesium/`，`grep -rn 'from "three"' src` **零命中**。规则与实现互相
+矛盾，两边都不对。已把 §1 改为 Cesium（并写明从 `/cesium/Cesium.js` 单独加载），
+同时移除从未被 import 的 `three` 与 `@types/three` 依赖。
+
+### 文档数字漂移
+
+| 位置 | 写的 | 实测 |
+|---|---|---|
+| `README.md` | 当前版本 **0.1.5** | 0.1.47 |
+| `README.md` 测试表 | 20 个套件 / 422 条断言 | 38 个套件 / 786 条断言 |
+| `README.md` 快速开始 | `npm run demo` | 该脚本不存在（`demo:seed` / `demo:conjunction`）|
+| `CONTRIBUTING.md` | "这一版对应 0.1.4"、引用 "CHANGELOG 0.1.4" | 该条目不存在；ThreadScratch 欠账改为如实标注「仍未处理」|
+| `docs/CATALOGUE-FINAL.md` | keeptrack 34,110；对地观测 670；半径可推算「仅 1 个」 | 34,006（原表 35,175）；672；2 |
+| `docs/CATALOGUE-RULES.md` | `keeptrack_object` 34,110 行 | 35,175 |
+
+另在 `CATALOGUE-FINAL.md` 开头写明：它是唯一权威，其余 `CATALOGUE-*` / `KEEPTRACK-*` /
+`WIDE-CATALOGUE` 是各自测量时刻的分析记录，冲突时以定稿为准。
+
+### 一个测试自己暴露的漏洞
+
+删 `disagreementCount` 时我在 SELECT 列表末尾留下一个悬空逗号，`/catalogue` 立刻变成
+**500**；而 `tests/wide-query.test.ts` 仍然全绿 —— 因为它执行的是**手工抄写的副本**，
+副本本身没坏。该文件当时的注释正是"改动源查询必须同时改这里"，而它没有任何机制保证这点。
+
+现在测试从 `src/lib/wide-catalogue.ts` **读回真正的 SQL 模板**再执行，没有副本可漂移。
+
+**已验证它能拦住真实故障**：把那个逗号放回去，测试报
+`FAIL 模块里真正的列表 SQL 可执行（防止改动后与副本脱节）`；删掉后恢复 `ok`。
+
+### 验证
+
+- `npx tsc --noEmit` 通过；`npm test` **38 个套件全过**；`npm run check` 全过。
+- `npm run test:wide` **20 passed**（原 19，新增模块 SQL 一致性检查）。
+- 浏览器实测：`/docs` 显示 `401 RBAC: access denied`；`/keys` 显示 `cert:issue -- --ca`
+  与 `cert:issue -- --cn … --operator <uuid>`；`/catalogue` 返回 200 且渲染
+  "Five sources · 72,401 objects"。
+
 ## [0.1.46] - 2026-10-30
 
 把「所有界面文案必须来自字典」变成真的能拦住的规则，并修掉它查出来的文案。

@@ -5,7 +5,7 @@
  * §1). Real deployments would use an existing PKI; this module provides a
  * self-contained CA so the whole flow is exercisable end to end:
  *
- *   npm run cert:ca                    # create the CA (once)
+ *   npm run cert:issue -- --ca        # create the CA (once)
  *   npm run cert:issue -- --cn my-org --operator <uuid>
  *
  * The issued certificate is registered in the `credentials` table, which is what

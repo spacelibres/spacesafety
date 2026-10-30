@@ -3,9 +3,9 @@
 仿制 `space-safety.starlink.com` 的卫星轨道安全与交会筛查平台。
 API 名称、数据结构与服务行为与原站一致；实现与部署方式是我们自己的。
 
-当前版本 **0.1.5** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本 **0.1.47** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-> **版本规则**：每次迭代只递增补丁号（`0.1.5` → `0.1.6` → …），
+> **版本规则**：每次迭代只递增补丁号（`0.1.47` → `0.1.48` → …），
 > 并同步更新 `package.json`、`package-lock.json`、git tag 与 `CHANGELOG.md`。
 > 提交前请确认这四处一致。
 
@@ -46,7 +46,8 @@ npx tsc --noEmit && npm test && npm run check
 ```bash
 npm install
 cp .env.example .env.local   # 按需填写凭据；该文件不入库
-npm run demo                 # 拉取真实 Starlink 星历并筛出交会事件
+npm run demo:seed            # 5 颗真实 Starlink 卫星
+npm run demo:conjunction -- --seed   # 派生合作目标，产生交会事件
 npm run build && npx next start -p 3000
 ```
 
@@ -166,29 +167,12 @@ npm run worker
 
 ```
 $ npm test
-Alfano 2D          11 passed
-Screening          20 passed
-Ephemeris (ITC)    21 passed
-OCM + Frames       24 passed
-Shells              5 passed
-Legacy formats     19 passed
-Optical source     16 passed
-Accuracy           25 passed
-mTLS               20 passed
-Pre-filter         11 passed
-Determinism         9 passed
-Time windows       32 passed
-Compute pool       21 passed
-Thread memory       9 passed
-Chart axes         20 passed
-TLE + SGP4         55 passed
-OCM source         19 passed
-Source policy      29 passed
-Dual feed          13 passed
-API (E2E)          43 passed
-────────────────────────────
-                  422 passed, 0 failed
+…（38 个套件，每个套件独立进程）…
+All 38 suites passed.
 ```
+
+38 个套件、786 条断言。套件清单由 `tests/*.test.ts` 自动发现，
+新增测试文件无需再登记（登记名单曾是手写的，因此漏跑过两个套件）。
 
 ## 压测
 

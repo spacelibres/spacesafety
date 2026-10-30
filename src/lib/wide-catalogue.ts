@@ -119,8 +119,6 @@ export interface WideListRow {
   regime: string | null;
   /** Role group, e.g. `communication`. */
   purposeGroup: string | null;
-  /** Number of fields where the sources do not agree, for the list's badge. */
-  disagreementCount: number;
 }
 
 export interface WideStats {
@@ -160,9 +158,15 @@ export interface ListOptions {
 /**
  * The list view: one summary row per object.
  *
- * Reads only the `__chosen` columns (plus a disagreement count over four
- * compared fields) so the page can serve 72 000 objects without materialising
- * 156 columns per row.
+ * Reads only the `__chosen` columns so the page can serve 72 000 objects without
+ * materialising 156 columns per row.
+ *
+ * It used to also select a `disagreementCount` badge. Nothing ever rendered it,
+ * and its object-class term counted "both sources have a class" as a
+ * disagreement — 71 174 of 72 401 objects — because Space-Track's `DEBRIS` and
+ * DISCOS's `Payload Fragmentation Debris` are different granularities, not a
+ * contradiction. The per-field `disagrees` flag on `getWideObject`, which
+ * compares actual values, is the mechanism the detail page uses.
  */
 export function listWideObjects(options: ListOptions = {}): WideListRow[] {
   if (!wideReady()) return [];
@@ -210,26 +214,14 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
                        decay_date__discos) AS decayDate,
               cls.constellation AS constellation,
               cls.regime AS regime,
-              cls.purpose_group AS purposeGroup,
-              /* How many fields the sources actively disagree about. Computed in
-                 SQL because doing it in JS would mean reading every claim of
-                 every row, which is exactly what the wide layout exists to avoid. */
-              (
-                (object_class__spacetrack IS NOT NULL AND object_class__discos IS NOT NULL) +
-                (mass_kg__discos IS NOT NULL AND mass_kg__spacebook IS NOT NULL
-                   AND abs(mass_kg__discos - mass_kg__spacebook) > 0.01 * max(mass_kg__discos, mass_kg__spacebook)) +
-                (inclination_deg__spacetrack IS NOT NULL AND inclination_deg__spacebook IS NOT NULL
-                   AND abs(inclination_deg__spacetrack - inclination_deg__spacebook) > 0.5) +
-                (decay_date__spacetrack IS NOT NULL AND decay_date__discos IS NOT NULL
-                   AND decay_date__spacetrack <> decay_date__discos)
-              ) AS disagreementCount
+              cls.purpose_group AS purposeGroup
          FROM wide.catalogue_wide
          LEFT JOIN object_classification cls ON cls.norad_id = catalogue_wide.norad_id
         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
         ORDER BY catalogue_wide.norad_id
         LIMIT ? OFFSET ?`,
     )
-    .all(...params, limit, offset) as Array<WideListRow & { disagreementCount: number }>;
+    .all(...params, limit, offset) as WideListRow[];
 
   return rows;
 }

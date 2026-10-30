@@ -1,6 +1,6 @@
 {
   "name": "spacesafety",
-  "version": "0.1.46",
+  "version": "0.1.47",
   "private": true,
   "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
@@ -116,7 +116,6 @@
     "satellite.js": "^7.1.0",
     "server-only": "^0.0.1",
     "socks": "^2.8.10",
-    "three": "^0.171.0",
     "undici": "^7.2.0",
     "zod": "^3.24.1"
   },
@@ -130,7 +129,6 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "@types/three": "^0.171.0",
     "drizzle-kit": "^0.30.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

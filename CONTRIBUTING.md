@@ -3,7 +3,7 @@
 本文件是项目的**约束性规范**。任何代码改动、提交、发布都必须满足这里的条款；
 与之冲突的实现不予合入。规则的修改本身也需要走版本流程，并写入 `CHANGELOG.md`。
 
-版本：这一版对应 `0.1.4`。
+版本：这一版对应 `0.1.47`。
 
 ---
 
@@ -13,7 +13,7 @@
 |---|---|---|
 | 语言 | **TypeScript** | 全仓库只用 TS。禁止新增 Python、Shell 业务脚本、.mjs 工具 |
 | 框架 | **Next.js 15**（App Router） | 页面与 API 路由都放在 `src/app` |
-| 渲染 | **Three.js** | 轨道可视化统一用 three；禁止引入第二套 WebGL 封装 |
+| 渲染 | **Cesium** | 轨道可视化统一用 Cesium（`src/components/cesium/`）；从 `/cesium/Cesium.js` 单独加载，不进打包器；禁止引入第二套 3D/WebGL 封装 |
 | UI | React 19 + 现有 CSS 变量体系 | 不引入 UI 框架，保持与官方界面截图一致 |
 | 存储 | SQLite（better-sqlite3 + drizzle） | 单文件数据库，路径由 `SPACE_SAFETY_DB` 指定 |
 | 计算端通信 | gRPC（`@grpc/grpc-js`） | 入口层与计算节点分离，包名 `spacesafety.worker.v1` |
@@ -35,8 +35,10 @@
 5. 纯数学函数（`linalg.ts`、`alfano.ts` 的公式）保持函数式**不违反本条**：
    它们无状态、无依赖，包装成对象反而降低可测性。规则只约束**有状态**的东西。
 
-已识别的待重构项（见 `CHANGELOG` 0.1.4）：`src/worker/screening-thread.ts` 的
-模块级可变缓存（`sharedTracks`、`sources`、`parsed` 等）应收敛为一个 `ThreadScratch` 类。
+**仍未处理**：`src/worker/screening-thread.ts` 的模块级可变缓存
+（`sharedTracks`、`sources`、`parsed`）与模块级 `let` 计数（`usedBytes`、
+`cachedChars`）应收敛为一个 `ThreadScratch` 类。此前这里写着"见 CHANGELOG 0.1.4"，
+而该条目并不存在 —— 记为已知欠账，不假装已排期。
 
 ## 3. 脚本与工具统一用 TypeScript
 
@@ -72,7 +74,7 @@
 
 视觉规范以 <https://github.com/spacelibres/vi> 为准，本仓库只是消费者：
 
-1. **颜色只有一个来源**：`src/lib/vi/palette.ts`。CSS、Three.js、SVG、图标
+1. **颜色只有一个来源**：`src/lib/vi/palette.ts`。CSS、Cesium、SVG、图标
    一律从它读取。禁止在任何组件、样式表或场景代码里写十六进制色值——
    `npm run check` 会拦截。
 2. **token 与资源由脚本生成**：`npm run vi` 生成 `src/app/vi-tokens.css` 与

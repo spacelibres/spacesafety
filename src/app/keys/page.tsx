@@ -27,10 +27,11 @@ export default async function KeysPage() {
         <div className="banner info">
           {t.t("keys.mtlsLead")} <strong>{t.t("keys.mtlsMutualTls")}</strong>
           {t.t("keys.mtlsNotTokens")}{" "}
+          <code className="mono">npm run cert:issue -- --ca</code>
+          {t.t("keys.mtlsThen")}{" "}
           <code className="mono">
-            npm run cert:request -- --cn your-org --org &quot;Your Org&quot;
+            npm run cert:issue -- --cn your-org --operator &lt;uuid&gt;
           </code>
-          {t.t("keys.mtlsThen")} <code className="mono">npm run cert:sign</code>
           {t.t("keys.mtlsResult")}
         </div>
 

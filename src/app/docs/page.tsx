@@ -39,7 +39,7 @@ export default async function DocsPage() {
 
         <div className="banner info">
           {t.t("docs.authLead")}{" "}
-          <code className="mono">403 RBAC: access denied</code>.
+          <code className="mono">401 RBAC: access denied</code>.
         </div>
 
         <section className="card" style={{ marginBottom: 16 }}>
