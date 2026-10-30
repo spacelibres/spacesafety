@@ -495,4 +495,71 @@ export function promoteCandidates(): number {
   return promoted;
 }
 
+/**
+ * Every value the vendor documents for `screened_status`.
+ *
+ * `docs/starlink-space-safety/api__get-all-trajectories.md` lists six:
+ *
+ *   screened · not_screened · candidate_to_definitive ·
+ *   unknown_trajectory_fetching_error · superseded · failed_interpolation
+ *
+ * The last two were missing here, which meant a trajectory the compute node
+ * could not fetch, or could not sample, sat at `not_screened` forever and looked
+ * like a queue that had simply not run yet. They are terminal and are set from
+ * the failure classification in `src/lib/grpc/server.ts`.
+ */
+export const SCREENED_STATUSES = [
+  "not_screened",
+  "screened",
+  "superseded",
+  "candidate_to_definitive",
+  "unknown_trajectory_fetching_error",
+  "failed_interpolation",
+] as const;
+
+export type ScreenedStatus = (typeof SCREENED_STATUSES)[number];
+
+/**
+ * Translate a compute-node failure into the documented trajectory status.
+ *
+ * The worker reports a free-text error, so classification is by intent rather
+ * than by an error code: a trajectory it never received is a *fetching* error,
+ * and one it received but could not sample is an *interpolation* failure.
+ * Anything else stays `null` — an unrecognised failure must not invent a status
+ * that claims to know what went wrong.
+ */
+export function statusForFailure(error: string | undefined | null): ScreenedStatus | null {
+  const text = (error ?? "").toLowerCase();
+  if (!text) return null;
+  if (/not available|fetch|download|missing file|no such trajectory/.test(text)) {
+    return "unknown_trajectory_fetching_error";
+  }
+  if (/interpolat|sample point|sampling|outside .*span|state at /.test(text)) {
+    return "failed_interpolation";
+  }
+  return null;
+}
+
+/**
+ * Record a terminal screening outcome on a trajectory.
+ *
+ * Only `not_screened` trajectories move: a trajectory that already produced its
+ * result must not be relabelled by a later job that happened to involve it.
+ */
+export function markTrajectoryStatus(
+  trajectoryId: string,
+  status: ScreenedStatus,
+  at = new Date().toISOString(),
+): boolean {
+  const { db } = getDb();
+  const res = db
+    .update(trajectories)
+    .set({ screenedStatus: status, screenedAt: at })
+    .where(
+      and(eq(trajectories.id, trajectoryId), eq(trajectories.screenedStatus, "not_screened")),
+    )
+    .run();
+  return res.changes > 0;
+}
+
 export { closeDb };

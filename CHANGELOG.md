@@ -12,6 +12,69 @@
 
 ---
 
+## [0.1.51] - 2026-10-30
+
+按官方快照补齐三个 API 契约缺口：弃用端点、复数路径、两个缺失的状态值。
+
+本轮起把「严格仿制 space-safety.starlink.com」的核对结果落成代码。基准是
+`docs/starlink-space-safety/` 的官方快照原文，不是我们的二次整理稿。
+
+### 1. `GET /api/v1/event` 与 `GET /api/v1/cdm` 之前是 404
+
+`tutorial-basics__cdms.md` 原文：
+
+> The (deprecated) `GET /api/v1/event` and `GET /api/v1/cdm` endpoints will only
+> return results based on owner/operator data.
+
+它们**在上游仍然存在**（虽然 `API-ENDPOINTS.md` 的 18 条清单里没有），而我们返回 404。
+按教程写的客户端会直接失败。现已补齐，并严格按原文的口径限定：
+
+- 只返回调用方 operator 参与的交会；
+- 只返回两侧轨迹都是 `operator_ephemeris` 的行 —— 这是"owner/operator data"排除
+  Stargaze（`spacex_optical`）CDM 的方式，那些只有 `/api/v2/cdm` 能看到；
+- 排除 hypothetical CDM，与 v2 流一致。
+
+响应形状原文未规定，因此沿用文档化的 v1 字段名（`created_at` / `tca` /
+`probability_of_collision`），分页用 `{result, token}`。这个选择写在路由文件的注释里。
+
+### 2. `GET /api/v2/cdms`（复数）之前是 404
+
+同一份 `cdms.md` 又写：
+
+> Operators **must** use the `GET /api/v2/cdms` endpoint to receive Stargaze CDMs.
+
+而端点页与 `API-ENDPOINTS.md` 都写单数 `/v2/cdm`。**官方文档自相矛盾**，所以两个拼法
+都能用：新增 `src/app/api/v2/cdms/route.ts` 直接 `export { GET } from "../cdm/route"`，
+一份实现两个路径，不会漂移。
+
+### 3. `screened_status` 少两个官方取值
+
+`api__get-all-trajectories.md` 明确列出 6 个值，我们只有 4 个：
+
+| 官方取值 | 之前 |
+|---|---|
+| `screened` / `not_screened` / `superseded` / `candidate_to_definitive` | ✅ |
+| `unknown_trajectory_fetching_error` | ❌ |
+| `failed_interpolation` | ❌ |
+
+后果不是少两个字符串，而是**故障被伪装成待办**：计算节点拿不到轨迹、或无法插值时，
+轨迹一直停在 `not_screened`，看起来像队列还没轮到。
+
+现在 `screening-service.ts` 导出 `SCREENED_STATUSES` / `statusForFailure()` /
+`markTrajectoryStatus()`，并由 gRPC 结果处理调用：超时仍然重排（不写状态），真实失败
+按错误语义归类写入。无法识别的失败返回 `null`，**不臆造状态**。
+
+### 验证
+
+- 新增 `tests/api-contract.test.ts`（**10 passed**）：它**真的调用 route handler**
+  （`tests/api.test.ts` 的注释声称如此，实际从未执行任何 `route.ts`）。覆盖：两个弃用
+  端点返回 `{result, token}`、只含调用方数据、排除 spacex_optical、v1 字段名、
+  复数路径与单数路径结果一致、缺少必填过滤参数返回 400、6 个状态值齐全、失败映射与
+  「不臆造」三例。
+- 线上实测（dev 服务）：`/api/v2/cdms`、`/api/v2/cdm`、`/api/v1/cdm`、
+  `/api/v1/event` 全部 **200**（之前两个 404）。
+- `npx tsc --noEmit`、`npm test`（39 套件）、`npm run check` 全过。
+
 ## [0.1.50] - 2026-10-30
 
 把图表里 31 处自己写死的十六进制色值收回到调色板 —— §9 一直说这件事被拦着，其实没拦。

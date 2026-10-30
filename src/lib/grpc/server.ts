@@ -28,7 +28,9 @@ import { screeningJobs } from "@/db/schema";
 import {
   claimPendingJobs,
   ingestScreeningResult,
+  markTrajectoryStatus,
   requeueStale,
+  statusForFailure,
 } from "@/lib/api/screening-service";
 
 import {
@@ -290,15 +292,29 @@ function handleResult(result: ScreeningResultMsg, workerId: string): void {
   }
 
   if (result.status !== "JOB_STATUS_COMPLETED") {
+    const failed = result.status !== "JOB_STATUS_TIMEOUT";
     db.update(screeningJobs)
       .set({
-        status: result.status === "JOB_STATUS_TIMEOUT" ? "pending" : "failed",
+        status: failed ? "failed" : "pending",
         lastError: result.error || result.status,
         completedAt: new Date().toISOString(),
         workerId,
       })
       .where(eq(screeningJobs.id, job.id))
       .run();
+
+    // A timeout is retried, so it says nothing about the trajectory. A real
+    // failure does: the vendor distinguishes "we could not fetch this
+    // trajectory" from "we could not sample it", and leaving both at
+    // `not_screened` made a stuck trajectory look like a pending one.
+    if (failed) {
+      const status = statusForFailure(result.error);
+      if (status) {
+        for (const id of [job.trajectoryId, job.againstTrajectoryId]) {
+          if (id) markTrajectoryStatus(id, status);
+        }
+      }
+    }
     return;
   }
 
