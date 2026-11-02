@@ -600,7 +600,8 @@ export function latestTrajectoryStates(objectId: string) {
     .get();
   if (!row) return null;
   try {
-    return normaliseTrajectory(row.text).states;
+    // A stored trajectory is read, not re-accepted: no future-window rule.
+    return normaliseTrajectory(row.text, { enforceFutureWindow: false }).states;
   } catch {
     return null;
   }

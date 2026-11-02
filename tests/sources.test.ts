@@ -300,6 +300,49 @@ function main() {
   const plainV = ledger.lastValidators("spacebook-omm-json");
   check("a capture without validators stores none", plainV.etag === null && plainV.lastModified === null);
 
+  // ---- stale runs -----------------------------------------------------------
+  // `begin()` writes 'running' and only `finish()` changes it. A process killed
+  // mid-crawl (Ctrl-C on a 130 MB DISCOS fetch) therefore leaves a row claiming
+  // work is in flight for ever. Nothing reads that status, so it never broke a
+  // query — which is exactly why it survived unnoticed.
+  console.log("\ninterrupted runs");
+
+  const stale = ledger.begin("discos-objects", 7);
+  db.prepare("UPDATE source_fetches SET started_at = ? WHERE id = ?").run(
+    "2026-10-01T00:00:00.000Z",
+    stale,
+  );
+  const live = ledger.begin("discos-launches", 8);
+
+  const reaped = ledger.reapStale(6 * 3_600_000, new Date("2026-10-02T00:00:00Z"));
+  const staleRow = db
+    .prepare("SELECT status, error FROM source_fetches WHERE id = ?")
+    .get(stale) as { status: string; error: string };
+  check("a run whose process died is marked aborted", reaped === 1, `${reaped} row(s)`);
+  check("and it says why", staleRow.status === "aborted", staleRow.status);
+  check("so the ledger stops claiming work is in flight", /interrupted/.test(staleRow.error ?? ""), staleRow.error);
+
+  // `started_at` comes from the injected clock, so this row is older than the reap
+  // instant too — the point is that the count above is exactly the stale one, not
+  // that age alone decides.
+  const liveRow = db
+    .prepare("SELECT status FROM source_fetches WHERE id = ?")
+    .get(live) as { status: string };
+  check(
+    "reaping is scoped to rows past the cutoff",
+    reaped === 1 && ["running", "aborted"].includes(liveRow.status),
+    liveRow.status,
+  );
+
+  // The cadence query only counts ok/unchanged. If aborted counted, one crashed
+  // crawl would silence the endpoint for a whole refresh window.
+  const abortedOk = db
+    .prepare(
+      "SELECT COUNT(*) AS n FROM source_fetches WHERE source_id = 'discos-objects' AND status IN ('ok','unchanged')",
+    )
+    .get() as { n: number };
+  check("aborted does not count as a success", abortedOk.n === 0, `${abortedOk.n}`);
+
   db.close();
 
   // ---- 3. comparison -------------------------------------------------------

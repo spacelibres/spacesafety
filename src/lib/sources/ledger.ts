@@ -27,7 +27,12 @@ import { SOURCES, type SourceDefinition } from "./registry";
 
 export interface FetchRecord {
   sourceId: string;
-  status: "running" | "ok" | "failed" | "unchanged";
+  /**
+   * `aborted` is written by `reapStale()`, not by the caller: it marks a fetch
+   * whose process died before `finish()` ran. Keeping it in this union means the
+   * four statuses a reader can see are the four that exist.
+   */
+  status: "running" | "ok" | "failed" | "unchanged" | "aborted";
   bytes?: number;
   records?: number;
   path?: string | null;
@@ -123,6 +128,35 @@ export class SourceLedger {
       .prepare("UPDATE data_sources SET last_attempt_at = ?, updated_at = ? WHERE id = ?")
       .run(this.now(), this.now(), sourceId);
     return id;
+  }
+
+  /**
+   * Close fetch records whose process died mid-run.
+   *
+   * `begin()` writes `running`, and only `finish()` changes it. If the process is
+   * killed — Ctrl-C on a 130 MB DISCOS crawl is the ordinary case — the row stays
+   * `running` for ever, which is a ledger that lies: it claims work is in flight
+   * when nothing is. Nothing else reads that status, so it never broke a query,
+   * which is exactly why it survived.
+   *
+   * Runs at the start of a download, before any new `running` row exists, so it
+   * cannot reach this run's own records. The cutoff is deliberately generous: a
+   * long crawl is legitimately open for many minutes.
+   *
+   * @returns the number of rows marked `aborted`.
+   */
+  reapStale(olderThanMs = 6 * 3_600_000, now = new Date()): number {
+    const cutoff = new Date(now.getTime() - olderThanMs).toISOString();
+    const result = this.sqlite
+      .prepare(
+        `UPDATE source_fetches
+            SET status = 'aborted',
+                finished_at = COALESCE(finished_at, @now),
+                error = COALESCE(error, 'interrupted: no finish() call')
+          WHERE status = 'running' AND started_at < @cutoff`,
+      )
+      .run({ now: now.toISOString(), cutoff });
+    return result.changes;
   }
 
   /** Close a fetch record and update the source's last-success/error. */

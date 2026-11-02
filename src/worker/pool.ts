@@ -287,13 +287,15 @@ export function createPool(opts: PoolOptions = {}): ScreeningPool {
     if (!companionId || !companionRaw) return raw;
 
     try {
-      const own = normaliseTrajectory(raw);
+      const own = normaliseTrajectory(raw, { enforceFutureWindow: false });
       const combined = combineFeeds([
         { trajectoryId: id, format: formatOf(raw), states: toItcStates(own.states) },
         {
           trajectoryId: companionId,
           format: formatOf(companionRaw),
-          states: toItcStates(normaliseTrajectory(companionRaw).states),
+          states: toItcStates(
+            normaliseTrajectory(companionRaw, { enforceFutureWindow: false }).states,
+          ),
         },
       ]);
       // A single feed means the merge found nothing to borrow; `raw` is equivalent.
@@ -327,7 +329,9 @@ export function createPool(opts: PoolOptions = {}): ScreeningPool {
 
     let sample: TrajectorySampleMsg;
     try {
-      const normalised = normaliseTrajectory(mergedText ?? raw);
+      const normalised = normaliseTrajectory(mergedText ?? raw, {
+        enforceFutureWindow: false,
+      });
       sample = {
         trajectoryId: id,
         objectId: fallback.objectId || id,

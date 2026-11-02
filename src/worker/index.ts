@@ -348,7 +348,11 @@ export async function materialise(
   const raw = await resolve(sample.trajectoryId);
   if (!raw) return null;
 
-  const normalised = normaliseTrajectory(raw);
+  // The future-window rule belongs to *upload*: it rejects an ephemeris that
+  // ends in the past, which is a sensible thing to say to an operator sending a
+  // file now. Applying it here means screening a stored trajectory fails a day
+  // after it was accepted — the arc did not become invalid, the clock moved.
+  const normalised = normaliseTrajectory(raw, { enforceFutureWindow: false });
   return {
     trajectoryId: sample.trajectoryId,
     objectId: sample.objectId || sample.trajectoryId,

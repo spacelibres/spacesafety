@@ -323,7 +323,38 @@ async function main(): Promise<void> {
   const { normaliseTrajectory } = await import("../src/lib/api/validate-trajectory");
   check("两种帧的产物都能被自家解析器读回，且 |r| 不变", () => {
     const mag = (v: readonly number[]) => Math.hypot(v[0], v[1], v[2]);
-    const source = normaliseTrajectory(oemText, { enforceFutureWindow: false }).states[0];
+    // ------------------------------------ 未来窗口规则只属于上传，不属于筛选
+  // 规则原话是"vendor 要的是未来星历"，所以**上传时**拒绝一条整段都在过去的星历
+  // 是对的。但把同一条规则套在筛选/读取上，意味着今天传上去的星历明天就筛不了：
+  // 失效的不是那条弧段，是时钟走了一格。tests/thread-memory.test.ts 就是被这条
+  // 误置的规则拖垮的（缓存星历 2026-10-30 过期，2026-11-02 跑就全挂）。
+  const staleLines = oemLines.map((line) =>
+    // 把时间整体挪到 2020 年：格式合法、状态数足够，只是窗口早已过去。
+    line.replace(/2026-/g, "2020-"),
+  );
+  const staleOem = staleLines.join("\n");
+
+  check("上传路径仍然拒绝整段在过去的星历", () => {
+    try {
+      normaliseTrajectory(staleOem);
+    } catch (err) {
+      const issues = (err as { issues?: Array<{ reason: string }> }).issues ?? [];
+      const reasons = issues.map((i) => i.reason);
+      assert.ok(
+        reasons.some((r) => r.includes("in the past")),
+        `拒绝理由里没有"未来窗口"：${reasons.join(" / ")}`,
+      );
+      return;
+    }
+    assert.fail("整段在过去的星历被上传路径接受了");
+  });
+
+  check("筛选/读取路径不再因窗口过期而拒绝", () => {
+    const ok = normaliseTrajectory(staleOem, { enforceFutureWindow: false });
+    assert.equal(ok.states.length, 8);
+  });
+
+  const source = normaliseTrajectory(oemText, { enforceFutureWindow: false }).states[0];
     for (const frame of ["itrf", "eme2000"] as const) {
       const body = frame === "itrf" ? asItrf.body : asEme.body;
       const back = normaliseTrajectory(body, { enforceFutureWindow: false });

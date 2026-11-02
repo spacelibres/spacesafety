@@ -183,9 +183,24 @@ validator 存在 `source_fetches.etag` / `source_fetches.last_modified`，
 由 `SourceLedger.lastValidators()` 读出、`finish()` 写回；
 `--force` 时不发送条件头（否则服务器回 304 就把手工强制刷新吃掉了）。
 
-`source_fetches.status` 因此有四个值：`ok`（有新字节）/ `unchanged`（304 或同哈希）/
-`failed` / `running`。判断是否到期用 `status IN ('ok','unchanged')`——两者都算"检查过了"；
-只有 `ok` 才触发重建。
+`source_fetches.status` 因此有五个值：`ok`（有新字节）/ `unchanged`（304 或同哈希）/
+`failed` / `running` / `aborted`（进程被杀，`reapStale()` 在下次启动时补记）。
+判断是否到期用 `status IN ('ok','unchanged')`——两者都算"检查过了"；只有 `ok` 才触发重建；
+`aborted` 不算成功，所以一次崩溃的抓取不会把该端点静默掉一整个刷新周期。
+
+### 怎么观察"数据更新得怎么样"
+
+```bash
+npm run data:schedule -- --status         # 每个端点：频率 / 上次成功 / 是否到期
+npm run data:schedule -- --once           # 按节奏跑一轮（到期才抓，抓完才重建）
+npm run data:inventory                    # 逐表：行数 / 重复 / 缺口 / 编目关联率 / 消费方
+sqlite3 data/catalogue.sqlite \
+  "SELECT source_id, status, bytes, started_at FROM source_fetches ORDER BY started_at DESC LIMIT 10"
+```
+
+`--status` 只看"上次成功"，账本才是逐次的证据：`ok` 与 `unchanged` 的条数直接说明
+这一轮有没有真的传输——**四个源目前都不发 validator，所以正常情况下一轮里
+`unchanged` 永远是 0**，看到 0 不是坏了。
 
 验证不连上游：`tests/http-conditional.test.ts` 起本地 `node:http` 文件服务，
 断言第二次请求是 `304` 且写入 socket 的主体字节为 **0**。

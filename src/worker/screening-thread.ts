@@ -418,7 +418,9 @@ function feedsFor(id: string): FeedSource[] {
 function statesOf(id: string, raw: string): ItcState[] {
   const hit = stateCache.get(id);
   if (hit) return hit;
-  const states = normaliseTrajectory(raw).states.map((s) => ({
+  // Screening, not upload: see the note in `worker/index.ts`. A stored arc keeps
+  // working after its window closes.
+  const states = normaliseTrajectory(raw, { enforceFutureWindow: false }).states.map((s) => ({
     ms: s.ms,
     position: [s.position[0], s.position[1], s.position[2]] as [number, number, number],
     velocity: [s.velocity[0], s.velocity[1], s.velocity[2]] as [number, number, number],

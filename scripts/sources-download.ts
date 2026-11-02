@@ -86,6 +86,11 @@ async function main(): Promise<void> {
   const ledger = new SourceLedger(sqlite);
   ledger.seedRegistry();
 
+  // A killed run leaves its ledger row at 'running' for ever. Close those before
+  // opening any new one, so the ledger never claims work is in flight that isn't.
+  const reaped = ledger.reapStale();
+  if (reaped > 0) console.log(`\n  closed ${reaped} interrupted fetch record(s)\n`);
+
   const archive = new SourceArchive();
   const auth = new SpacebookAuth();
 
