@@ -8,7 +8,7 @@ import {
   CONJUNCTION_SORTS,
   listConjunctions,
   listPublishedConjunctions,
-  publishedConjunctionCounts,
+  publishedMessageCount,
   riskThresholds,
   type RiskBand,
 } from "@/lib/queries";
@@ -55,13 +55,21 @@ export default async function ConjunctionsPage({
   const limits = riskThresholds();
   const t = await getTranslator();
 
-  const counts = publishedConjunctionCounts();
   const sort = parseSort(sp, CONJUNCTION_SORTS, { key: "pc", dir: "desc" });
   const sorted = sp.sort !== undefined;
   // One query, then filter/slice in memory: the whole set is ~500 rows, so a
   // separate count query per band would be three round-trips for the same data.
   const published = listPublishedConjunctions(100_000, new Date(), sorted ? sort : undefined);
   const own = listConjunctions(LIMIT);
+  // The conjunction and upcoming totals are already in `published` (it is the whole
+  // set); only the message total needs a query, and it needs a cheap one. Asking
+  // `publishedConjunctionCounts()` here re-ran the clustering above for the same
+  // numbers — 42 ms per request to recompute what was just computed.
+  const counts = {
+    messages: publishedMessageCount(),
+    conjunctions: published.length,
+    upcoming: published.filter((c) => c.tcaInFuture).length,
+  };
 
   const BANDS = ["high", "medium", "low", "unknown"] as const;
   const requested = sp.risk;

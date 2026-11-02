@@ -198,8 +198,14 @@ export function listConjunctions(limit = 100): ConjunctionRow[] {
  *
  * The pair is order-insensitive (\`MIN\`/\`MAX\` of the two NORAD ids): the same
  * conjunction also arrives with \`object1\`/\`object2\` swapped a few minutes later.
+ *
+ * `extraCtes` is appended inside the `WITH` list so a caller can add a CTE that
+ * resolves the target cluster **once**. Building it as three correlated subqueries
+ * (`getPublishedConjunction` used to) makes SQLite evaluate the whole gaps-and-
+ * islands scan per subquery, which is why that one lookup took 76 ms.
  */
-const CDM_AS_CONJUNCTIONS = `
+function cdmAsConjunctions(extraCtes = ""): string {
+  return `
   WITH base AS (
     SELECT cdm_id, created, tca, min_range_km, pc,
            sat1_norad, sat1_name, sat1_object_type,
@@ -232,8 +238,11 @@ const CDM_AS_CONJUNCTIONS = `
              PARTITION BY lo, hi, cluster ORDER BY created DESC, cdm_id DESC
            ) AS rn
       FROM clustered
-  )
+  )${extraCtes}
 `;
+}
+
+const CDM_AS_CONJUNCTIONS = cdmAsConjunctions();
 
 /**
  * One conjunction, described by its **newest** CDM message.
@@ -299,8 +308,13 @@ export function listPublishedConjunctions(
   // The default order is "still ahead first, then by risk" — an actionable row
   // before an interesting one. An explicit sort replaces it: a reader who asks for
   // TCA ascending wants TCA ascending, not "the upcoming ones, sorted by TCA".
+  //
+  // The explicit branch goes through `orderByClause`, not a direct lookup: an
+  // unknown key would otherwise interpolate `undefined` into the statement and the
+  // page would 500 instead of falling back, which is the whole reason that helper
+  // exists. (`parseSort` already clamps, so this is the second line of defence.)
   const order = sort
-    ? `${CONJUNCTION_SORTS[sort.key]} ${sort.dir === "desc" ? "DESC" : "ASC"} NULLS LAST, cdmId ASC`
+    ? orderByClause(CONJUNCTION_SORTS, sort, "cdmId")
     : "(tca >= @now) DESC, pc DESC NULLS LAST, tca ASC";
   const { sqlite } = getDb();
   const nowIso = now.toISOString();
@@ -373,42 +387,94 @@ export function getPublishedConjunction(
   now: Date = new Date(),
 ): PublishedConjunctionDetail | null {
   const { sqlite } = getDb();
+  const nowIso = now.toISOString();
 
-  const messages = sqlite
-    .prepare(
-      `${CDM_AS_CONJUNCTIONS}
-       SELECT cdm_id      AS cdmId,
-              created     AS createdIso,
-              tca         AS tcaIso,
-              pc          AS pc,
-              min_range_km AS minRangeKm
-         FROM clustered
-        WHERE lo = (SELECT lo FROM clustered WHERE cdm_id = @id)
-          AND hi = (SELECT hi FROM clustered WHERE cdm_id = @id)
-          AND cluster = (SELECT cluster FROM clustered WHERE cdm_id = @id)
-        ORDER BY created ASC, cdm_id ASC`,
-    )
-    .all({ id: cdmId }) as Array<{
+  // One statement, one clustering pass.
+  //
+  // This used to run the message query and then `listPublishedConjunctions(
+  // 100_000)` merely to find the newest row of the same cluster — i.e. it
+  // clustered all 3 444 messages a second time, per detail view, and scanned the
+  // result to pick one element out. Resolving the target cluster once in a CTE and
+  // reading both shapes from it costs a single scan.
+  type DetailRow = {
     cdmId: string;
     createdIso: string | null;
     tcaIso: string | null;
     pc: number | null;
     minRangeKm: number | null;
-  }>;
+    messageCount: number;
+    rn: number;
+    object1Norad: number;
+    object1Name: string;
+    object1Type: string | null;
+    object2Norad: number;
+    object2Name: string;
+    object2Type: string | null;
+  };
 
-  if (messages.length === 0) return null;
+  // Resolve the target cluster once, as its own CTE.
+  const targetCte = `
+  , target AS (
+      SELECT lo, hi, cluster FROM clustered WHERE cdm_id = @id LIMIT 1
+    )`;
 
-  // The representative is the newest message — same rule as the list, so the
-  // detail page and the row it was opened from show the same numbers.
-  const rows = listPublishedConjunctions(100_000, now);
-  const target = new Set(messages.map((m) => m.cdmId));
-  const latest = rows.find((r) => target.has(r.cdmId)) ?? null;
-  if (!latest) return null;
+  const rows = sqlite
+    .prepare(
+      `${cdmAsConjunctions(targetCte)}
+       SELECT ranked.cdm_id            AS cdmId,
+              ranked.created           AS createdIso,
+              ranked.tca               AS tcaIso,
+              ranked.min_range_km      AS minRangeKm,
+              ranked.pc                AS pc,
+              ranked.message_count     AS messageCount,
+              ranked.rn                AS rn,
+              ranked.sat1_norad        AS object1Norad,
+              ranked.sat1_name         AS object1Name,
+              ranked.sat1_object_type  AS object1Type,
+              ranked.sat2_norad        AS object2Norad,
+              ranked.sat2_name         AS object2Name,
+              ranked.sat2_object_type  AS object2Type
+         FROM ranked
+         JOIN target
+           ON ranked.lo = target.lo
+          AND ranked.hi = target.hi
+          AND ranked.cluster = target.cluster
+        ORDER BY ranked.created ASC, ranked.cdm_id ASC`,
+    )
+    .all({ id: cdmId }) as DetailRow[];
+
+  if (rows.length === 0) return null;
+
+  // The representative is the newest message — `rn` is already that row, ranked by
+  // the same rule the list uses, so the page and the row it was opened from agree.
+  const newest = rows.find((r) => r.rn === 1);
+  if (!newest) return null;
+
+  const latest: PublishedConjunctionRow = {
+    cdmId: newest.cdmId,
+    createdIso: newest.createdIso,
+    tcaIso: newest.tcaIso,
+    tcaInFuture: newest.tcaIso !== null && newest.tcaIso >= nowIso,
+    minRangeKm: newest.minRangeKm,
+    pc: newest.pc,
+    band: riskBand(newest.pc),
+    messageCount: newest.messageCount,
+    object1Norad: newest.object1Norad,
+    object1Name: newest.object1Name,
+    object1Type: newest.object1Type,
+    object2Norad: newest.object2Norad,
+    object2Name: newest.object2Name,
+    object2Type: newest.object2Type,
+  };
 
   return {
     latest,
-    messages: messages.map((m) => ({
-      ...m,
+    messages: rows.map((m) => ({
+      cdmId: m.cdmId,
+      createdIso: m.createdIso,
+      tcaIso: m.tcaIso,
+      pc: m.pc,
+      minRangeKm: m.minRangeKm,
       hoursToTca:
         m.createdIso && m.tcaIso
           ? (Date.parse(m.tcaIso) - Date.parse(m.createdIso)) / 3_600_000
@@ -417,6 +483,20 @@ export function getPublishedConjunction(
   };
 }
 
+/**
+ * Header totals.
+ *
+ * `messages` and `conjunctions` are both reported on purpose: the difference is
+ * the revision count, and quoting only the message count would overstate how much
+ * is going on by 6× (3 444 messages, 558 conjunctions).
+ *
+ * The `/conjunctions` page no longer calls this: it already has every row from
+ * `listPublishedConjunctions`, so deriving the counts from that list and counting
+ * messages separately saves a second full clustering pass (~42 ms) per request.
+ * This stays as the reference definition, and `tests/cdm-cluster.test.ts` asserts
+ * it agrees with the list — which is the invariant that keeps the cheaper path
+ * honest.
+ */
 export function publishedConjunctionCounts(now: Date = new Date()): {
   messages: number;
   conjunctions: number;
@@ -445,6 +525,22 @@ export function publishedConjunctionCounts(now: Date = new Date()): {
     upcoming: row.upcoming ?? 0,
     withProbability: row.withProbability ?? 0,
   };
+}
+
+/**
+ * How many CDM messages upstream has published in total.
+ *
+ * One `COUNT(*)` on one table, with no window functions: the conjunction page needs
+ * it beside a list it has already clustered, and asking
+ * `publishedConjunctionCounts()` for the same number re-ran the whole gaps-and-
+ * islands scan.
+ */
+export function publishedMessageCount(): number {
+  const { sqlite } = getDb();
+  const row = sqlite
+    .prepare("SELECT COUNT(*) AS n FROM space_track_cdm_public")
+    .get() as { n: number };
+  return row.n;
 }
 
 export interface EventDetail {
@@ -530,30 +626,26 @@ export interface ObjectRow {
 }
 
 /**
- * One object by id.
+ * The projection behind every object row, written once.
  *
- * The detail page used `listObjects(1000).find(…)`, which only ever sees the first
- * thousand rows in name order: with 42,427 objects, ~97% of object links 404'd.
- * The page looked broken for almost every object and perfect for the ones you
- * happened to click first.
+ * It was hand-copied into `listObjects`, `getObjectById` and
+ * `listObjectsByOperator`, together with three copies of the row mapper below.
+ * Three copies of one SELECT is the hazard that already bit this file once: add a
+ * column to two of them and the third quietly returns rows missing it, and it
+ * still type-checks because the mapper narrows with `as string | null`.
  */
-export function getObjectById(id: string): ObjectRow | null {
-  const { sqlite } = getDb();
-  const row = sqlite
-    .prepare(
-      `SELECT o.id, o.operator_id AS operatorId, COALESCE(op.name, 'UNKNOWN') AS operatorName,
-              o.object_name AS objectName, o.norad_id AS noradId,
-              o.hard_body_radius AS hardBodyRadius, o.maneuverability, o.alive,
-              m.cospar_id AS cosparId, m.object_class AS objectClass, m.country,
-              m.mass_kg AS massKg, m.cross_section_avg_m2 AS crossSectionM2,
-              m.manufacturer
-         FROM objects o
-         LEFT JOIN operators op ON op.id = o.operator_id
-         LEFT JOIN master_object m ON m.norad_id = o.norad_id
-        WHERE o.id = ?`,
-    )
-    .get(id) as Record<string, unknown> | undefined;
-  if (!row) return null;
+const OBJECT_SELECT = `SELECT o.id, o.operator_id AS operatorId, COALESCE(op.name, 'UNKNOWN') AS operatorName,
+          o.object_name AS objectName, o.norad_id AS noradId,
+          o.hard_body_radius AS hardBodyRadius, o.maneuverability, o.alive,
+          m.cospar_id AS cosparId, m.object_class AS objectClass, m.country,
+          m.mass_kg AS massKg, m.cross_section_avg_m2 AS crossSectionM2,
+          m.manufacturer
+     FROM objects o
+     LEFT JOIN operators op ON op.id = o.operator_id
+     LEFT JOIN master_object m ON m.norad_id = o.norad_id`;
+
+/** One raw row → one `ObjectRow`. The companion to `OBJECT_SELECT`. */
+function mapObjectRow(row: Record<string, unknown>): ObjectRow {
   return {
     id: String(row.id),
     operatorId: String(row.operatorId),
@@ -573,6 +665,22 @@ export function getObjectById(id: string): ObjectRow | null {
 }
 
 /**
+ * One object by id.
+ *
+ * The detail page used `listObjects(1000).find(…)`, which only ever sees the first
+ * thousand rows in name order: with 42,427 objects, ~97% of object links 404'd.
+ * The page looked broken for almost every object and perfect for the ones you
+ * happened to click first.
+ */
+export function getObjectById(id: string): ObjectRow | null {
+  const { sqlite } = getDb();
+  const row = sqlite
+    .prepare(`${OBJECT_SELECT} WHERE o.id = ?`)
+    .get(id) as Record<string, unknown> | undefined;
+  return row ? mapObjectRow(row) : null;
+}
+
+/**
  * Every object of one operator.
  *
  * The operator page did `listObjects(1000).filter(…)`, so it could only ever show
@@ -582,36 +690,13 @@ export function listObjectsByOperator(operatorId: string, limit = 1000): ObjectR
   const { sqlite } = getDb();
   const rows = sqlite
     .prepare(
-      `SELECT o.id, o.operator_id AS operatorId, COALESCE(op.name, 'UNKNOWN') AS operatorName,
-              o.object_name AS objectName, o.norad_id AS noradId,
-              o.hard_body_radius AS hardBodyRadius, o.maneuverability, o.alive,
-              m.cospar_id AS cosparId, m.object_class AS objectClass, m.country,
-              m.mass_kg AS massKg, m.cross_section_avg_m2 AS crossSectionM2,
-              m.manufacturer
-         FROM objects o
-         LEFT JOIN operators op ON op.id = o.operator_id
-         LEFT JOIN master_object m ON m.norad_id = o.norad_id
+      `${OBJECT_SELECT}
         WHERE o.operator_id = ?
         ORDER BY o.object_name
         LIMIT ?`,
     )
     .all(operatorId, limit) as Array<Record<string, unknown>>;
-  return rows.map((row) => ({
-    id: String(row.id),
-    operatorId: String(row.operatorId),
-    operatorName: String(row.operatorName),
-    objectName: String(row.objectName),
-    noradId: row.noradId === null ? null : Number(row.noradId),
-    hardBodyRadius: Number(row.hardBodyRadius),
-    maneuverability: Boolean(row.maneuverability),
-    alive: Boolean(row.alive),
-    cosparId: (row.cosparId as string | null) ?? null,
-    objectClass: (row.objectClass as string | null) ?? null,
-    country: (row.country as string | null) ?? null,
-    massKg: row.massKg === null ? null : Number(row.massKg),
-    crossSectionM2: row.crossSectionM2 === null ? null : Number(row.crossSectionM2),
-    manufacturer: (row.manufacturer as string | null) ?? null,
-  }));
+  return rows.map(mapObjectRow);
 }
 
 /**
@@ -621,6 +706,8 @@ export function listObjectsByOperator(operatorId: string, limit = 1000): ObjectR
  * catalogues agree on. They join on NORAD — an object with no NORAD (a manually
  * added test body) simply has no catalogue row, which is why every field is
  * nullable rather than defaulted.
+ *
+ * Filters and sorting both reach SQL; see `ObjectFilters` and `OBJECT_SORTS`.
  */
 /**
  * How many objects the deployment knows about.
@@ -690,39 +777,20 @@ export function listObjects(
   filters: ObjectFilters = {},
 ): ObjectRow[] {
   const { sqlite } = getDb();
+  // Built once: calling `objectWhere` twice built the same clause twice and, more
+  // importantly, let the two calls drift apart the first time one of them grew a
+  // side effect (a bound parameter with a different order, for instance).
+  const where = objectWhere(filters);
   const rows = sqlite
     .prepare(
-      `SELECT o.id, o.operator_id AS operatorId, COALESCE(op.name, 'UNKNOWN') AS operatorName,
-              o.object_name AS objectName, o.norad_id AS noradId,
-              o.hard_body_radius AS hardBodyRadius, o.maneuverability, o.alive,
-              m.cospar_id AS cosparId, m.object_class AS objectClass, m.country,
-              m.mass_kg AS massKg, m.cross_section_avg_m2 AS crossSectionM2,
-              m.manufacturer
-         FROM objects o
-         LEFT JOIN operators op ON op.id = o.operator_id
-         LEFT JOIN master_object m ON m.norad_id = o.norad_id
-        ${objectWhere(filters).clause}
+      `${OBJECT_SELECT}
+        ${where.clause}
         ORDER BY ${orderByClause(OBJECT_SORTS, sort, "o.id")}
         LIMIT ?`,
     )
-    .all(...objectWhere(filters).params, limit) as Array<Record<string, unknown>>;
+    .all(...where.params, limit) as Array<Record<string, unknown>>;
 
-  return rows.map((r) => ({
-    id: String(r.id),
-    operatorId: String(r.operatorId),
-    operatorName: String(r.operatorName),
-    objectName: String(r.objectName),
-    noradId: r.noradId === null ? null : Number(r.noradId),
-    hardBodyRadius: Number(r.hardBodyRadius),
-    maneuverability: Boolean(r.maneuverability),
-    alive: Boolean(r.alive),
-    cosparId: (r.cosparId as string | null) ?? null,
-    objectClass: (r.objectClass as string | null) ?? null,
-    country: (r.country as string | null) ?? null,
-    massKg: r.massKg === null ? null : Number(r.massKg),
-    crossSectionM2: r.crossSectionM2 === null ? null : Number(r.crossSectionM2),
-    manufacturer: (r.manufacturer as string | null) ?? null,
-  }));
+  return rows.map(mapObjectRow);
 }
 
 export interface TrajectoryRow {
@@ -882,27 +950,6 @@ export function getTrajectoryFile(id: string): { text: string; format: string } 
 }
 
 /**
- * Store a trajectory's file text.
- *
- * Every writer must call this: the text lives in its own table now, so writing
- * only the metadata row leaves the trajectory readable but empty — a failure that
- * surfaces much later, when screening finds nothing to propagate.
- */
-export function writeTrajectoryFile(
-  db: ReturnType<typeof getDb>["db"],
-  trajectoryId: string,
-  fileText: string,
-): void {
-  db.insert(trajectoryFiles)
-    .values({ trajectoryId, fileText })
-    .onConflictDoUpdate({
-      target: trajectoryFiles.trajectoryId,
-      set: { fileText },
-    })
-    .run();
-}
-
-/**
  * Parsed states of an object's most recent trajectory.
  *
  * Used by NORAD resolution, which needs the orbit — inclination and mean altitude
@@ -979,12 +1026,6 @@ export function listTrajectoryCdms(trajectoryId: string) {
     )
     .orderBy(desc(cdms.createdAt))
     .all();
-}
-
-/** Recent entries from one stream, used by the docs page. */
-export function recentEvents(limit = 20) {
-  const { db } = getDb();
-  return db.select().from(events).orderBy(desc(events.updatedTime)).limit(limit).all();
 }
 
 export { gt };

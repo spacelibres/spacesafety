@@ -245,6 +245,54 @@ async function main(): Promise<void> {
     assert.equal(rows.length, 4, "历史交会不该因为过期就消失");
   });
 
+  // The detail page's query was untested, which is how it kept re-clustering the
+  // whole table to find one row. These two assertions are the contract it must
+  // satisfy, whatever the implementation: the newest message, and the full history.
+  const { getPublishedConjunction } = await import("../src/lib/queries");
+
+  await check("详情页返回整簇消息历史，最新一条在最前", async () => {
+    const detail = getPublishedConjunction("1776000014", now);
+    assert.ok(detail, "详情为空");
+    assert.equal(detail.messages.length, 14, `消息历史 ${detail.messages.length} 条`);
+    const newest = detail.messages[detail.messages.length - 1];
+    assert.equal(newest.cdmId, detail.latest.cdmId, "最新一条与 latest 不是同一条");
+    assert.equal(detail.latest.pc?.toFixed(7), "0.0032998", `Pc=${detail.latest.pc}`);
+    assert.equal(detail.messages[0].pc?.toFixed(7), "0.0004271", "历史里的首条不是最早那条");
+  });
+
+  await check("详情页的 latest 与列表里那一行逐字段一致", async () => {
+    const row = listPublishedConjunctions(100, now).find((r) => r.cdmId === "1776000014");
+    const detail = getPublishedConjunction("1776000014", now);
+    assert.ok(row && detail, "行或详情缺失");
+    for (const key of [
+      "cdmId",
+      "createdIso",
+      "tcaIso",
+      "minRangeKm",
+      "pc",
+      "band",
+      "messageCount",
+      "object1Norad",
+      "object2Norad",
+      "tcaInFuture",
+    ] as const) {
+      assert.deepEqual(detail.latest[key], row[key], `${key} 不一致`);
+    }
+  });
+
+  await check("从簇中间任意一条消息都能进到同一个交会", async () => {
+    // A reader can land on an older CDM id from a citation or an old link; the
+    // cluster lookup must land on the same conjunction, not on that one row.
+    const fromMiddle = getPublishedConjunction("1776000003", now);
+    assert.ok(fromMiddle, "中间那条消息打不开");
+    assert.equal(fromMiddle.messages.length, 14, `消息历史 ${fromMiddle.messages.length} 条`);
+    assert.equal(fromMiddle.latest.cdmId, "1776000014", `latest=${fromMiddle.latest.cdmId}`);
+  });
+
+  await check("不存在的 CDM 返回 null，而不是空交会", async () => {
+    assert.equal(getPublishedConjunction("does-not-exist", now), null);
+  });
+
   console.log(`\n${pass} passed, ${fail} failed\n`);
   if (fail > 0) process.exit(1);
 }

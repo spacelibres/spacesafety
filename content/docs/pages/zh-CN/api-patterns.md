@@ -47,6 +47,7 @@
 | `400` | 请求本身有问题——参数错、缺必需过滤条件、或校验未通过 | `bad_request`、`trajectory_invalid`、`invalid_source`、`pagination_too_old` |
 | `401` | 没有有效的客户端证书 | `unauthorized` |
 | `404` | 该行不存在，或不属于你 | `not_found` |
+| `413` | 请求体超过任何端点接受的上限（34 MiB：30 MiB 星历上限加上 JSON 外壳） | `payload_too_large` |
 | `503` | 超过速率上限 | `rate_limited` |
 
 `metadata` 装与这条信息配套的细节：校验问题放在 `{"issues":[{"field":"file","reason":"…"}]}`，

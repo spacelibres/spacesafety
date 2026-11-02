@@ -1,4 +1,4 @@
-import { NotFoundBody } from "@/components/RouteMessages";
+import { NotFoundBody, NotFoundHeading } from "@/components/RouteMessages";
 import { Topbar } from "@/components/Shell";
 
 /**
@@ -11,6 +11,9 @@ import { Topbar } from "@/components/Shell";
  * inside a dynamic page reaches the browser as an RSC payload rather than as
  * server HTML, so anything that needs request context on the server cannot be
  * re-rendered from it.
+ *
+ * The heading carries both the code and the localised sentence: the code is a
+ * numeral and stays `404` in every language, the sentence under it does not.
  */
 export default function NotFound() {
   return (
@@ -18,7 +21,10 @@ export default function NotFound() {
       <Topbar section="404" />
       <div className="content">
         <div className="page-head">
-          <h1 className="page-title">404</h1>
+          <div>
+            <h1 className="page-title">404</h1>
+            <NotFoundHeading />
+          </div>
         </div>
         <NotFoundBody />
       </div>

@@ -414,37 +414,25 @@ export interface BoxscoreRow {
  * not a country, and leaving it in makes any chart of "top owners" start with a
  * bar that means "everyone".
  */
+const BOXSCORE_SELECT = `SELECT country,
+          orbital_payload      AS orbitalPayload,
+          orbital_rocket_body  AS orbitalRocketBody,
+          orbital_debris       AS orbitalDebris,
+          orbital_total        AS orbitalTotal,
+          decayed_total        AS decayedTotal,
+          country_total        AS countryTotal
+     FROM space_track_boxscore`;
+
 export function listBoxscore(limit = 30): { rows: BoxscoreRow[]; all: BoxscoreRow | null } {
   const { sqlite } = getDb();
+  // The column list was written twice, differing only in the WHERE — and a column
+  // added to one copy would have made the two rows disagree about the same table.
   const rows = sqlite
-    .prepare(
-      `SELECT country,
-              orbital_payload      AS orbitalPayload,
-              orbital_rocket_body  AS orbitalRocketBody,
-              orbital_debris       AS orbitalDebris,
-              orbital_total        AS orbitalTotal,
-              decayed_total        AS decayedTotal,
-              country_total        AS countryTotal
-         FROM space_track_boxscore
-        WHERE country <> 'ALL'
-        ORDER BY orbital_total DESC
-        LIMIT @limit`,
-    )
+    .prepare(`${BOXSCORE_SELECT} WHERE country <> 'ALL' ORDER BY orbital_total DESC LIMIT @limit`)
     .all({ limit }) as BoxscoreRow[];
   const all =
-    (sqlite
-      .prepare(
-        `SELECT country,
-                orbital_payload      AS orbitalPayload,
-                orbital_rocket_body  AS orbitalRocketBody,
-                orbital_debris       AS orbitalDebris,
-                orbital_total        AS orbitalTotal,
-                decayed_total        AS decayedTotal,
-                country_total        AS countryTotal
-           FROM space_track_boxscore
-          WHERE country = 'ALL'`,
-      )
-      .get() as BoxscoreRow | undefined) ?? null;
+    (sqlite.prepare(`${BOXSCORE_SELECT} WHERE country = 'ALL'`).get() as BoxscoreRow | undefined) ??
+    null;
   return { rows, all };
 }
 

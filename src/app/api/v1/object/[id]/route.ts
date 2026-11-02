@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { objects } from "@/db/schema";
 import { ApiError } from "@/lib/api/errors";
-import { json, route } from "@/lib/api/http";
+import { json, readJson, route } from "@/lib/api/http";
 
 const MAX_HARD_BODY_RADIUS_M = 512;
 const MAX_NAME_LENGTH = 256;
@@ -57,7 +57,11 @@ export const PATCH = route(async ({ params, request, principal }) => {
     throw ApiError.forbidden("objects may only be modified by their owner");
   }
 
-  const body = (JSON.parse((await request.text()) || "{}")) as PatchBody;
+  // `readJson`, not a bare `JSON.parse(await request.text())`: the bare form had two
+  // defects — an unbounded read, and a malformed body escaping as an uncaught
+  // SyntaxError, which the wrapper reports as a 500. A client sending `{"oops"`
+  // should be told 400, not that the server broke.
+  const body = await readJson<PatchBody>(request);
   const issues: { field: string; reason: string }[] = [];
   const patch: Record<string, string | number | boolean | null> = {};
 

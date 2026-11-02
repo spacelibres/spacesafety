@@ -23,6 +23,8 @@ export const ERROR_TYPES = {
   PAGINATION_TOO_OLD: "pagination_too_old",
   /** Rate limit exceeded (the vendor uses HTTP 503 for this). */
   RATE_LIMITED: "rate_limited",
+  /** Request body beyond the documented ceiling. */
+  PAYLOAD_TOO_LARGE: "payload_too_large",
   /**
    * A dependency this replica needs is unavailable — here, the Space-Track
    * catalogue. Distinct from `rate_limited` so a client can tell "come back
@@ -49,6 +51,19 @@ export class ApiError extends Error {
 
   static badRequest(message: string, metadata: Record<string, unknown> = {}) {
     return new ApiError(400, ERROR_TYPES.BAD_REQUEST, message, metadata);
+  }
+
+  /**
+   * The request body exceeds what any endpoint accepts.
+   *
+   * 413 rather than 400: the body is not malformed, it is too large, and the
+   * distinction tells a client to split the upload instead of fixing the syntax.
+   */
+  static payloadTooLarge(maxBytes: number, got: number | null) {
+    return new ApiError(413, ERROR_TYPES.PAYLOAD_TOO_LARGE, "request body is too large", {
+      max_bytes: maxBytes,
+      received_bytes: got,
+    });
   }
 
   static notFound(message: string, metadata: Record<string, unknown> = {}) {

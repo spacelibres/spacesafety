@@ -40,7 +40,16 @@ export function NotFoundBody() {
   );
 }
 
+/**
+ * The localised "not found" wording, shown beside the `404` code.
+ *
+ * The code alone is not a message: a reader who lands here needs to read the
+ * sentence in their own language. It is a client component for the same reason as
+ * the body above — and it is the only reader of the `notFound.title` key, which is
+ * why it must actually be rendered: an unreferenced key is a key that silently
+ * drops out of the dictionaries at the next cleanup.
+ */
 export function NotFoundHeading() {
   const t = useTranslator();
-  return <span className="count">{t.t("notFound.title")}</span>;
+  return <span className="page-sub">{t.t("notFound.title")}</span>;
 }

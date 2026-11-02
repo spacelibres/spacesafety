@@ -57,6 +57,33 @@ export interface ObjectSourceState {
   bstar: number | null;
 }
 
+/**
+ * The one write into `object_sources`.
+ *
+ * This statement was hand-copied into `SourceLedger.upsertObjectStates` and into
+ * `MultiIngest.run`, which is the shape of duplication that hurts here: the two
+ * copies must be edited together the moment a column is added, and only one of
+ * them is on the live path — the other is reached from nothing, so a mistake in it
+ * stays invisible until somebody revives it.
+ *
+ * `ON CONFLICT` replaces the row wholesale: an element set is superseded as a unit,
+ * so merging fields across refreshes would mix two epochs into one record.
+ */
+export const UPSERT_OBJECT_SOURCE_SQL = `INSERT INTO object_sources
+   (norad_id, source_id, epoch, inclination, raan, eccentricity, arg_perigee,
+    mean_anomaly, mean_motion, bstar, fetched_at)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ ON CONFLICT(norad_id, source_id) DO UPDATE SET
+   epoch = excluded.epoch,
+   inclination = excluded.inclination,
+   raan = excluded.raan,
+   eccentricity = excluded.eccentricity,
+   arg_perigee = excluded.arg_perigee,
+   mean_anomaly = excluded.mean_anomaly,
+   mean_motion = excluded.mean_motion,
+   bstar = excluded.bstar,
+   fetched_at = excluded.fetched_at`;
+
 export class SourceLedger {
   private readonly sqlite: Database.Database;
   private readonly now: () => string;
@@ -220,26 +247,11 @@ export class SourceLedger {
   /**
    * Record what one source says about many objects, in one transaction.
    *
-   * `ON CONFLICT` replaces the row: an element set is superseded wholesale, so
-   * merging fields across refreshes would mix two epochs into one record.
+   * Kept as the reference implementation of the write, and as the one place the
+   * statement text lives (see `UPSERT_OBJECT_SOURCE_SQL`).
    */
   upsertObjectStates(states: Iterable<ObjectSourceState>, fetchedAt = this.now()): number {
-    const stmt = this.sqlite.prepare(
-      `INSERT INTO object_sources
-         (norad_id, source_id, epoch, inclination, raan, eccentricity, arg_perigee,
-          mean_anomaly, mean_motion, bstar, fetched_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(norad_id, source_id) DO UPDATE SET
-         epoch = excluded.epoch,
-         inclination = excluded.inclination,
-         raan = excluded.raan,
-         eccentricity = excluded.eccentricity,
-         arg_perigee = excluded.arg_perigee,
-         mean_anomaly = excluded.mean_anomaly,
-         mean_motion = excluded.mean_motion,
-         bstar = excluded.bstar,
-         fetched_at = excluded.fetched_at`,
-    );
+    const stmt = this.sqlite.prepare(UPSERT_OBJECT_SOURCE_SQL);
 
     let count = 0;
     const tx = this.sqlite.transaction((list: ObjectSourceState[]) => {

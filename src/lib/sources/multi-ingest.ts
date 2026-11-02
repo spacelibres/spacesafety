@@ -28,6 +28,7 @@
 import type Database from "better-sqlite3";
 
 import type { Tle } from "../orbit/tle";
+import { UPSERT_OBJECT_SOURCE_SQL } from "./ledger";
 import { SOURCES, type SourceDefinition } from "./registry";
 
 export interface MultiIngestOptions {
@@ -142,22 +143,8 @@ export class SourceTleIngest {
        ON CONFLICT(object_id, state_source) DO UPDATE
          SET trajectory_id = excluded.trajectory_id, updated_at = excluded.updated_at`,
     );
-    const upsertState = this.sqlite.prepare(
-      `INSERT INTO object_sources
-         (norad_id, source_id, epoch, inclination, raan, eccentricity, arg_perigee,
-          mean_anomaly, mean_motion, bstar, fetched_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(norad_id, source_id) DO UPDATE SET
-         epoch = excluded.epoch,
-         inclination = excluded.inclination,
-         raan = excluded.raan,
-         eccentricity = excluded.eccentricity,
-         arg_perigee = excluded.arg_perigee,
-         mean_anomaly = excluded.mean_anomaly,
-         mean_motion = excluded.mean_motion,
-         bstar = excluded.bstar,
-         fetched_at = excluded.fetched_at`,
-    );
+    // Shared with `SourceLedger.upsertObjectStates` — one write, one statement.
+    const upsertState = this.sqlite.prepare(UPSERT_OBJECT_SOURCE_SQL);
 
     const tx = this.sqlite.transaction((items: Tle[]) => {
       for (const tle of items) {

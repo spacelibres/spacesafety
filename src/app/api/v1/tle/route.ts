@@ -54,6 +54,17 @@ function serialize(tle: Tle, source: string, asOfMs: number) {
   };
 }
 
+/**
+ * Never cached.
+ *
+ * This handler reads the network (`fetchGpByNorad`) and its whole point is
+ * freshness — `age_hours` is computed against the moment of the request. Every
+ * other route file in this app states its caching intent explicitly; this one was
+ * the only omission, and relying on the Next 15 default for the one endpoint whose
+ * answer goes stale is the wrong bet.
+ */
+export const dynamic = "force-dynamic";
+
 export const GET = route(async ({ request, correlationId }) => {
   const url = new URL(request.url);
   const objectId = url.searchParams.get("object_id");

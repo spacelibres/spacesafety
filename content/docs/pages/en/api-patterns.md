@@ -48,6 +48,7 @@ Every failure uses one shape:
 | `400` | The request is wrong — bad parameter, missing required filter, or validation failure | `bad_request`, `trajectory_invalid`, `invalid_source`, `pagination_too_old` |
 | `401` | No valid client certificate | `unauthorized` |
 | `404` | The row does not exist, or is not yours | `not_found` |
+| `413` | The body is larger than any endpoint accepts (34 MiB: the 30 MiB ephemeris ceiling plus its JSON envelope) | `payload_too_large` |
 | `503` | Rate limit exceeded | `rate_limited` |
 
 `metadata` carries detail that belongs with the message: validation issues are

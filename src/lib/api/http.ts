@@ -112,8 +112,56 @@ export function text(
   });
 }
 
+/**
+ * Largest request body any endpoint accepts, in bytes.
+ *
+ * The documented ceiling is `MAX_FILE_CHARS` (30 MiB of ephemeris text) plus the
+ * JSON envelope around it. Nothing on this API takes anything larger, and without
+ * a cap `readJson` buffered whatever arrived: a single client POSTing gigabytes
+ * was charged one rate-limit token and one multi-gigabyte allocation.
+ */
+export const MAX_BODY_BYTES = 34 * 1024 * 1024;
+
+/**
+ * Read a request body, refusing to buffer more than `maxBytes`.
+ *
+ * `content-length` is checked first so an oversized upload is rejected before a
+ * single byte is read; a chunked body carries no length, so the stream itself is
+ * counted and cancelled the moment it crosses the limit.
+ */
+async function readBoundedText(request: Request, maxBytes = MAX_BODY_BYTES): Promise<string> {
+  const declared = request.headers.get("content-length");
+  if (declared !== null) {
+    const n = Number(declared);
+    if (Number.isFinite(n) && n > maxBytes) throw ApiError.payloadTooLarge(maxBytes, n);
+  }
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw ApiError.payloadTooLarge(maxBytes, total);
+    }
+    chunks.push(value);
+  }
+
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(merged);
+}
+
 export async function readJson<T>(request: Request): Promise<T> {
-  const raw = await request.text();
+  const raw = await readBoundedText(request);
   if (!raw.trim()) {
     throw ApiError.badRequest("request body must be JSON");
   }

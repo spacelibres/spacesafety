@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { operators } from "@/db/schema";
 import { ApiError } from "@/lib/api/errors";
-import { json, route } from "@/lib/api/http";
+import { json, readJson, route } from "@/lib/api/http";
 
 /** GET /api/v1/operator/:id — one operator. */
 export const GET = route(async ({ params }) => {
@@ -50,7 +50,9 @@ export const PATCH = route(async ({ params, request, principal }) => {
     throw ApiError.forbidden("operators may only modify their own record");
   }
 
-  const body = JSON.parse((await request.text()) || "{}") as UpdateBody;
+  // See the object PATCH for why this is `readJson` and not a bare `JSON.parse`:
+  // bounded read, and malformed JSON becomes 400 instead of 500.
+  const body = await readJson<UpdateBody>(request);
   const patch: Record<string, string | number | null> = {};
 
   if (typeof body.name === "string" && body.name.trim() !== "") {

@@ -69,7 +69,7 @@ export const GET = route(async ({ request, principal }) => {
   if (filters.object_id) conditions.push(eq(trajectories.objectId, filters.object_id));
   if (filters.operator_id) conditions.push(eq(trajectories.operatorId, filters.operator_id));
   if (filters.upload_type) {
-    if (!UPLOAD_TYPES.includes(filters.upload_type as never)) {
+    if (!(UPLOAD_TYPES as readonly string[]).includes(filters.upload_type)) {
       throw ApiError.badRequest("invalid upload_type", { parameter: "upload_type" });
     }
     conditions.push(eq(trajectories.uploadType, filters.upload_type));
@@ -79,7 +79,7 @@ export const GET = route(async ({ request, principal }) => {
     }
   }
   if (filters.state_source) {
-    if (!STATE_SOURCES.includes(filters.state_source as never)) {
+    if (!(STATE_SOURCES as readonly string[]).includes(filters.state_source)) {
       throw ApiError.badRequest("invalid state_source", { parameter: "state_source" });
     }
     conditions.push(eq(trajectories.stateSource, filters.state_source));
@@ -141,8 +141,12 @@ export const POST = route(async ({ request, principal }) => {
     });
   }
 
-  const uploadType = body.upload_type;
-  if (!UPLOAD_TYPES.includes(uploadType as never)) {
+  // Narrowed, not cast: `body` is `unknown` from JSON, so "`as never` made the
+  // compiler accept a value it had never actually checked" is exactly the bug
+  // shape this guard is here to prevent.
+  const uploadTypeRaw = body.upload_type;
+  const uploadType = typeof uploadTypeRaw === "string" ? uploadTypeRaw : "";
+  if (!(UPLOAD_TYPES as readonly string[]).includes(uploadType)) {
     issues.push({
       field: "upload_type",
       reason: `must be one of ${UPLOAD_TYPES.join(", ")}`,
@@ -151,13 +155,17 @@ export const POST = route(async ({ request, principal }) => {
 
   let stateSource = "operator_ephemeris";
   if (body.state_source !== undefined) {
-    if (!STATE_SOURCES.includes(body.state_source as never)) {
+    const rawStateSource = body.state_source;
+    if (
+      typeof rawStateSource !== "string" ||
+      !(STATE_SOURCES as readonly string[]).includes(rawStateSource)
+    ) {
       issues.push({
         field: "state_source",
         reason: `must be one of ${STATE_SOURCES.join(", ")}`,
       });
     } else {
-      stateSource = body.state_source as string;
+      stateSource = rawStateSource;
     }
   }
 

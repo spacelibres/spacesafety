@@ -12,6 +12,178 @@
 
 ---
 
+---
+
+## [0.1.79] - 2026-11-02
+
+全面代码审核。这一轮不改功能，只查代码本身：重复、死代码、绕过守卫的地方、没有测试的
+路径。**每一条都是先量出数字或先跑出失败，再改。**
+
+### 1 · 交会详情页把整张 CDM 表聚了两遍（76.5 ms → 38.1 ms）
+
+`getPublishedConjunction()` 先跑一次 gaps-and-islands 聚合取本簇的消息，然后调用
+`listPublishedConjunctions(100_000)` 把**全部 3 444 条消息重新聚一遍**，只为从结果里
+`find()` 出一行。详情页每次访问都付两遍全表扫描。
+
+改成：把目标簇解析成 CTE（`target`）一次，`ranked JOIN target` 一次取回整簇，代表行就是
+本来就是的那个 `rn = 1`。`CDM_AS_CONJUNCTIONS` 因此改成 `cdmAsConjunctions(extraCtes)`。
+
+实测（`data/catalogue.sqlite`，558 个交会 / 3 444 条消息）：
+
+```
+getPublishedConjunction(1781464099)   76.5 ms → 38.1 ms
+  消息 4 条，latest.pc 0.003418404，与列表那一行逐字段一致
+```
+
+### 2 · 列表页的重算（41.7 ms → 0.2 ms）
+
+`/conjunctions` 先 `listPublishedConjunctions(100_000)`，再 `publishedConjunctionCounts()`
+——后者又把同一套聚合跑一遍，只为拿三个数字，而其中两个（交会数、未过期数）**已经在手里
+那张列表里**。现在只有消息总数需要查，用的是新增的 `publishedMessageCount()`
+（单表 `COUNT(*)`）。
+
+实测：
+
+```
+listPublishedConjunctions(100_000)   73.6 ms   （列表本身，不变）
+publishedConjunctionCounts()         35.8 ms   （不再被列表页调用）
+publishedMessageCount()               0.2 ms   （替代它）
+```
+
+浏览器实测头部仍是 `558 个交会，来自 3444 条 CDM · 34 个 TCA 尚未到达`，与基准一致。
+
+### 3 · 同一段 SELECT 被手抄了三遍
+
+`listObjects`、`getObjectById`、`listObjectsByOperator` 各自抄了一份 11 行的对象投影，
+外加**三份一模一样的行映射**。这正是本项目已经踩过的坑（`/catalogue` 的悬挂逗号就是手抄
+SQL 抄出来的）：给其中两份加一列，第三份会静默地少返回一个字段，而 `as string | null`
+让类型检查也看不出来。
+
+抽成 `OBJECT_SELECT` + `mapObjectRow()`。同时修掉 `listObjects` 里
+`objectWhere(filters)` 被**调用两次**（一次取子句、一次取参数）的问题。
+
+同类问题另有两处，一并处理：
+
+- `object_sources` 的 upsert 语句在 `SourceLedger.upsertObjectStates` 与
+  `MultiIngest.run` 里各有一份 → 抽成 `UPSERT_OBJECT_SOURCE_SQL`；
+- `space_track_boxscore` 的列清单在 `listBoxscore` 里写了两遍 → 抽成 `BOXSCORE_SELECT`。
+
+### 4 · 排序绕过了自己的守卫
+
+`listPublishedConjunctions` 直接插值 `CONJUNCTION_SORTS[sort.key]`，没有走
+`orderByClause()`。`parseSort` 目前会先白名单化，所以线上不会出事——但**第二道防线被跳过
+了**：任何一个不经 `parseSort` 的调用方传入未知键，SQL 里就会出现 `ORDER BY undefined
+DESC`，页面直接 500。改成走 `orderByClause(CONJUNCTION_SORTS, sort, "cdmId")`。
+
+实测：`?sort=` 四个合法键与一个非法键（`bogus`）全部 200。
+
+### 5 · 三处死代码，其中两处的注释在说谎
+
+| 死代码 | 注释声称 | 实际 |
+|---|---|---|
+| `writeTrajectoryFile()` | "每个写入方都必须调用它" | **无人调用**；三个真实写入方各自裸写 `db.insert` |
+| `recentEvents()` | "文档页在用" | 文档页改版后已不再使用 |
+| `NotFoundHeading()` | —— | 无人引用 |
+
+前两条比"没用"更糟：注释描述了一条不存在的约束，后来者会照着它写代码。删掉两个函数；
+`NotFoundHeading` 不但保留，还**接上了**——它是 `notFound.title` 这个键（六语种都有）
+唯一的读者，不渲染就等于让一个翻译好的句子永远出不来。
+
+浏览器实测 404 页：HTTP 404 · 标题 `404` · 副标题 `页面不存在` · 正文与两个返回链接齐全。
+
+### 6 · 应用唯一的写入口，此前没有任何测试
+
+`POST /api/v1/trajectory` —— 运营方上传星历、落两行、排筛查任务 —— 全仓没有一个测试调用过
+它。新增 `tests/trajectory-upload.test.ts`（**14 条**），直接执行真实的 route handler：
+
+- 201 + `Location` + 正则校验 id；
+- 对编目里**每一个**伙伴各排一个任务（`against_trajectory_id` 正确）；
+- 定版上传成为该物体的参考星历（`catalog` 行被替换）；
+- 元数据行：`point_count` 20、起止时间、`seq` 单调；
+- **文件文本逐字节一致**，且"每一条 trajectory 都有文件行"这条不变量现在有断言；
+- `?reference_frame=original` 原样返回上传字节（`text/plain`，不是 JSON）；
+- 五条拒绝路径：非法 `upload_type`、缺 `file`、别人的物体（403）、不存在的物体（404）、
+  窗口整体落在 24 小时以前（400）。
+
+写这个测试的过程本身纠正了两个误解，两条都写进了断言的注释里：
+
+- **"24 小时"约束的是窗口的结束时刻**，不是起点。`-24h` 起步、`-23h40m` 结束的星历是**合法
+  的**（`lastMs < now - 24h` 不成立），要 `-48h` 才会被拒。两条边界各一个断言。
+- **空编目会让上传返回 201 但排 0 个任务**。第一版测试因此"通过"了一个假象，现在先给
+  编目播一个伙伴。
+
+### 7 · 请求体没有上限，畸形 JSON 报 500
+
+`readJson()` 就是 `JSON.parse(await request.text())`，没有任何体积限制：一个客户端
+POST 几个 GB，进程就真的缓冲几个 GB，而限流器按**请求数**计费——这类请求只花 1 个令牌。
+
+另有两个 PATCH 处理器（物体、运营方）自己内联 `JSON.parse`，于是 `{"oops"` 抛出的
+SyntaxError 一路冒到包装器，返回 **500 internal_error**：把调用方的错误报成服务端的故障。
+
+改法：
+
+- `readJson` 先读 `content-length`，超限**一个字节都不读**就返回
+  `413 payload_too_large`；分块上传没有长度声明，就边读边计数、超限立刻 `cancel()`；
+- 上限 `MAX_BODY_BYTES = 34 MiB` = 官方 30 MiB 星历上限 + JSON 外壳；
+- 两个 PATCH 改走 `readJson`，畸形/空体都变成 400；
+- `api-patterns.md`（en + zh-CN）的错误表补上 `413 payload_too_large`——**新增的错误类型
+  必须出现在文档里**，否则客户端只能靠猜。
+
+新增 `tests/api-body.test.ts`（**8 条**）：正常解析、空体 400、畸形 400、声明长度超限时
+`received_bytes` 说明走的是长度检查而不是流计数、无长度时读到超限即中断、PATCH 合法请求
+仍然成功、PATCH 畸形 JSON 400 **且数据未被改动**、PATCH 空体 400。
+
+### 8 · 四处 `as never` 掩盖了真正的类型问题
+
+轨迹路由用 `UPLOAD_TYPES.includes(x as never)` 绕过 `readonly ["a","b"]` 的元组类型。
+本仓有 11 处用的是 `(ARR as readonly string[]).includes(v)`，只有这 4 处用了更糟的
+`as never`——它连"这个值到底是不是字符串"都不再要求编译器检查。换成既有写法的同时，
+暴露出两个真实问题：`body.upload_type` 是 `unknown`、`body.state_source` 可能是 `null`。
+现在是显式 `typeof x === "string"` 收窄。
+
+### 9 · 唯一没写缓存意图的路由
+
+21 个 route handler 里 20 个显式声明了 `export const dynamic`，只有 `/api/v1/tle` 没写。
+它要联网取 GP 元素，`age_hours` 还是按请求时刻算的——正是最不该依赖框架默认值的那一个。
+补上并说明理由。
+
+### 10 · 文档里过期的版本号
+
+`README.md` 与 `CONTRIBUTING.md` 首页都写着"当前版本 0.1.65"，而实际已到 0.1.78。
+没有任何检查覆盖这两处，所以 13 个版本一路绿过来。一并更新；这也说明**版本号声明需要
+纳入 `check`**，否则下一次还会漂。已记入待办。
+
+### 验证
+
+```
+npx tsc --noEmit            0 error
+npm test                    53 套件 / 993 条断言全过（本轮新增 2 个套件、26 条断言）
+npm run check               10 项全过（六语种 602 键、56 个客户端 chunk 可解析）
+npm run check:css           全部自定义属性都有定义
+npm run audit:viewport      20 页 × 7 视口无横向滚动
+npm run release:verify      五项一致
+```
+
+浏览器实测（headless Chrome，1440×900）：
+
+| 页面 | 结果 |
+|---|---|
+| `/conjunctions` | 200，头部 `558 个交会，来自 3444 条 CDM · 34 个 TCA 尚未到达`，200 行 |
+| `/conjunctions/1781464099` | 200，消息表 4 行、收敛图渲染、元信息齐全 |
+| `/objects/does-not-exist-xyz` | **404**，标题 `404` + 副标题 `页面不存在` + 正文 + 两个返回链接 |
+| `/conjunctions?sort=<5 种>` | 全部 200 |
+
+### 已知问题（本轮不修，如实列出）
+
+1. **`src/lib/queries.ts` 已近千行**，把对象、运营方、轨迹、CDM、事件、公开发布交会六类
+   查询混在一个文件里。拆开是对的，但会牵动 30 多个 import 点，属于独立改动。
+2. **`src/lib/core/screening.ts` 1 068 行**，同一类问题。
+3. **限流仍是进程内的**（`GAPS.md` P3）：多实例部署时真实上限是"实例数 × 每分钟 600"。
+4. **`/users` 仍非仅管理员**（`GAPS.md` P4）：本部署没有角色模型。
+5. **`/conjunctions` 仍整表取回再在内存里过滤**（558 行 / 73 ms），这个量级下划算，
+   数据长到几千个交会时要改成 SQL 分页。
+6. **版本号声明没有检查覆盖**（本轮第 10 项就是这么漂的）。
+
 ## [0.1.78] - 2026-11-02
 
 把上一轮列的四项"建议但未做"全部做完。
