@@ -2901,6 +2901,221 @@
           "zh-CN": "选择存在宽表里，而宽表是构建产物：重建它（`tools/build-wide-catalogue.ts`）会重置所有选择。"
         }
       ]
+    },
+    {
+      "slug": "export-tables",
+      "section": "extension",
+      "extension": true,
+      "title": {
+        "en": "Export a table",
+        "zh-CN": "导出表格"
+      },
+      "method": "GET",
+      "path": "/api/export",
+      "summary": {
+        "en": "Download the rows a page is showing, as CSV or JSON. The filters that were active on the page are applied to the export, so the file is the table the reader was looking at.",
+        "zh-CN": "把页面上正在显示的那些行导出为 CSV 或 JSON。页面上生效的筛选会带进导出，所以文件就是读者当时看到的那张表。"
+      },
+      "auth": "none",
+      "params": [
+        {
+          "in": "query",
+          "name": "what",
+          "type": "string",
+          "required": true,
+          "values": [
+            "objects",
+            "catalogue",
+            "conjunctions"
+          ],
+          "desc": {
+            "en": "Which table to export.",
+            "zh-CN": "要导出哪张表。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "format",
+          "type": "string",
+          "required": false,
+          "default": "csv",
+          "values": [
+            "csv",
+            "json"
+          ],
+          "desc": {
+            "en": "CSV is UTF-8 with a BOM so a spreadsheet opens it correctly; JSON carries the same rows plus a count.",
+            "zh-CN": "CSV 带 BOM 的 UTF-8，电子表格能正确打开；JSON 带同样的行并附计数。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "alive / name / norad",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Applied when `what=objects`; same meaning as on the objects page.",
+            "zh-CN": "`what=objects` 时生效，含义同对象页。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "q / norad",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Applied when `what=catalogue`, matching the catalogue search.",
+            "zh-CN": "`what=catalogue` 时生效，与编目搜索一致。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "upcoming",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "`upcoming=1` exports only conjunctions whose TCA is still ahead.",
+            "zh-CN": "`upcoming=1` 只导出 TCA 尚未到达的交会。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK — the file",
+            "zh-CN": "成功——文件"
+          },
+          "fields": [
+            [
+              "(body)",
+              "text/csv or application/json"
+            ],
+            [
+              "content-disposition",
+              "header — the filename"
+            ],
+            [
+              "x-matched-rows",
+              "header (catalogue) — rows matching the filter, which can exceed the returned ones"
+            ]
+          ],
+          "example": "norad_id,name,cospar_id,object_class,country,constellation,regime,purpose_group,inclination_deg,mass_kg,hard_body_radius_m,decay_date\r\n45414,STARLINK-1309,2019-029A,PAYLOAD,US,Starlink,LEO,communication,53.05,227.0,2.8,"
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — unknown `what` or `format`",
+            "zh-CN": "请求不合法——未知的 `what` 或 `format`"
+          },
+          "fields": [
+            [
+              "error",
+              "string"
+            ],
+            [
+              "parameter",
+              "string"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "This is this deployment's convenience for a page reader, not part of the official contract, so it is not behind the API's mTLS: the pages it exports are already public here.",
+          "zh-CN": "这是本部署给页面读者的便利功能，不属于官方契约，因此不套 API 的 mTLS：它导出的那些页面在这里本来就是公开的。"
+        },
+        {
+          "en": "`what=catalogue` returns at most 1,000 rows per call (the list view's cap) and reports the matched total in `x-matched-rows`, so a truncated file cannot be mistaken for a complete one.",
+          "zh-CN": "`what=catalogue` 每次最多 1,000 行（列表视图的上限），并在 `x-matched-rows` 里报匹配总数，避免被截断的文件被当成完整的。"
+        }
+      ]
+    },
+    {
+      "slug": "match-a-3d-model",
+      "section": "extension",
+      "extension": true,
+      "title": {
+        "en": "Find a 3D model for an object",
+        "zh-CN": "为对象查找三维模型"
+      },
+      "method": "GET",
+      "path": "/api/models/match",
+      "summary": {
+        "en": "Match a satellite name against the downloaded model catalogue and return a servable URL. Deliberately conservative: a wrong model on a satellite is worse than no model.",
+        "zh-CN": "把卫星名称与已下载的模型库匹配，返回可用的 URL。刻意保守：给卫星套错模型比没有模型更糟。"
+      },
+      "auth": "none",
+      "params": [
+        {
+          "in": "query",
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "desc": {
+            "en": "The satellite name as the catalogue spells it.",
+            "zh-CN": "编目里的卫星名称。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "match",
+              "object|null"
+            ],
+            [
+              "match.name",
+              "string"
+            ],
+            [
+              "match.url",
+              "string"
+            ],
+            [
+              "note",
+              "string — why there is no match, when there is none"
+            ]
+          ],
+          "example": {
+            "match": {
+              "name": "Hubble Space Telescope",
+              "url": "/api/models/nasa/3D_Models_Hubble_Space_Telescope_(A)_Hubble_Space_Telescope_(A).glb"
+            }
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — `name` is required",
+            "zh-CN": "请求不合法——`name` 必填"
+          },
+          "fields": [
+            [
+              "error",
+              "string"
+            ],
+            [
+              "parameter",
+              "string"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "Matching rules: identical normalised name, one containing the other at ≥4 characters, a shared ≥5-character token, or a shared all-caps acronym of 3–5 letters. `ISS (ZARYA)` matches `International Space Station (ISS)` by acronym; `COSMOS 2251 DEB` matches nothing, which is the correct answer.",
+          "zh-CN": "匹配规则：归一化后同名、一方包含另一方且 ≥4 字符、共享 ≥5 字符的词、或共享 3–5 个字母的全大写缩写。`ISS (ZARYA)` 靠缩写匹配到 `International Space Station (ISS)`；`COSMOS 2251 DEB` 匹配不到——那就是正确答案。"
+        }
+      ]
     }
   ]
 }

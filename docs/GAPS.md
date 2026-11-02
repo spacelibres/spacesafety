@@ -75,6 +75,10 @@
 | G33 | 键盘焦点不可见 | 全局 `:focus-visible` + 筛选控件专用环；新增跳转正文链接 | 实测 Tab 后 `outline: 2px solid` |
 | G34 | `/objects/<id>` 只能打开前 1000 个（共 42,427）| 新增 `getObjectById()` / `listObjectsByOperator()` | 首/中/末位对象详情页实测均 200 |
 | G35 | `/catalogue?q=` 头部计数与分页用未筛选总数 | `countWideObjects(filters)` + 「匹配 · N / 总数」 | 实测 `?q=STARLINK-1309` → 匹配 · 1 / 72,432 |
+| G36 | 交会详情页缺官方那张图，且公开发布的 CDM 没有详情页 | 新增 `/conjunctions/<cdmId>` 详情（元信息条 + 参与方 + 消息历史 + 收敛图）；列表行链接过去 | 实测：8 条消息的图渲染 2 条曲线 16 个点、历史 8 行、滚动 0 |
+| G37 | 列表页没有列设置（官方筛选栏的齿轮）| `src/lib/columns.ts` + `ColumnSettings`（cookie 持久化），`/objects` 10 列可显隐 | 浏览器实测：取消「质量」后表头少一列，cookie `cols.objects` 写入 |
+| G38 | 三维视图没有用上模型库（257 个 glb 只是被列表页用到）| `CesiumGlobe.setModel()` 单个实体跟随锁定卫星；`/api/models/match` 按名字保守匹配；卫星卡片加「加载三维模型」| 实测：点选 STARLINK-32777 → 按钮返回「该对象没有匹配的模型」；`?name=HUBBLE` 匹配到 Hubble；`ISS (ZARYA)` 缩写到 International Space Station (ISS) |
+| G39 | 页面没有导出（官方详情页有 Download ▾）| `/api/export?what=objects|catalogue|conjunctions&format=csv|json`，三个列表页挂菜单 | 实测：objects CSV 5.2 MB / 42,427 行；catalogue `?q=STARLINK` 89 KB；conjunctions 仅未来 4.5 KB |
 
 ---
 
@@ -95,8 +99,8 @@
 | P12 | ~~再入 / 发射 / 解体事件没有页面~~ | **已完成**：`/reentry`、`/environment`、`/launches` | — |
 | P14 | 文档正文只有 en / zh-CN | ja / fr / es / de 回退到英文并明示（`docs.fallbackNotice`）| 需要把这 14 篇正文翻译 4 个语种；结构已就绪，只缺译文 |
 | P15 | 41 个零引用导出 | 多为 `src/lib/core`、`geo`、`orbit` 的库函数（留给测试与后续使用），非组件故不影响上线 | 需要时逐个判定"接口保留"还是"删掉"，本轮只记录 |
-| P17 | 交会详情页缺少官方的 Prediction Consistency 图（R/T/N 误差 vs 时间）| 现用 Pc 历史图替代 | 需要为每条 CDM 在其创建时刻复算两端轨迹误差——计算工作量而非画图工作量 |
-| P18 | 筛选栏没有官方的「列设置」（齿轮显隐列）| 列固定 | 需要列偏好持久化（cookie 或 DB），属产品决定 |
+| P17 | 官方那张 Prediction Consistency 图（R/T/N 误差 vs 时间）仍未画 | 公开发布的交会已有**估计收敛图**（最近距离 + Pc vs 距 TCA 时间，G36）；R/T/N 误差图仍需为每条 CDM 复算两端轨迹 | 需要为每条 CDM 在其创建时刻复算两端轨迹误差——计算工作量而非画图工作量 |
+| P18 | ~~筛选栏没有「列设置」~~ | **已完成**（G37）：`/objects` 十列可显隐，cookie 持久化 | 其余表格可按同一模式加 |
 | P16 | 生产构建下的行为未复核 | 审核期间 dev 服务在跑；prod 的 chunk 与 PWA/SW 路径只由 `check` 的 build-artifacts 检查覆盖 | 需要一次 `next build` + `next start` 的实测（会打断 dev 服务，故本轮没做）|
 | P13 | `discos_fragmentation.member_count` 恒为 0 | 上游只给关系链接，`meta.pagination` 无 `total`，`discos_objects` 无反向关系 | 逐事件分页遍历（673 次）或等 DISCOS 提供计数；当前按"未知"处理 |
 | P8 | 条件请求目前省 0 字节 | 实测 Spacebook / Space-Track / DISCOS **都不发** `ETag` / `Last-Modified`，多数还带 `cache-control: no-store`。机制已就绪且无副作用，去掉反而会丢掉将来 CDN 支持时的收益 | 无客户端解法：没有 validator，就无法在传输前判断内容是否变化。当前的省法是 gzip + 节奏 + 同哈希不重建、不重算 |

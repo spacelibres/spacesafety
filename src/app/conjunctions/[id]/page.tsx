@@ -3,10 +3,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PcHistoryChart } from "@/components/Charts";
+import { ConvergenceChart } from "@/components/ConvergenceChart";
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
 import { pageMetadata } from "@/lib/i18n/page-title";
-import { getEventDetail, riskBand } from "@/lib/queries";
+import {
+  getEventDetail,
+  getPublishedConjunction,
+  riskBand,
+  type PublishedConjunctionDetail,
+} from "@/lib/queries";
 import { countdownTo, formatGps } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +34,13 @@ export default async function EventPage({
 }) {
   const { id } = await params;
   const { event, history, latest } = getEventDetail(id);
-  if (!event) notFound();
+  if (!event) {
+    // Not one of our own screening events — it may be a published CDM opened from
+    // the conjunction list, which has its own detail view.
+    const published = getPublishedConjunction(id);
+    if (!published) notFound();
+    return <PublishedConjunctionPage detail={published} />;
+  }
   const t = await getTranslator();
 
   const band = riskBand(latest?.probabilityOfCollision ?? null);
@@ -246,4 +258,172 @@ function safeGps(gps: string, dash: string): string {
   } catch {
     return dash;
   }
+}
+
+/**
+ * A published conjunction, opened from the list.
+ *
+ * Same page, second data source: `/conjunctions/<id>` answers for both our own
+ * screening events (uuid) and the publicly published CDM feed (numeric message
+ * id). The two are labelled differently because they are different claims — one
+ * is our screening, the other is the screening centre's message about two
+ * catalogue objects — and merging them silently would misreport both.
+ */
+async function PublishedConjunctionPage({ detail }: { detail: PublishedConjunctionDetail }) {
+  const t = await getTranslator();
+  const c = detail.latest;
+  const firstMessage = detail.messages[0];
+  const lastMessage = detail.messages[detail.messages.length - 1];
+
+  return (
+    <>
+      <Topbar section={t.t("nav.conjunctions")} entityId={c.cdmId} />
+      <div className="content">
+        <div className="page-head">
+          <div>
+            <h1 className="page-title">
+              {t.t("conjunction.titleWithId", { id: c.cdmId.slice(0, 8) })}
+            </h1>
+            <span className="page-sub">{t.t("publishedConjunction.subtitle")}</span>
+          </div>
+          <Link className="btn" href="/conjunctions">
+            {t.t("common.backArrow")}
+          </Link>
+        </div>
+
+        {/* The meta strip the reference UI puts under every detail title. */}
+        <div className="meta-strip">
+          <div>
+            <span className="k">{t.t("conjunction.pc")}</span>
+            <span className="v">{t.probability(c.pc ?? NaN)}</span>
+          </div>
+          <div>
+            <span className="k">{t.t("column.missDistance")}</span>
+            <span className="v">
+              {c.minRangeKm === null ? t.t("common.none") : `${c.minRangeKm.toFixed(1)} km`}
+            </span>
+          </div>
+          <div>
+            <span className="k">{t.t("column.tca")}</span>
+            <span className="v mono-sm">{fmtIso(c.tcaIso, t.t("common.none"))}</span>
+          </div>
+          <div>
+            <span className="k">{t.t("conjunction.created")}</span>
+            <span className="v mono-sm">{fmtIso(c.createdIso, t.t("common.none"))}</span>
+          </div>
+          <div>
+            <span className="k">{t.t("column.messages")}</span>
+            <span className="v">{detail.messages.length}</span>
+          </div>
+          <div>
+            <span className="k">{t.t("column.risk")}</span>
+            <span className={`chip risk-${c.band}`}>{t.t(`risk.${c.band}`).toUpperCase()}</span>
+          </div>
+        </div>
+
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head">{t.t("publishedConjunction.estimate")}</div>
+          <div className="card-body">
+            <ConvergenceChart
+              points={detail.messages.map((m, i) => ({
+                hoursToTca: m.hoursToTca,
+                pc: m.pc,
+                minRangeKm: m.minRangeKm,
+                label: `#${i + 1}`,
+              }))}
+            />
+            <p className="faint" style={{ margin: "6px 0 0", fontSize: 11.5 }}>
+              {t.t("publishedConjunction.estimateNote")}
+            </p>
+          </div>
+        </div>
+
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head">{t.t("publishedConjunction.objects")}</div>
+          <table className="kv">
+            <tbody>
+              <tr>
+                <td className="k">{t.t("column.object1")}</td>
+                <td className="v-mono">
+                  {c.object1Name} · {c.object1Norad}
+                  {c.object1Type ? ` · ${c.object1Type}` : ""}
+                </td>
+              </tr>
+              <tr>
+                <td className="k">{t.t("column.object2")}</td>
+                <td className="v-mono">
+                  {c.object2Name} · {c.object2Norad}
+                  {c.object2Type ? ` · ${c.object2Type}` : ""}
+                </td>
+              </tr>
+              <tr>
+                <td className="k">{t.t("publishedConjunction.firstSeen")}</td>
+                <td className="v-mono">
+                  {fmtIso(firstMessage.createdIso, t.t("common.none"))} ·{" "}
+                  {t.t("publishedConjunction.missAtFirst", {
+                    km: firstMessage.minRangeKm === null ? "—" : firstMessage.minRangeKm.toFixed(1),
+                  })}
+                </td>
+              </tr>
+              <tr>
+                <td className="k">{t.t("publishedConjunction.latest")}</td>
+                <td className="v-mono">{fmtIso(lastMessage.createdIso, t.t("common.none"))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card">
+          <div className="card-head">{t.t("publishedConjunction.history")}</div>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>{t.t("column.cdm")}</th>
+                  <th>{t.t("conjunction.created")}</th>
+                  <th className="num">{t.t("column.missDistance")}</th>
+                  <th className="num">{t.t("column.pc")}</th>
+                  <th className="num">{t.t("publishedConjunction.hoursToTca")}</th>
+                  <th>{t.t("publishedConjunction.estimateTrend")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.messages.map((m, i) => {
+                  const prev = i > 0 ? detail.messages[i - 1] : null;
+                  return (
+                    <tr key={m.cdmId}>
+                      <td className="mono-sm">{m.cdmId}</td>
+                      <td className="mono-sm">{fmtIso(m.createdIso, t.t("common.none"))}</td>
+                      <td className="num mono-sm">
+                        {m.minRangeKm === null ? "—" : `${m.minRangeKm.toFixed(1)} km`}
+                      </td>
+                      <td className="num mono-sm">{t.probability(m.pc ?? NaN)}</td>
+                      <td className="num mono-sm">
+                        {m.hoursToTca === null ? "—" : `T-${m.hoursToTca.toFixed(1)}h`}
+                      </td>
+                      <td className="muted mono-sm">{delta(prev?.minRangeKm ?? null, m.minRangeKm)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** ISO-8601 to a space-separated UTC stamp; `dash` when absent. */
+function fmtIso(iso: string | null, dash: string): string {
+  if (!iso) return dash;
+  return iso.replace("T", " ").replace(/\.\d+Z$/, "").replace(/Z$/, "");
+}
+
+/** Change in miss distance since the previous message. */
+function delta(previous: number | null, current: number | null): string {
+  if (previous === null || current === null) return "—";
+  const d = current - previous;
+  if (Math.abs(d) < 0.05) return "0.0";
+  return `${d > 0 ? "+" : ""}${d.toFixed(1)} km`;
 }

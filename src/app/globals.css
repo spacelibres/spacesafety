@@ -1772,3 +1772,92 @@ button.btn.primary:hover {
   left: 8px;
   top: 8px;
 }
+
+/* ------------------------------------------------------------ download menu */
+
+/* A `<details>` popover: no JavaScript, and it closes when the reader clicks
+   anywhere else on the page because the summary toggles on a second click. */
+.dl {
+  position: relative;
+}
+.dl > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.dl > summary::-webkit-details-marker {
+  display: none;
+}
+.dl[open] > summary {
+  border-color: var(--color-accent);
+  color: var(--text);
+}
+.dl-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  display: flex;
+  flex-direction: column;
+}
+.dl-item {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-decoration: none;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.dl-item:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* Column-settings popover shares the download menu's shell. */
+.dl-menu-start {
+  left: 0;
+  right: auto;
+}
+.dl-head {
+  padding: 6px 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.dl-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 2px;
+}
+.dl-check:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+.dl-check input {
+  accent-color: var(--color-accent);
+}
+
+/* Actions inside the satellite card: the 3D-model button and its outcome. */
+.satellite-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}

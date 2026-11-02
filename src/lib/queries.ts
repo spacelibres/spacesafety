@@ -340,6 +340,83 @@ export function listPublishedConjunctions(
  * the revision count, and quoting only the message count would overstate how much
  * is going on by 6× (3 164 messages, 509 conjunctions).
  */
+
+/**
+ * One published conjunction, with its whole message history.
+ *
+ * The list keeps only the newest message per conjunction, because a row that
+ * shows an obsolete probability is a row that misreports the risk. This is the
+ * opposite case: the history *is* the answer to "is this estimate settling or
+ * drifting", so every message of the cluster comes back, oldest first.
+ *
+ * The cluster is the same one `listPublishedConjunctions` groups by — same object
+ * pair, TCA within 60 s — so the detail page and the list can never disagree about
+ * which messages belong together.
+ */
+export interface PublishedConjunctionDetail {
+  /** Newest message, i.e. the current estimate. */
+  latest: PublishedConjunctionRow;
+  /** Every message of this conjunction, oldest first. */
+  messages: Array<{
+    cdmId: string;
+    createdIso: string | null;
+    tcaIso: string | null;
+    pc: number | null;
+    minRangeKm: number | null;
+    /** Hours from this message's issue time to the TCA it predicted. */
+    hoursToTca: number | null;
+  }>;
+}
+
+export function getPublishedConjunction(
+  cdmId: string,
+  now: Date = new Date(),
+): PublishedConjunctionDetail | null {
+  const { sqlite } = getDb();
+
+  const messages = sqlite
+    .prepare(
+      `${CDM_AS_CONJUNCTIONS}
+       SELECT cdm_id      AS cdmId,
+              created     AS createdIso,
+              tca         AS tcaIso,
+              pc          AS pc,
+              min_range_km AS minRangeKm
+         FROM clustered
+        WHERE lo = (SELECT lo FROM clustered WHERE cdm_id = @id)
+          AND hi = (SELECT hi FROM clustered WHERE cdm_id = @id)
+          AND cluster = (SELECT cluster FROM clustered WHERE cdm_id = @id)
+        ORDER BY created ASC, cdm_id ASC`,
+    )
+    .all({ id: cdmId }) as Array<{
+    cdmId: string;
+    createdIso: string | null;
+    tcaIso: string | null;
+    pc: number | null;
+    minRangeKm: number | null;
+  }>;
+
+  if (messages.length === 0) return null;
+
+  // The representative is the newest message — same rule as the list, so the
+  // detail page and the row it was opened from show the same numbers.
+  const rows = listPublishedConjunctions(100_000, now);
+  const target = new Set(messages.map((m) => m.cdmId));
+  const latest = rows.find((r) => target.has(r.cdmId)) ?? null;
+  if (!latest) return null;
+
+  return {
+    latest,
+    messages: messages.map((m) => ({
+      ...m,
+      hoursToTca:
+        m.createdIso && m.tcaIso
+          ? (Date.parse(m.tcaIso) - Date.parse(m.createdIso)) / 3_600_000
+          : null,
+    })),
+  };
+}
+
 export function publishedConjunctionCounts(now: Date = new Date()): {
   messages: number;
   conjunctions: number;

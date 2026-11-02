@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { getTranslator } from "@/lib/i18n/registry";
 import { pageMetadata } from "@/lib/i18n/page-title";
+import { DownloadMenu } from "@/components/DownloadMenu";
 import { Topbar } from "@/components/Shell";
 import {
   countWideObjects,
@@ -53,6 +54,9 @@ export default async function CataloguePage({
   const stats = available ? wideStats() : { objects: 0, coverage: [] };
   const pages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
   const query = sp.q ? `&q=${encodeURIComponent(sp.q)}` : "";
+  const exportQuery = new URLSearchParams({ what: "catalogue" });
+  if (sp.q) exportQuery.set("q", sp.q);
+  if (sp.norad) exportQuery.set("norad", sp.norad);
 
   return (
     <>
@@ -66,6 +70,13 @@ export default async function CataloguePage({
               : `${t.t("catalogue.matched")} · ${matched.toLocaleString()} / ${stats.objects.toLocaleString()} ${t.t("catalogue.objects")}`}
           </span>
         </div>
+          <DownloadMenu
+            label={t.t("download.label")}
+            items={[
+              { label: t.t("download.csv"), href: `/api/export?${exportQuery.toString()}&format=csv` },
+              { label: t.t("download.json"), href: `/api/export?${exportQuery.toString()}&format=json` },
+            ]}
+          />
 
         {!available ? (
           <div className="card">

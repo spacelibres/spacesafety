@@ -143,6 +143,15 @@ export class CesiumGlobe {
   private readonly onPick: SatellitePickHandler | undefined;
   /** The satellite a click pinned; survives the pointer moving away. */
   private locked: Track | null = null;
+
+  /**
+   * A glTF model pinned to the locked satellite.
+   *
+   * One entity, not one per satellite: the constellation is drawn with point and
+   * polyline primitives precisely because 10 000 models would be unrenderable, and
+   * a model is only meaningful for the object the reader is looking at.
+   */
+  private modelEntity: import("cesium").Entity | null = null;
   /** The satellite under the pointer. */
   private hovered: Track | null = null;
   /**
@@ -598,6 +607,45 @@ export class CesiumGlobe {
    * `Cartesian3`s into a pool rather than creating them keeps the frame free of
    * garbage.
    */
+  /**
+   * Show (or clear) a 3D model on the locked satellite.
+   *
+   * The model is fetched by Cesium from the URI when the entity is added; passing
+   * `null` removes it. Scale is in metres per model unit and the reference assets
+   * are metres, so the default is 1 — a satellite model shown at true scale is
+   * invisible at orbital altitude, which is why `minimumPixelSize` keeps it
+   * legible instead of scaling it up into something physically false.
+   */
+  async setModel(uri: string | null, scale = 1): Promise<void> {
+    if (this.disposed || this.viewerDestroyed) return;
+    const Cesium = this.cesium;
+
+    if (this.modelEntity) {
+      this.viewer.entities.remove(this.modelEntity);
+      this.modelEntity = null;
+    }
+    if (!uri) return;
+
+    const track = this.locked;
+    const position = track
+      ? Cesium.Cartesian3.fromDegrees(
+          (track.points[0] * 180) / Math.PI,
+          (track.points[1] * 180) / Math.PI,
+          track.points[2] * 1000,
+        )
+      : undefined;
+
+    this.modelEntity = this.viewer.entities.add({
+      position,
+      model: {
+        uri,
+        scale,
+        minimumPixelSize: 48,
+        maximumScale: 200_000,
+      },
+    });
+  }
+
   tick(now = performance.now()): void {
     if (this.disposed || this.tracks.length === 0) return;
 
@@ -621,6 +669,12 @@ export class CesiumGlobe {
       this.scratch.z =
         (track.points[a + 2] + (track.points[b + 2] - track.points[a + 2]) * w) * 1000;
       track.point.position = this.scratch;
+    }
+
+    // The model rides the locked satellite; without a lock it stays where it was,
+    // which is the last position the reader was examining.
+    if (this.modelEntity && this.locked && this.locked.point.position) {
+      this.modelEntity.position = this.locked.point.position as never;
     }
   }
 

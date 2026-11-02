@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DownloadMenu } from "@/components/DownloadMenu";
 import { Topbar } from "@/components/Shell";
 import { SortableTh } from "@/components/SortableTh";
 import { getTranslator } from "@/lib/i18n/registry";
@@ -73,6 +74,9 @@ export default async function ConjunctionsPage({
   // "Still ahead" is a different question from "which band", and it is the one
   // that decides whether a row is actionable, so it gets its own control.
   const onlyUpcoming = sp.upcoming === "1";
+  const exportQuery = new URLSearchParams({ what: "conjunctions" });
+  if (onlyUpcoming) exportQuery.set("upcoming", "1");
+
   const matched = inBand(active).filter((c) => (onlyUpcoming ? c.tcaInFuture : true));
   const visible = matched.slice(0, LIMIT);
 
@@ -107,6 +111,13 @@ export default async function ConjunctionsPage({
               upcoming: counts.upcoming,
             })}
           </span>
+          <DownloadMenu
+            label={t.t("download.label")}
+            items={[
+              { label: t.t("download.csv"), href: `/api/export?${exportQuery.toString()}&format=csv` },
+              { label: t.t("download.json"), href: `/api/export?${exportQuery.toString()}&format=json` },
+            ]}
+          />
         </div>
 
         <div className="banner info" style={{ marginBottom: 12 }}>
@@ -202,7 +213,9 @@ export default async function ConjunctionsPage({
               <tbody>
                 {visible.map((c) => (
                   <tr key={c.cdmId}>
-                    <td className="mono-sm">{c.cdmId}</td>
+                    <td className="mono-sm">
+                      <Link href={`/conjunctions/${c.cdmId}`}>{c.cdmId}</Link>
+                    </td>
                     <td>
                       {c.object1Name}
                       <span className="faint mono-sm"> {c.object1Norad}</span>

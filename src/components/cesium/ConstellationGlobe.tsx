@@ -41,6 +41,14 @@ export function ConstellationGlobe({ height = 620 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [selected, setSelected] = useState<SatelliteInfo | null>(null);
+  /**
+   * The 3D model for the selected satellite: `idle` until asked for, because the
+   * assets run to tens of megabytes and fetching one for every clicked satellite
+   * would be a bandwidth surprise the reader did not ask for.
+   */
+  const [model, setModel] = useState<
+    { state: "idle" } | { state: "loading" } | { state: "none" } | { state: "shown"; name: string }
+  >({ state: "idle" });
 
   // Follow the document's theme attribute. The switcher, a cookie-driven reload
   // and the OS preference all end up writing it, so one observer covers all three.
@@ -89,7 +97,13 @@ export function ConstellationGlobe({ height = 620 }: Props) {
     void CesiumGlobe.create({
       container,
       theme,
-      onPick: setSelected,
+      // Picking a different satellite drops any model: leaving the previous one
+      // attached would show the wrong shape on the new object.
+      onPick: (info) => {
+        setSelected(info);
+        setModel({ state: "idle" });
+        void globeRef.current?.setModel(null);
+      },
     })
       .then((created) => {
         if (disposed) {
@@ -177,6 +191,40 @@ export function ConstellationGlobe({ height = 620 }: Props) {
             <dt>{t.t("constellation.altitude")}</dt>
             <dd className="mono">{Math.round(selected.altitudeKm).toLocaleString()} km</dd>
           </dl>
+          <div className="satellite-card-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={model.state === "loading" || model.state === "shown"}
+              onClick={async () => {
+                setModel({ state: "loading" });
+                const res = await fetch(
+                  `/api/models/match?name=${encodeURIComponent(selected.name)}`,
+                );
+                const body = (await res.json()) as {
+                  match: { name: string; url: string } | null;
+                };
+                if (!body.match) {
+                  setModel({ state: "none" });
+                  return;
+                }
+                await globeRef.current?.setModel(body.match.url);
+                setModel({ state: "shown", name: body.match.name });
+              }}
+            >
+              {t.t("constellation.showModel")}
+            </button>
+            {model.state === "none" && (
+              <span className="faint" style={{ fontSize: 11 }}>
+                {t.t("constellation.noModel")}
+              </span>
+            )}
+            {model.state === "shown" && (
+              <span className="faint" style={{ fontSize: 11 }}>
+                {t.t("constellation.modelShown", { name: model.name })}
+              </span>
+            )}
+          </div>
         </div>
       ) : (
         <div className="constellation-hint">{t.t("constellation.pickHint")}</div>
