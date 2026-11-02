@@ -323,7 +323,12 @@ async function main(): Promise<void> {
 
       ledger.finish(fetchId, {
         sourceId: spec.id,
-        status: "ok",
+        // "Fetched" and "changed" are different facts. An identical body costs the
+        // full transfer but tells us nothing new, and the rebuild decision keys on
+        // `ok`, so recording it as `ok` would rebuild 72 k rows for data that did
+        // not move. `source_fetches` has had the `unchanged` value for this since
+        // the conditional-request work; it is used here too.
+        status: stored.unchanged ? "unchanged" : "ok",
         bytes: stored.bytes,
         records: countRecords(body, spec.format),
         path: stored.path,

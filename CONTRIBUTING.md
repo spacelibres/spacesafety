@@ -209,7 +209,10 @@ npm run release:verify   # 工作区干净 / HEAD 已打 tag / 每条 tag 自带
    validator，仍按节奏整取；分页爬取（DISCOS）省的是已缓存的分页，不是整档。
    实测数据与例外全部记在 `docs/DATA-SOURCES.md`。
 5. **归档层继续用 SHA-256 兜底。** 服务端不给 validator、或给了但内容其实变了，
-   `archive.store()` 的同哈希判断仍然保证不写重复档。
+   `archive.store()` 的同哈希判断仍然保证不写重复档——但这条曾经是假的：
+   文件名只带 12 位哈希，比较却拿它去对 64 位摘要，于是每次都写新档，
+   四天攒出 1 GB 重复（0.1.72 修好，`tests/archive-dedupe.test.ts` 锁住）。
+   **写进注释的优化，没人断言就等于没做。**
 6. **每个出口都必须显式要 gzip。** 常量在 `src/lib/net/encoding.ts`
    （`ACCEPT_ENCODING = "gzip, deflate"`），新增任何出站 HTTP 都要用它，
    包括自建的 socket 传输。不能留给运行时默认协商：undici 默认要 brotli，

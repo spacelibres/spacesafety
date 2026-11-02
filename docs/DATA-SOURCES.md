@@ -115,7 +115,7 @@ Space-Track 官方再入预测 26,184 条、公开 CDM 3,161 条、DISCOS 碎片
 | 节奏 | `downloads.ts` 的 `refreshMinutes` + `source_fetches` 上次检查时间 | 整次请求（连 HEAD 都不发） | 已生效 |
 | 条件请求 | `if-none-match` / `if-modified-since`（上一轮的 validator） | 响应主体（`304`，0 字节） | 机制已就绪，**当前四个源都不发 validator** |
 | 压缩 | `accept-encoding: gzip` | 传输量约 4 倍 | 已生效 |
-| 归档 | 与上一份 SHA-256 相同 | 不写新档（磁盘） | 已生效 |
+| 归档 | 与上一份 SHA-256 相同 | 不写新档（磁盘） | 已生效（0.1.72 起，此前比较写错、实际每次都写新档）|
 | 重建 | 本轮 `source_fetches.status='ok'` 的行数 | load → wide → classify → events | 已生效 |
 
 **当前四个源的实测响应头（2026-10-30，直接用 node fetch 打）：**
@@ -199,8 +199,15 @@ sqlite3 data/catalogue.sqlite \
 ```
 
 `--status` 只看"上次成功"，账本才是逐次的证据：`ok` 与 `unchanged` 的条数直接说明
-这一轮有没有真的传输——**四个源目前都不发 validator，所以正常情况下一轮里
-`unchanged` 永远是 0**，看到 0 不是坏了。
+这一轮有没有真的传输。两种 `unchanged` 要分开看：
+
+- **304**：服务器说没变。四个源都不发 validator，所以正常情况下一轮里 **304 永远是 0**。
+- **同哈希**：传了整份，但内容与上一份逐字节相同（归档不再写新档）。这在
+  `space-track-launch-site` 这类静态表、或两次抓取间隔很短时是常态。
+
+0.1.72 之前这条判断从没生效过——比较的是文件名里的 12 位哈希与完整的 64 位摘要，
+永远不相等，于是每次都写新档、每次都记 `ok`。实测代价：归档 2.5 GB 里 **1,005 MB
+（40%）是同哈希重复**。
 
 验证不连上游：`tests/http-conditional.test.ts` 起本地 `node:http` 文件服务，
 断言第二次请求是 `304` 且写入 socket 的主体字节为 **0**。

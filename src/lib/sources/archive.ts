@@ -19,9 +19,15 @@
  *   data/archive/<download-id>/<YYYY-MM-DD>/<HHmmss>-<sha256:12>.<ext>
  *
  * The time-of-day prefix keeps the files in fetch order; the hash suffix makes a
- * re-fetch of unchanged content a five-second no-op instead of another 69 MB
- * write, and makes a *changed* body visible as a new file rather than an
- * overwritten one.
+ * re-fetch of unchanged content a no-op instead of another 69 MB write, and makes
+ * a *changed* body visible as a new file rather than an overwritten one.
+ *
+ * That no-op did not work for the first four days of this archive's life: the
+ * name carries 12 hex characters and the comparison used the full 64-character
+ * digest, so it never matched and every capture wrote a new file. 1 GB of the
+ * 2.5 GB archive was byte-identical duplicates. `sameDigest()` fixes the
+ * comparison and `tests/archive-dedupe.test.ts` asserts it, because a comment
+ * about an optimisation is not an optimisation.
  *
  * ## Retention
  *
@@ -44,6 +50,19 @@ import { dirname, join } from "node:path";
 import type { DownloadSpec } from "./downloads";
 
 export type ArchiveRoot = string;
+
+/**
+ * Whether two digests identify the same body.
+ *
+ * The archive names files `HHmmss-<sha256:12>`, so a digest read back from a name
+ * is a prefix of the real one. Comparing them for equality is the bug this
+ * guards; the ledger happens to store the full digest, so both forms occur.
+ */
+export function sameDigest(a: string, b: string): boolean {
+  if (a.length === b.length) return a === b;
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  return long.startsWith(short);
+}
 
 export interface CaptureResult {
   ok: boolean;
@@ -119,7 +138,13 @@ export class SourceArchive {
     const started = Date.now();
     const sha256 = createHash("sha256").update(body).digest("hex");
 
-    if (previous && previous.sha256 === sha256 && existsSync(previous.path)) {
+    // `previous.sha256` usually comes from the *filename*, which carries only the
+    // first 12 hex characters (see the layout note above), so an exact comparison
+    // against the full 64-character digest could never match and the dedupe has
+    // never fired: every capture wrote a new file, even byte-identical ones. A
+    // prefix match is the correct comparison for the precision the name carries;
+    // a full digest compares exactly.
+    if (previous && sameDigest(previous.sha256, sha256) && existsSync(previous.path)) {
       return {
         ok: true,
         path: previous.path,
