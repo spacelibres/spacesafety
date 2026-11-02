@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import { Topbar } from "@/components/Shell";
 import { getDb } from "@/db";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,11 @@ function localUrl(p: string | null): string | null {
  * meshes at all, so a commercial constellation appears only where Spacebook covers
  * it — stated on the page rather than left as a silent gap.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("models.title"));
+}
+
 export default async function ModelsPage({
   searchParams,
 }: {

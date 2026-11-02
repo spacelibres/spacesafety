@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useTranslator } from "@/lib/i18n/client";
 import { LOGO_MARKS } from "@/lib/vi/logo-marks";
@@ -126,6 +126,28 @@ export function Sidebar() {
       return next;
     });
 
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    // `/` focuses search unless the reader is already typing somewhere — stealing
+    // the key from a filter input would make it impossible to type a slash in a
+    // name.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (document.activeElement === searchRef.current) searchRef.current?.blur();
+        return;
+      }
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active?.isContentEditable) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   useEffect(() => {
     const tick = () => setClock(formatUtc(new Date()));
     tick();
@@ -173,12 +195,22 @@ export function Sidebar() {
       {showBanner && <div className="sidebar-env">{env}</div>}
       <div className="sidebar-clock">{clock}</div>
 
-      <div className="sidebar-search">
+      {/*
+        The search box used to be an <input> with no name, no form and no handler:
+        typing into it did nothing, on every page. It now submits to the catalogue
+        search, which is the only place a name/NORAD query can be answered, and the
+        `/` shortcut focuses it — both are what the reference UI shows.
+      */}
+      <form className="sidebar-search" action="/catalogue" method="get" role="search">
         <input
+          ref={searchRef}
+          name="q"
           placeholder={t.t("nav.search")}
           aria-label={t.t("nav.searchLabel")}
+          title={t.t("a11y.focusHint")}
+          autoComplete="off"
         />
-      </div>
+      </form>
 
       <nav className="sidebar-nav" aria-label={t.t("a11y.sidebar")}>
         {NAV.map((item) => {

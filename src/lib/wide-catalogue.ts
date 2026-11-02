@@ -226,10 +226,31 @@ export function listWideObjects(options: ListOptions = {}): WideListRow[] {
   return rows;
 }
 
-export function countWideObjects(): number {
+/**
+ * How many objects match a filter — the number the pager and the header need.
+ *
+ * It took no options, so a filtered list reported the unfiltered total: searching
+ * for one object still showed "72,432 objects" and offered 725 pages of results
+ * that did not exist.
+ */
+export function countWideObjects(options: ListOptions = {}): number {
   if (!wideReady()) return 0;
   const { sqlite } = getDb();
-  const row = sqlite.prepare("SELECT COUNT(*) AS n FROM wide.catalogue_wide").get() as { n: number };
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (options.noradId !== undefined) {
+    where.push("catalogue_wide.norad_id = ?");
+    params.push(options.noradId);
+  }
+  if (options.nameContains) {
+    where.push("upper(COALESCE(name__spacetrack, name__spacebook, name__discos)) LIKE ?");
+    params.push(`%${options.nameContains.toUpperCase()}%`);
+  }
+  const row = sqlite
+    .prepare(
+      `SELECT COUNT(*) AS n FROM wide.catalogue_wide${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`,
+    )
+    .get(...params) as { n: number };
   return row.n;
 }
 

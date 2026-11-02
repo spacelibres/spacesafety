@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
 import type { MessageTable } from "@/lib/i18n/messages/en";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import { statistics, type Bucket, type CrossTab } from "@/lib/statistics";
 
 export const dynamic = "force-dynamic";
@@ -143,6 +145,11 @@ async function CrossTable({
       </div>
     </div>
   );
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("statistics.title"));
 }
 
 export default async function StatisticsPage() {

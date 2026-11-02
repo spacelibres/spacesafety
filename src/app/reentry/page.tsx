@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { TinyBars } from "@/components/Charts";
 import { Topbar } from "@/components/Shell";
 import { StatsRow, stat } from "@/components/Stats";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import { countdownToIso } from "@/lib/space-safety/gps";
 import {
   listRecentReentries,
@@ -36,6 +38,11 @@ const ROW_LIMIT = 100;
  * merging them: averaging two forecasts of a re-entry would invent an answer
  * neither source gave.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("reentryPage.title"));
+}
+
 export default async function ReentryPage() {
   const t = await getTranslator();
   const summary = reentrySummary();

@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
 import { browse, type BrowseFilter, type FacetName } from "@/lib/browse";
 import type { MessageTable } from "@/lib/i18n/messages/en";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,11 @@ const VALUE_LABEL_KEYS: Record<string, Record<string, keyof MessageTable>> = {
 
 function labelKey(facet: FacetName, value: string): keyof MessageTable | undefined {
   return VALUE_LABEL_KEYS[facet]?.[value];
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("browse.title"));
 }
 
 export default async function BrowsePage({

@@ -5,8 +5,15 @@ import { SortableTh } from "@/components/SortableTh";
 import { getTranslator } from "@/lib/i18n/registry";
 import { countObjects, listObjects, OBJECT_SORTS, type ObjectFilters } from "@/lib/queries";
 import { parseSort } from "@/lib/sort";
+import { pageMetadata } from "@/lib/i18n/page-title";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("objectsPage.title"));
+}
 
 export default async function ObjectsPage({
   searchParams,

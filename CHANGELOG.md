@@ -12,6 +12,58 @@
 
 ---
 
+## [0.1.77] - 2026-11-02
+
+前端细节审查。页面布局此前已经和官方截图对上了，但**页面之外**的东西基本没做：
+状态页、标题、键盘可用性，以及两处"看着能点其实不能"的控件。
+
+### 修掉的七处
+
+| 发现 | 证据 | 处置 |
+|---|---|---|
+| 全站共用一个 `<title>` | 16 个页面全输出 `<title>太空之眼</title>` | 每页 `generateMetadata`；详情页用「类型 + uuid 前 8 位」，与官方一致 |
+| 没有 `not-found.tsx` | `/objects/<不存在>` 渲染 Next 的英文默认页 | 新增，双语 + 返回总览 / 浏览编目 |
+| 没有 `error.tsx` | 抛错即白屏，没有 digest 可报 | 新增，显示 digest + 重试 + 回总览 |
+| 没有 `loading.tsx` | 点导航后旧页面一直停留 | 骨架只挂叶子段（见下） |
+| 侧栏搜索框是装饰 | 输入 `starlink` 后 URL 不变、无反应 | 改成提交到 `/catalogue?q=`，补 `/` 快捷键、Escape 失焦 |
+| 键盘焦点不可见 | `.filter-group > input/select` 设了 `outline: none` 且无替代 | 全局 `:focus-visible` + 筛选控件专用环 + 跳转正文链接 |
+| `/objects/<id>` 只能开前 1000 个 | 详情页 `listObjects(1000).find()`，表里 42,427 行 | 新增 `getObjectById()`；首/中/末位对象详情实测均 200 |
+
+顺带修掉 `/catalogue?q=` 的头部计数与分页用未筛选总数（搜到 1 个对象仍显示
+"72,432 个对象"并给出 725 页）：`countWideObjects(filters)` + 「匹配 · 1 / 72,432」。
+
+### 一个 Next 陷阱：404 状态和加载骨架不能共存
+
+- 加**根级** `loading.tsx` 后，`notFound()` 全部变成 **HTTP 200**——响应头在错误被发现前
+  就冲出去了，`notFound()` 只能改 body。实测四条路径从 404 变 200。
+- 因此骨架只挂在**没有动态子路由**的叶子段（browse / statistics / launches / reentry /
+  environment / models / keys / users / feedback）。
+- 更隐蔽的一条：`notFound()` 在动态页里以 **RSC payload** 送到浏览器，服务端渲染的正文是
+  一个 `<div hidden>`。所以 `not-found.tsx` **不能用服务端读词典**，否则浏览器里是空白页
+  （实测：status 404、正文 0 字符）。文案改由客户端组件 `RouteMessages.tsx` 提供后正常。
+
+### 数据侧的一个发现（由测试暴露）
+
+`tests/analysis.test.ts` 的「三种 OMM 编码记录数相同」失败了：32,832 / 32,832 / 32,833。
+查明不是解析缺陷——JSON/KVN 是 07:08 抓的、XML 是 05:08 抓的（日频 vs 2 小时频），
+中间多了一个 NORAD **26671**。断言改为「差值 ≤ 50」并写明原因；原来那条断言只是
+恰好在上一次运行时抓取时点相近。
+
+### 验证
+
+- 新增 `tests/route-states.test.ts`（8 条）：not-found 必须是客户端正文、error 必须有 digest、
+  **有动态子路由的段不得挂 loading.tsx**、每页都有 generateMetadata、搜索框必须提交到
+  `/catalogue` 且有 `/` 快捷键、跳转链接与焦点环存在。
+- 浏览器实测：按 `/` 聚焦搜索框 → 输入并回车 → `/catalogue?q=STARLINK-1309`；Tab 后
+  `outline: 2px solid`；三条 404 路径 status 404 且有正文与两个返回链接；首页 Cesium
+  canvas 685×460、控制台 0 错误。
+- 性能复测：首轮 25 s 的 `/browse` 是 **dev 模式按需编译**，预热后 1.6 s；`/catalogue`
+  3.6 s（503 KB 文档），其余 < 1 s。
+- `npm test`：**50 个套件、957 条断言全过**；`npm run check` 十项全过；`check:css` 无未定义
+  变量；`audit:viewport` 20 页 × 7 视口无滚动条。
+
+---
+
 ## [0.1.76] - 2026-11-02
 
 按官方截图（`docs/reference-screenshots/` + `docs/UI-SPEC.md`）逐项对照实现，补齐两处

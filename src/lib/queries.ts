@@ -453,6 +453,91 @@ export interface ObjectRow {
 }
 
 /**
+ * One object by id.
+ *
+ * The detail page used `listObjects(1000).find(…)`, which only ever sees the first
+ * thousand rows in name order: with 42,427 objects, ~97% of object links 404'd.
+ * The page looked broken for almost every object and perfect for the ones you
+ * happened to click first.
+ */
+export function getObjectById(id: string): ObjectRow | null {
+  const { sqlite } = getDb();
+  const row = sqlite
+    .prepare(
+      `SELECT o.id, o.operator_id AS operatorId, COALESCE(op.name, 'UNKNOWN') AS operatorName,
+              o.object_name AS objectName, o.norad_id AS noradId,
+              o.hard_body_radius AS hardBodyRadius, o.maneuverability, o.alive,
+              m.cospar_id AS cosparId, m.object_class AS objectClass, m.country,
+              m.mass_kg AS massKg, m.cross_section_avg_m2 AS crossSectionM2,
+              m.manufacturer
+         FROM objects o
+         LEFT JOIN operators op ON op.id = o.operator_id
+         LEFT JOIN master_object m ON m.norad_id = o.norad_id
+        WHERE o.id = ?`,
+    )
+    .get(id) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    operatorId: String(row.operatorId),
+    operatorName: String(row.operatorName),
+    objectName: String(row.objectName),
+    noradId: row.noradId === null ? null : Number(row.noradId),
+    hardBodyRadius: Number(row.hardBodyRadius),
+    maneuverability: Boolean(row.maneuverability),
+    alive: Boolean(row.alive),
+    cosparId: (row.cosparId as string | null) ?? null,
+    objectClass: (row.objectClass as string | null) ?? null,
+    country: (row.country as string | null) ?? null,
+    massKg: row.massKg === null ? null : Number(row.massKg),
+    crossSectionM2: row.crossSectionM2 === null ? null : Number(row.crossSectionM2),
+    manufacturer: (row.manufacturer as string | null) ?? null,
+  };
+}
+
+/**
+ * Every object of one operator.
+ *
+ * The operator page did `listObjects(1000).filter(…)`, so it could only ever show
+ * that operator's objects that happened to fall inside the first thousand rows.
+ */
+export function listObjectsByOperator(operatorId: string, limit = 1000): ObjectRow[] {
+  const { sqlite } = getDb();
+  const rows = sqlite
+    .prepare(
+      `SELECT o.id, o.operator_id AS operatorId, COALESCE(op.name, 'UNKNOWN') AS operatorName,
+              o.object_name AS objectName, o.norad_id AS noradId,
+              o.hard_body_radius AS hardBodyRadius, o.maneuverability, o.alive,
+              m.cospar_id AS cosparId, m.object_class AS objectClass, m.country,
+              m.mass_kg AS massKg, m.cross_section_avg_m2 AS crossSectionM2,
+              m.manufacturer
+         FROM objects o
+         LEFT JOIN operators op ON op.id = o.operator_id
+         LEFT JOIN master_object m ON m.norad_id = o.norad_id
+        WHERE o.operator_id = ?
+        ORDER BY o.object_name
+        LIMIT ?`,
+    )
+    .all(operatorId, limit) as Array<Record<string, unknown>>;
+  return rows.map((row) => ({
+    id: String(row.id),
+    operatorId: String(row.operatorId),
+    operatorName: String(row.operatorName),
+    objectName: String(row.objectName),
+    noradId: row.noradId === null ? null : Number(row.noradId),
+    hardBodyRadius: Number(row.hardBodyRadius),
+    maneuverability: Boolean(row.maneuverability),
+    alive: Boolean(row.alive),
+    cosparId: (row.cosparId as string | null) ?? null,
+    objectClass: (row.objectClass as string | null) ?? null,
+    country: (row.country as string | null) ?? null,
+    massKg: row.massKg === null ? null : Number(row.massKg),
+    crossSectionM2: row.crossSectionM2 === null ? null : Number(row.crossSectionM2),
+    manufacturer: (row.manufacturer as string | null) ?? null,
+  }));
+}
+
+/**
  * The object list, with the merged catalogue fields.
  *
  * `objects` holds what an operator uploaded; `master_object` holds what the three

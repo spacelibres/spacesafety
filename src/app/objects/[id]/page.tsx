@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -8,10 +9,21 @@ import { buildAccuracyReport } from "@/lib/core/accuracy-report";
 import { getDb } from "@/db";
 import { cdms, trajectoryFiles, trajectories } from "@/db/schema";
 import { getTranslator } from "@/lib/i18n/registry";
-import { listObjects } from "@/lib/queries";
+import { pageMetadata } from "@/lib/i18n/page-title";
+import { getObjectById, listObjectsByOperator } from "@/lib/queries";
 import { eq, or } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const t = await getTranslator();
+  const { id } = await params;
+  return pageMetadata(t, `${t.t("object.title")} ${id.slice(0, 8)}`);
+}
 
 export default async function ObjectPage({
   params,
@@ -20,7 +32,7 @@ export default async function ObjectPage({
 }) {
   const { id } = await params;
   const t = await getTranslator();
-  const object = listObjects(1000).find((o) => o.id === id);
+  const object = getObjectById(id);
   if (!object) notFound();
 
   const { db } = getDb();

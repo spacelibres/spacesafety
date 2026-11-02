@@ -69,6 +69,12 @@
 | G27 | 死代码与假机制：`useThemeMode` 零引用、`Sidebar` 的 `theme` 参数从未被读 | 两者删除，并在原位写明真实机制（inline SVG + CSS token，不需要 JS 知道模式）| `tsc` + 浏览器实测（272px 侧栏、240px 品牌、主题切换仍生效）|
 | G28 | 列表页筛选栏是**装饰**（`/objects`、`/trajectories` 的 select 无 name、无 form、无查询）| 改成真正的 GET 表单并把筛选接到 SQL；`/operators` 补筛选栏；交会页补「仅未来 TCA」| 浏览器实测：`/objects?name=STARLINK-1309` 42,427 → 2；`?alive=false` → 0；交会 558 → 36（仅未来）|
 | G29 | 列表页表头不可排序（官方 `Name ↕`）| 新增 `src/lib/sort.ts`（白名单 + 稳定次级排序 + 链接构造）与 `SortableTh`；四个列表页共 20 个可排序表头 | `tests/sort-filter.test.ts` 12 条；`/objects?sort=noradId&dir=desc` 实测首行 60236 → 270449；交会 `?sort=tca&dir=asc` 首行变为最早 TCA |
+| G30 | 全站共用一个 `<title>`（6 个标签页无法区分）| 每页 `generateMetadata`；详情页「类型 + uuid 前 8 位」，docs 用页面标题 | `tests/route-states.test.ts` 断言每个 page 都有 generateMetadata |
+| G31 | 没有 `not-found.tsx` / `error.tsx` / `loading.tsx` | 三个都补：404 与错误页双语带 digest；骨架只挂叶子段 | 浏览器实测 3 条 404 路径：status 404 且有正文与返回链接；错误页显示 digest |
+| G32 | 侧栏搜索框是装饰（无 name / 无 form / 无 handler）| 改成提交到 `/catalogue?q=`，补 `/` 快捷键与 Escape 失焦 | 浏览器实测：按 `/` 聚焦、输入并回车后 URL 为 `/catalogue?q=STARLINK-1309` |
+| G33 | 键盘焦点不可见 | 全局 `:focus-visible` + 筛选控件专用环；新增跳转正文链接 | 实测 Tab 后 `outline: 2px solid` |
+| G34 | `/objects/<id>` 只能打开前 1000 个（共 42,427）| 新增 `getObjectById()` / `listObjectsByOperator()` | 首/中/末位对象详情页实测均 200 |
+| G35 | `/catalogue?q=` 头部计数与分页用未筛选总数 | `countWideObjects(filters)` + 「匹配 · N / 总数」 | 实测 `?q=STARLINK-1309` → 匹配 · 1 / 72,432 |
 
 ---
 

@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,11 @@ export const dynamic = "force-dynamic";
  * not SpaceX's — printing their onboarding address here would be a lie a reader
  * could dial, and printing a made-up one would be worse.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("feedback.title"));
+}
+
 export default async function FeedbackPage() {
   const t = await getTranslator();
   const contact = process.env.SPACE_SAFETY_CONTACT_EMAIL ?? "";

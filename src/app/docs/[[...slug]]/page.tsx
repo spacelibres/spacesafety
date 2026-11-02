@@ -14,6 +14,8 @@ import {
   type LoadedDocPage,
 } from "@/lib/docs";
 import { currentLocale, getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
+import type { Metadata } from "next";
 import type { Translator } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,37 @@ export const dynamic = "force-dynamic";
  * Section paths exist so the links inside the content — which use the full
  * `/docs/<section>/<page>` form — resolve without a redirect.
  */
+/**
+ * A docs page's title is the page it shows, not the site name: six open tabs of
+ * "Documentation" is the same problem six object tabs had.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const segments = slug ?? [];
+  const locale = await currentLocale();
+  const t = await getTranslator();
+  const nav = docsNav();
+
+  if (segments.length === 0) return pageMetadata(t, t.t("docs.indexTitle"));
+  if (segments[0] === "api") {
+    if (segments[1]) {
+      const endpoint = endpointBySlug(segments[1]);
+      if (endpoint) return pageMetadata(t, `${localised(endpoint.title, locale)} · ${endpoint.method} ${endpoint.path}`);
+    }
+    return pageMetadata(t, t.t("docs.apiReference"));
+  }
+  for (const section of nav.sections) {
+    const page = section.pages?.find((p) => p.slug === (segments[1] ?? segments[0]));
+    if (page) return pageMetadata(t, `${localised(page.title, locale)} · ${localised(section.title, locale)}`);
+    if (section.id === segments[0]) return pageMetadata(t, localised(section.title, locale));
+  }
+  return pageMetadata(t, t.t("docs.indexTitle"));
+}
+
 export default async function DocsPage({
   params,
 }: {

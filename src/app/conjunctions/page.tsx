@@ -12,6 +12,8 @@ import {
   type RiskBand,
 } from "@/lib/queries";
 import { parseSort } from "@/lib/sort";
+import { pageMetadata } from "@/lib/i18n/page-title";
+import type { Metadata } from "next";
 import { countdownTo, countdownToIso } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +40,11 @@ const LIMIT = 200;
  * and no operator claim, so it cannot be re-screened as if it were ours. Merging
  * the two into one grid without a source column would misrepresent both.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("conjunctionsPage.title"));
+}
+
 export default async function ConjunctionsPage({
   searchParams,
 }: {

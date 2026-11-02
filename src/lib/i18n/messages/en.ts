@@ -28,6 +28,7 @@ export const en = {
   "catalogue.sourceSupplemental": "SB analyst",
   "catalogue.sources": "Five sources",
   "catalogue.objects": "objects",
+  "catalogue.matched": "Matching",
   "catalogue.search": "Search",
   "catalogue.inclination": "Inclination (°)",
   "catalogue.noMatch": "No matching objects",
@@ -614,6 +615,18 @@ export const en = {
   "docs.requiredNo": "optional",
   "docs.extension": "extension",
   "docs.baseUrl": "Base URL",
+  "a11y.skipToContent": "Skip to content",
+  "a11y.focusHint": "Press / to search",
+  "loading.label": "Loading…",
+  "notFound.title": "Not found",
+  "notFound.body": "There is no page at this address. It may have been renamed, or the identifier may be wrong.",
+  "notFound.home": "Back to the overview",
+  "notFound.catalogue": "Browse the catalogue",
+  "errorPage.title": "Something went wrong",
+  "errorPage.body": "This page failed to render. The details are in the server log, keyed by the correlation id below.",
+  "errorPage.retry": "Try again",
+  "errorPage.home": "Back to the overview",
+  "search.submit": "Search",
 } as const;
 
 export type MessageTable = Record<keyof typeof en, string>;

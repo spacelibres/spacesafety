@@ -1,14 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
-import { listObjects, listOperators } from "@/lib/queries";
+import { pageMetadata } from "@/lib/i18n/page-title";
+import { listObjectsByOperator, listOperators } from "@/lib/queries";
 import { getDb } from "@/db";
 import { trajectories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const t = await getTranslator();
+  const { id } = await params;
+  return pageMetadata(t, `${t.t("operator.title")} ${id.slice(0, 8)}`);
+}
 
 export default async function OperatorPage({
   params,
@@ -20,7 +32,7 @@ export default async function OperatorPage({
   const operator = listOperators().find((o) => o.id === id);
   if (!operator) notFound();
 
-  const objects = listObjects(1000).filter((o) => o.operatorId === id);
+  const objects = listObjectsByOperator(id);
   const { db } = getDb();
   const uploads = db
     .select()

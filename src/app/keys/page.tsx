@@ -1,10 +1,17 @@
+import type { Metadata } from "next";
 import { Topbar } from "@/components/Shell";
 import { getDb } from "@/db";
 import { credentials, operators } from "@/db/schema";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("keys.title"));
+}
 
 export default async function KeysPage() {
   const { db } = getDb();

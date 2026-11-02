@@ -4,6 +4,7 @@ import { PwaRegister } from "@/components/PwaRegister";
 import { Sidebar } from "@/components/Shell";
 import { I18nProvider } from "@/lib/i18n/client";
 import { currentLocale, translator } from "@/lib/i18n/registry";
+import { getTranslator } from "@/lib/i18n/registry";
 import { currentPalette, currentTheme } from "@/lib/vi/theme";
 import { tokenCss } from "@/lib/vi/tokens";
 
@@ -60,6 +61,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // one gets the same generator's output injected here — the VI derives the whole
   // scheme from a single primary, so this is a token block, not sixteen choices.
   const palette = await currentPalette();
+  const t = await getTranslator();
+  const skipLabel = t.t("a11y.skipToContent");
   const derivedTokens = palette.name === "01-electric-orbit" ? null : tokenCss(palette);
 
   return (
@@ -82,8 +85,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : null}
         <I18nProvider locale={locale}>
           <div className="app">
+            {/*
+              First focusable element in the document. The sidebar holds 14 links,
+              so a keyboard user otherwise tabs through all of them on every page
+              before reaching content.
+            */}
+            <a className="skip-link" href="#main-content">
+              {skipLabel}
+            </a>
             <Sidebar />
-            <div className="main">{children}</div>
+            <div className="main" id="main-content">
+              {children}
+            </div>
           </div>
         </I18nProvider>
       </body>

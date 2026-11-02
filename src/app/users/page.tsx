@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import { eq } from "drizzle-orm";
 
 import { Topbar } from "@/components/Shell";
 import { getDb } from "@/db";
 import { credentials, operators } from "@/db/schema";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,11 @@ export const dynamic = "force-dynamic";
  * The distinction is stated on the page itself: a reader comparing the two
  * deserves to know why the columns differ.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("users.title"));
+}
+
 export default async function UsersPage() {
   const { db } = getDb();
   const t = await getTranslator();

@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import { Topbar } from "@/components/Shell";
 import {
   countWideObjects,
@@ -15,6 +17,11 @@ import {
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("nav.catalogue"));
+}
 
 export default async function CataloguePage({
   searchParams,
@@ -36,7 +43,13 @@ export default async function CataloguePage({
         noradId: Number.isFinite(norad) ? norad : undefined,
       })
     : [];
-  const total = available ? countWideObjects() : 0;
+  const matched = available
+    ? countWideObjects({
+        nameContains: sp.q || undefined,
+        noradId: Number.isFinite(norad) ? norad : undefined,
+      })
+    : 0;
+  const total = matched;
   const stats = available ? wideStats() : { objects: 0, coverage: [] };
   const pages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
   const query = sp.q ? `&q=${encodeURIComponent(sp.q)}` : "";
@@ -48,7 +61,9 @@ export default async function CataloguePage({
         <div className="page-head">
           <h1 className="page-title">{t.t("nav.catalogue")}</h1>
           <span className="count">
-            {t.t("catalogue.sources")} · {stats.objects.toLocaleString()} {t.t("catalogue.objects")}
+            {matched === stats.objects
+              ? `${t.t("catalogue.sources")} · ${stats.objects.toLocaleString()} ${t.t("catalogue.objects")}`
+              : `${t.t("catalogue.matched")} · ${matched.toLocaleString()} / ${stats.objects.toLocaleString()} ${t.t("catalogue.objects")}`}
           </span>
         </div>
 

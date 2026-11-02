@@ -170,3 +170,36 @@ graph TD
   我们画的是 Pc 随 CDM 版本的历史。要画官方那张，需要为每条 CDM 在其创建时刻
   对两端轨迹做一次误差复算——那是计算工作量，不是画图工作量，单列在 `docs/GAPS.md`。
 - **列设置（齿轮）**：官方筛选栏右侧有列显隐设置，我们未实现；当前列固定。
+
+---
+
+## 前端细节审查（2026-11-02）
+
+在这一轮之前，上面那张表只覆盖了"页面长什么样"。真正的问题在**页面之外**：
+状态页、标题、可用性、以及"看着能点其实不能"的控件。
+
+| 发现 | 证据 | 处置 |
+|---|---|---|
+| 所有页面共用一个 `<title>` | 16 个页面全部输出 `<title>太空之眼</title>` | 每页 `generateMetadata`，详情页用「类型 + uuid 前 8 位」；docs 页用页面标题 |
+| 没有 `not-found.tsx` | `/objects/<不存在>` 渲染 Next 的英文默认页 | 新增；**正文必须是客户端组件**（见下） |
+| 没有 `error.tsx` | 抛错→Next 默认白屏，无 digest 可报 | 新增，显示 digest + 重试 + 回总览 |
+| 没有 `loading.tsx` | 点导航后旧页面停留到新页面返回，看起来像没响应 | 只在**叶子段**加骨架（见下） |
+| 侧栏搜索框是装饰 | 输入 `starlink` 后 URL 不变、无任何反应 | 改成提交到 `/catalogue?q=`；补 `/` 快捷键（Escape 失焦） |
+| 键盘焦点不可见 | `.filter-group > input/select` 设了 `outline: none` 且无替代 | 全局 `:focus-visible` 环 + 筛选控件专用规则 |
+| 缺跳转正文链接 | 侧栏 14 个链接，键盘用户每页要 Tab 一遍 | 新增 `.skip-link` → `#main-content` |
+| `/objects/<id>` 只有前 1000 个能打开 | 详情页用 `listObjects(1000).find()`，表里有 42,427 行 | 新增 `getObjectById()` / `listObjectsByOperator()`；首/中/末位对象实测均 200 |
+| `/catalogue?q=` 头部计数错误 | 搜到一个对象仍显示"五源并列 · 72,432"并给出 725 页 | `countWideObjects(filters)` + 「匹配 · 1 / 72,432」 |
+| 三个 OMM 编码记录数断言过严 | JSON/KVN 07:08 抓、XML 05:08 抓，中间多了一个 NORAD 26671 | 改为「差值 ≤ 50」并写明原因 |
+
+### 一个值得记住的 Next 陷阱：404 状态 vs 加载骨架
+
+- 加 **根级** `loading.tsx` 后，`notFound()` 全部变成 **HTTP 200**：响应头在错误被发现前就已经
+  以 200 冲出去了，`notFound()` 只能改 body。实测 `/objects/<不存在>`、`/conjunctions/<坏 id>`、
+  `/catalogue/<坏号>`、`/docs/<坏 slug>` 四条路径从 404 变成 200。
+- 所以骨架只挂在**没有动态子路由**的叶子段（browse / statistics / launches / reentry /
+  environment / models / keys / users / feedback）。`tests/route-states.test.ts` 会拦住
+  「有动态子路由却挂 loading.tsx」的写法。
+- 另外：`notFound()` 在动态页里是以 **RSC payload** 送到浏览器的，服务端渲染的 HTML 正文是
+  一个 `<div hidden>`。因此 `not-found.tsx` 里**不能用服务端读词典**（`getTranslator()`），
+  否则浏览器里是空白页（实测：status 404、正文 0 字符）。文案改由客户端组件
+  `RouteMessages.tsx` 提供后正常。

@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
 import { getDb } from "@/db";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,11 @@ interface Row {
  * for that case, which is filtered out at ingest because a probability of one is
  * indistinguishable from a certain collision.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("nav.socrates"));
+}
+
 export default async function SocratesPage() {
   const t = await getTranslator();
   const { sqlite } = getDb();

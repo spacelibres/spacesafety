@@ -1,13 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PcHistoryChart } from "@/components/Charts";
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import { getEventDetail, riskBand } from "@/lib/queries";
 import { countdownTo, formatGps } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const t = await getTranslator();
+  const { id } = await params;
+  return pageMetadata(t, `${t.t("conjunction.title")} ${id.slice(0, 8)}`);
+}
 
 export default async function EventPage({
   params,

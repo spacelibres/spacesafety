@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { TinyBars } from "@/components/Charts";
 import { Topbar } from "@/components/Shell";
 import { StatsRow, stat } from "@/components/Stats";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import {
   fragmentationSummary,
   launchStatsByVehicle,
@@ -32,6 +34,11 @@ const ROW_LIMIT = 50;
  *     carry a position (DISCOS gives none for the rest) and `epoch` is a date with
  *     no time. Nothing here is interpolated to look complete.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("launchesPage.title"));
+}
+
 export default async function LaunchesPage() {
   const t = await getTranslator();
   const upcoming = listUpcomingLaunches(ROW_LIMIT);

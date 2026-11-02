@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { TinyBars } from "@/components/Charts";
 import { Topbar } from "@/components/Shell";
 import { StatsRow, stat } from "@/components/Stats";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import { eopSummary, listEop, listSpaceWeather, spaceWeatherSummary } from "@/lib/queries-events";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +25,11 @@ const DAYS = 30;
  * them yet. That is stated on the page rather than left for a reader to discover,
  * because a page full of authoritative numbers implies they are in use.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return pageMetadata(t, t.t("environmentPage.title"));
+}
+
 export default async function EnvironmentPage() {
   const t = await getTranslator();
   const weather = spaceWeatherSummary();

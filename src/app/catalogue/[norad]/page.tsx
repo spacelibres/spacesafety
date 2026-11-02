@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
+import { pageMetadata } from "@/lib/i18n/page-title";
 import {
   FIELD_LABEL_KEYS,
   getWideObject,
@@ -55,6 +57,17 @@ function format(v: string | number | null, field: WideField): string {
   if (typeof v === "string") return v;
   const decimals = field === "inclination_deg" ? 3 : field === "mass_kg" ? 1 : 4;
   return v.toFixed(decimals).replace(/\.?0+$/, "");
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ norad: string }>;
+}): Promise<Metadata> {
+  const t = await getTranslator();
+  const { norad } = await params;
+  // The catalogue id is the NORAD number, and it is what a reader searches for.
+  return pageMetadata(t, `${t.t("column.norad")} ${norad}`);
 }
 
 export default async function CatalogueObjectPage({
