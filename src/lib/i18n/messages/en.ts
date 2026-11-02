@@ -598,6 +598,7 @@ export const en = {
   "docs.indexCounts": "{pages} endpoints · {extensions} extensions · {articles} pages",
   "docs.indexNote": "This documentation describes what this deployment actually does. Endpoint paths, parameters and response fields match the implementation; where something is an addition on top of the official contract it is labelled as an extension.",
   "docs.pageCount": "{count} pages",
+  "docs.localePolicy": "Documentation bodies are written in English and Chinese; other locales show the English text, and a page that fell back says so at the top.",
   "docs.fallbackNotice": "Documentation bodies are authored in English and Chinese. This page is shown in {served} because a translation is not available yet.",
   "docs.requestParams": "Request parameters",
   "docs.requestBody": "Request body",

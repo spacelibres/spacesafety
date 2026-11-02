@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { PwaRegister } from "@/components/PwaRegister";
 import { Sidebar } from "@/components/Shell";
@@ -24,11 +24,28 @@ export async function generateMetadata(): Promise<Metadata> {
     // route) plus the service worker; the manifest link is additionally sent as an
     // HTTP `Link` header because Chrome ignores one that lands outside `<head>`.
     applicationName: t.t("app.name"),
+    appleWebApp: { capable: true, title: t.t("app.name"), statusBarStyle: "black-translucent" },
+  };
+}
+
+/**
+ * `themeColor` belongs to `viewport`, not `metadata`.
+ *
+ * Next 15 removed it from `Metadata`; keeping it there compiles, logs
+ * "Unsupported metadata themeColor … move it to viewport export", and silently
+ * emits **no** `<meta name="theme-color">` — verified by fetching the HTML and
+ * finding none. The mobile browser chrome therefore ignored the palette.
+ *
+ * The palette is read here rather than imported as a constant so a colour-scheme
+ * change moves the browser chrome with the page.
+ */
+export async function generateViewport(): Promise<Viewport> {
+  const palette = await currentPalette();
+  return {
     themeColor: [
       { media: "(prefers-color-scheme: dark)", color: palette.deep },
       { media: "(prefers-color-scheme: light)", color: palette.surface },
     ],
-    appleWebApp: { capable: true, title: t.t("app.name"), statusBarStyle: "black-translucent" },
   };
 }
 
@@ -65,7 +82,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : null}
         <I18nProvider locale={locale}>
           <div className="app">
-            <Sidebar theme={theme} />
+            <Sidebar />
             <div className="main">{children}</div>
           </div>
         </I18nProvider>

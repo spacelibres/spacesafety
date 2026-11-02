@@ -12,6 +12,78 @@
 
 ---
 
+## [0.1.75] - 2026-11-02
+
+按 `spacesafety-audit` 的六层顺序做了一次全站审核。**结论：可用，但有 5 处缺陷已修**，
+其中一处是整个三维模型库不可用。
+
+### 审核发现（证据见下）
+
+| # | 缺陷 | 证据 | 影响 |
+|---|---|---|---|
+| 1 | **定稿文档数字与现实脱节** | `CATALOGUE-FINAL.md` 写 72,402 / UNKNOWN 523 / 分类 UNKNOWN 1,317；库实测 72,432 / 520 / 1,310。五源覆盖 4 项过期、重叠分布 5 项过期 | 唯一权威文档的数字不可信 |
+| 2 | **三维模型库整体不可用** | `model_asset` 表不存在 → 页面「0 个模型」，而磁盘上有 257 个 `.glb`（780 MB）+ 257 张预览（199 MB）| 一整个功能（模型页 + `/api/models/*`）是死的 |
+| 3 | `<meta name="theme-color">` **完全缺失** | `curl / | grep theme-color` 为空；Next 15 报 "Unsupported metadata themeColor … move it to viewport" | 移动端浏览器外壳不跟随主题 |
+| 4 | `/docs` 索引页**误报**语言回退 | 中文读者看到「暂缺当前语种的译文，显示 en 原文」，而索引页没有正文 | 告诉读者一件不成立的事 |
+| 5 | 死代码 + 假机制 | `useThemeMode` 零引用；`Sidebar({theme})` 的参数从未被读 | 组件签名暗示一个不存在的机制 |
+
+### 修法
+
+1. **文档**：三份文档按 2026-11-02 实测更新（宽表/分类 72,432、LEO 64,918 / HEO 3,461 /
+   GEO 1,792 / MEO 1,741 / UNKNOWN 520、分类 UNKNOWN 1,310、五源 71,228 / 71,193 /
+   71,176 / 33,997 / 1,112、独有对象 36 / 0 / 1 / 0 / 429、来源数分布
+   33,305 / 37,880 / 690 / 466 / 91）。**并新增两条断言**把文档里的数字与库直接比对——
+   这类漂移活过了构建、测试与四次发布，因为从来没有东西比对这两者。
+2. **模型库**：`models:sync` 现在会探测磁盘，把已存在的 `.glb` 与预览图写回
+   `local_path` / `local_preview`。页面 257 个模型、257 张本地缩略图、0 个远程依赖；
+   `/api/models/nasa/…glb` 实测 200 / 329,596 字节 / 合法 glTF。
+   `catalogue:build` 的保护现在列出 **15** 张表（含 `model_asset`），不会再被静默删掉。
+3. **themeColor** 移到 `generateViewport`，实测输出两条按 `media` 区分的 meta。
+4. `/docs` 索引改为陈述语言政策；回退提示只留在真的回退的页面上。
+5. 删除 `useThemeMode` 与 `Sidebar` 的 `theme` 参数，原位写明真实机制：
+   logo 是 inline SVG，颜色绑 `var(--color-planet)` / `var(--color-primary)`，
+   跟随 `<html data-theme>`，不需要 JS 知道当前模式。
+
+### 已验证（附命令）
+
+- **L1 数据**：宽表 72,432 × 157、分类表 72,432，双向差集实测 0/0；逐源逐列覆盖率的
+  每个 0 都有正当理由（Spacebook/KeepTrack 无 `object_class`、DISCOS/KeepTrack 无
+  `inclination`、KeepTrack 无 `cospar_id`/`decay_date`、Space-Track 无 `mass_kg`/HBR）。
+- **L1 调度**：运行中的 `--loop` 在 06:17 自动抓到 1 小时节奏的 CDM（3,195 条），
+  重建后宽表=分类表 72,432；新归档的 3,195 个 `cdm_id` 在表内**缺失 0 条**。
+- **L2 接线**：`/browse?objectClass=PAYLOAD` 与 `=DEBRIS` 返回**不同集合**（筛选真的接线）。
+- **L3 SQL**：`npm run test:wide` **22 passed**（含新增 2 条文档一致性）。
+- **L4 样式/VI**：`check:css` 所有 `var(--x)` 均有定义；`npm run check` 十项全过；
+  15 个 VI 产物与 HEAD **md5 全部一致**。
+- **L4 i18n**：六语种 en/fr/es/de 中文 0；ja 的 117 个是汉字（合法），zh-CN 144。
+- **L5 API**：14 条端点探测全部 401 / 405 / 400，**无 404**。
+- **L6 UI**：17 个页面全部 200；挂载→卸载→再挂载循环 **0 控制台错误**；
+  侧栏 272 px、14 个图标、品牌 SVG 240 px（VI 下限）、分组可展开（可见子项 5）；
+  主题切换改变 `--bg`（#0D1721 ↔ #F1F5F9）与 `--color-planet`（#FF3733 ↔ #E00400）。
+- **L6 3D**：首页 Cesium canvas 685×460、`window.Cesium` 存在。headless 需要
+  `--enable-unsafe-swiftshader` 才有 WebGL，否则 canvas 为 0——这是浏览器限制，不是站点缺陷。
+
+### 未验证（如实列出）
+
+- **交会计算精度**：`cdms` 表 0 行（本部署无运营方上传星历），无法在真实数据上验证。
+- **生产构建行为**：审核期间 dev 服务在跑，prod 的 chunk/PWA/SW 只由 `check` 的
+  build-artifacts 覆盖；跑 `next build` 会打断 dev 服务，故本轮未做（记 P16）。
+- **4 个语种的文档正文**：只有 en / zh-CN 有正文（记 P14）。
+- **41 个零引用导出**：多为 `src/lib/core`、`geo`、`orbit` 的库函数，记录不修（记 P15）。
+- **Spacebook 42 个模型**：磁盘上没有对应文件，`model_asset` 里只有 NASA 的 257 行。
+
+### 复核命令
+
+```bash
+npm run test:wide       # 22 项：宽表 SQL + 定稿文档一致性
+npm test                # 48 套件 / 937 断言
+npm run check && npm run check:css
+npm run audit:viewport  # 20 页 × 7 视口
+npm run data:inventory
+```
+
+---
+
 ## [0.1.74] - 2026-11-02
 
 `/docs` 之前是**一张 18 行的端点表**，而官方文档是 33 页：19 个端点参考（含参数、请求体、

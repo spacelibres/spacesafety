@@ -580,6 +580,7 @@ export const fr: MessageTable = {
   "docs.indexCounts": "{pages} points d'accès · {extensions} extensions · {articles} pages",
   "docs.indexNote": "Cette documentation décrit le comportement réel de ce déploiement. Les chemins, paramètres et champs de réponse correspondent à l'implémentation ; ce qui s'ajoute au contrat officiel est signalé comme extension.",
   "docs.pageCount": "{count} pages",
+  "docs.localePolicy": "Les textes sont rédigés en anglais et en chinois ; les autres langues affichent l'anglais, et une page concernée par ce repli l'indique en haut.",
   "docs.fallbackNotice": "Les textes sont rédigés en anglais et en chinois. Cette page est affichée en {served} faute de traduction disponible.",
   "docs.requestParams": "Paramètres de requête",
   "docs.requestBody": "Corps de requête",

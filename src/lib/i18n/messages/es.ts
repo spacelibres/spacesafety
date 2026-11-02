@@ -580,6 +580,7 @@ export const es: MessageTable = {
   "docs.indexCounts": "{pages} endpoints · {extensions} extensiones · {articles} páginas",
   "docs.indexNote": "Esta documentación describe el comportamiento real de este despliegue. Las rutas, parámetros y campos de respuesta coinciden con la implementación; lo que se añade al contrato oficial se marca como extensión.",
   "docs.pageCount": "{count} páginas",
+  "docs.localePolicy": "Los textos están redactados en inglés y chino; otros idiomas muestran el inglés, y la página afectada lo indica arriba.",
   "docs.fallbackNotice": "Los textos están redactados en inglés y chino. Esta página se muestra en {served} porque aún no hay traducción disponible.",
   "docs.requestParams": "Parámetros de la petición",
   "docs.requestBody": "Cuerpo de la petición",

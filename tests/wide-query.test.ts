@@ -256,6 +256,48 @@ check("分类浏览的列表查询可执行", () => {
   assert.ok(rows.length > 0, "Starlink 应有结果");
 });
 
+
+// ---------------------------------------------- 定稿文档里的数字必须与现实一致
+// docs/CATALOGUE-FINAL.md 自称「唯一权威」。它曾经写着 72,402 / 1,317 / 523，
+// 而数据库实际是 72,432 / 1,310 / 520 —— 三处偏差都活过了构建、测试和发布，
+// 因为没有东西比对这两者。这条断言就是那个缺失的比对。
+check("定稿文档的宽表/分类表行数与库一致", () => {
+  const doc = readFileSync("docs/CATALOGUE-FINAL.md", "utf8");
+  const num = (label: string): number => {
+    const m = new RegExp(`\\|\\s*${label}\\s*\\|\\s*\\*{0,2}([0-9,]+)`).exec(doc);
+    assert.ok(m, `文档里找不到「${label}」这一行`);
+    return Number(m[1].replace(/,/g, ""));
+  };
+  const wide = sqlite.prepare("SELECT COUNT(*) AS n FROM wide.catalogue_wide").get() as { n: number };
+  const cols = sqlite.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('catalogue_wide', 'wide')").get() as {
+    n: number;
+  };
+  const classified = sqlite.prepare("SELECT COUNT(*) AS n FROM object_classification").get() as { n: number };
+
+  assert.equal(num("宽表行数"), wide.n, `文档宽表行数 ${num("宽表行数")} ≠ 实际 ${wide.n}`);
+  assert.equal(num("宽表列数"), cols.n, `文档宽表列数 ${num("宽表列数")} ≠ 实际 ${cols.n}`);
+  assert.equal(
+    num("分类表行数"),
+    classified.n,
+    `文档分类表行数 ${num("分类表行数")} ≠ 实际 ${classified.n}`,
+  );
+});
+
+check("定稿文档的轨道类型分布与库一致", () => {
+  const doc = readFileSync("docs/CATALOGUE-FINAL.md", "utf8");
+  for (const regime of ["LEO", "MEO", "GEO", "HEO", "UNKNOWN"]) {
+    const m = new RegExp(`\\|\\s*${regime}\\s*\\|\\s*([0-9,]+)\\s*\\|`).exec(doc);
+    assert.ok(m, `文档里找不到 ${regime} 这一行`);
+    const claimed = Number(m[1].replace(/,/g, ""));
+    const actual = (
+      sqlite.prepare("SELECT COUNT(*) AS n FROM object_classification WHERE regime = ?").get(regime) as {
+        n: number;
+      }
+    ).n;
+    assert.equal(claimed, actual, `${regime}: 文档 ${claimed} ≠ 实际 ${actual}`);
+  }
+});
+
 sqlite.close();
 
 console.log(`\n${passed} passed, ${failed} failed, ${skipped} skipped\n`);

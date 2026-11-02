@@ -153,21 +153,14 @@ export function defaultChartTheme(mode: ThemeMode = "dark"): ChartTheme {
 }
 
 /**
- * The live theme mode, for components that must swap an asset with it.
+ * There is no `useThemeMode` any more.
  *
- * The logo is a themed SVG — the VI recolours the planet per theme — so the
- * component that renders it needs the mode and must re-render when it changes.
- * Only client components may call this: it subscribes to a DOM observer.
+ * It existed so a component could swap a themed *asset* when the mode changed.
+ * The sidebar mark is inline SVG whose colour roles are CSS variables, so the
+ * element follows `data-theme` on `<html>` with no JavaScript involved; a hook
+ * that returned the mode had no consumer and implied a mechanism that was not in
+ * use. `useChartTheme` remains, because an SVG chart needs real numbers.
  */
-export function useThemeMode(serverMode: ThemeMode): ThemeMode {
-  // `serverMode` is the mode the server rendered for this request. Seeding state
-  // with it keeps the first client render identical to the HTML; deriving the
-  // initial value from `document` instead produced a mismatch that left the logo
-  // on the dark master while the CSS variables around it were already light.
-  const [mode, setMode] = useState<ThemeMode>(serverMode);
-  useEffect(() => onThemeChange(setMode), []);
-  return mode;
-}
 
 /**
  * Chart colours that follow the live theme.

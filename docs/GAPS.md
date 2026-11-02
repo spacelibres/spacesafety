@@ -25,14 +25,14 @@
 
 | # | 缺口 | 数量 | 状态 | 理由 / 证据 |
 |---|---|---|---|---|
-| D1 | 轨道类型 `UNKNOWN` | 523 | **不补** | 缺 apogee/perigee 且无来源声明；只能靠名称猜，猜测值与实测值无法区分（污染统计）。`CATALOGUE-FINAL` §6.1 |
+| D1 | 轨道类型 `UNKNOWN` | 520 | **不补** | 缺 apogee/perigee 且无来源声明；只能靠名称猜，猜测值与实测值无法区分（污染统计）。`CATALOGUE-FINAL` §6.1 |
 | D2 | 硬体半径在轨缺失 | 1,539 | **不补** | 其中 1,111 是分析型目标（身份未知，不会有物理模型）、337 上游无模型、91 仅 KeepTrack/DISCOS；可推算的只有 2 个。`CATALOGUE-FINAL` §6.2 |
-| D3 | 目标分类 `UNKNOWN` | 1,317 | **不补** | 各源都不给；DISCOS 有最细分类但不覆盖这些对象。`tools/hbr-gap-candidates.ts` |
+| D3 | 目标分类 `UNKNOWN` | 1,310 | **不补** | 各源都不给；DISCOS 有最细分类但不覆盖这些对象。`tools/hbr-gap-candidates.ts` |
 | D4 | 已再入对象的物理量缺失 | 32,198 | **不补** | 不影响在轨 Pc 计算，补齐无收益 |
 | D5 | 分析型目标没有身份 | 1,112 | **不补** | 传感器确认不了身份才放进预留号段，这是数据本身的语义 |
 
-**刷新后实测（2026-10-30）**：宽表 72,402 × 157，分类表 72,402（零缺口）；
-五源覆盖 71,198 / 71,088 / 71,176 / 34,006 / 1,112，与定稿逐项一致。
+**刷新后实测（2026-11-02）**：宽表 72,432 × 157，分类表 72,432（零缺口）；
+五源覆盖 71,228 / 71,193 / 71,176 / 33,997 / 1,112（2026-11-02 实测，与定稿第一张表一致）。
 
 ---
 
@@ -63,6 +63,10 @@
 | G21 | 9 个事件/环境/发射数据集无页面 | 新建 `/reentry`、`/environment`、`/launches` 三个页面，侧栏加入口；`data:inventory` 报 0 个无消费方 | `npm run audit:viewport`（17 页 × 7 视口，含新页）；`tests/event-feeds-ui.test.ts` 12 条 |
 | G22 | 归档 40% 是逐字节重复（同哈希去重从未生效）| 修 `sameDigest()` 前缀比较 + `capture()` 记 `unchanged`；`npm run archive:dedupe` 清历史遗留（1,005.9 MB / 50 文件），并修复 27 条悬挂账本引用 | `tests/archive-dedupe.test.ts` 6 条 + `tests/archive-plan.test.ts` 12 条；清理后账本 106 条引用全部可解析且摘要一致 |
 | G23 | `/docs` 只有一张 18 行的端点表，官方是 33 页文档 | 建 `content/docs/`（结构参考 + en/zh 正文）+ `/docs` 路由区；**23 个端点**逐个写参数/请求体/状态码字段表与示例，14 篇散文页 | `tests/docs-parity.test.ts` 10 条（路由↔文档双向一致、双语齐全、扩展标记）+ `tests/markdown-render.test.ts` 12 条；浏览器实测 15 条路由 × 3 档视口 |
+| G24 | 全站审核发现「文档数字与现实脱节」| 定稿文档三份的 72,402/523/1,317、五源覆盖、重叠分布全部按 2026-11-02 实测更新；**新增 2 条断言**把文档里的数字与库直接比对 | `npm run test:wide` 22 passed（含「定稿文档的宽表/分类表行数与库一致」）|
+| G25 | 三维模型库整体不可用（磁盘 257 个 glb + 257 预览，页面显示 0）| `model_asset` 表被 `catalogue:build` 删过；`models:sync` 只同步目录、不探测磁盘。现探测磁盘填 `local_path`/`local_preview`：页面 257 个模型、缩略图全本地 | API 实测 `/api/models/nasa/…glb` → 200 / 329,596 字节 / 合法 glTF；`catalogue:build` 的保护现在会列出 model_asset（15 张表）|
+| G26 | `<meta name="theme-color">` 完全缺失 | Next 15 要求放 `generateViewport`；迁出后实测输出两条按 media 区分的 meta | 浏览器实测 dark #0D1721 / light #F1F5F9 |
+| G27 | 死代码与假机制：`useThemeMode` 零引用、`Sidebar` 的 `theme` 参数从未被读 | 两者删除，并在原位写明真实机制（inline SVG + CSS token，不需要 JS 知道模式）| `tsc` + 浏览器实测（272px 侧栏、240px 品牌、主题切换仍生效）|
 
 ---
 
@@ -82,6 +86,8 @@
 | P11 | EOP 与空间天气无消费者 | 25,232 + 23,678 行仅入库，传播链路没接 EOP | 属轨道侧改动，按你的要求本轮不做 |
 | P12 | ~~再入 / 发射 / 解体事件没有页面~~ | **已完成**：`/reentry`、`/environment`、`/launches` | — |
 | P14 | 文档正文只有 en / zh-CN | ja / fr / es / de 回退到英文并明示（`docs.fallbackNotice`）| 需要把这 14 篇正文翻译 4 个语种；结构已就绪，只缺译文 |
+| P15 | 41 个零引用导出 | 多为 `src/lib/core`、`geo`、`orbit` 的库函数（留给测试与后续使用），非组件故不影响上线 | 需要时逐个判定"接口保留"还是"删掉"，本轮只记录 |
+| P16 | 生产构建下的行为未复核 | 审核期间 dev 服务在跑；prod 的 chunk 与 PWA/SW 路径只由 `check` 的 build-artifacts 检查覆盖 | 需要一次 `next build` + `next start` 的实测（会打断 dev 服务，故本轮没做）|
 | P13 | `discos_fragmentation.member_count` 恒为 0 | 上游只给关系链接，`meta.pagination` 无 `total`，`discos_objects` 无反向关系 | 逐事件分页遍历（673 次）或等 DISCOS 提供计数；当前按"未知"处理 |
 | P8 | 条件请求目前省 0 字节 | 实测 Spacebook / Space-Track / DISCOS **都不发** `ETag` / `Last-Modified`，多数还带 `cache-control: no-store`。机制已就绪且无副作用，去掉反而会丢掉将来 CDN 支持时的收益 | 无客户端解法：没有 validator，就无法在传输前判断内容是否变化。当前的省法是 gzip + 节奏 + 同哈希不重建、不重算 |
 

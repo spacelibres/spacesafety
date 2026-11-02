@@ -9,7 +9,6 @@ import {
   endpointBySlug,
   loadDocPage,
   stripTitle,
-  DOC_FALLBACK,
   type DocSection,
   type Endpoint,
   type LoadedDocPage,
@@ -157,7 +156,11 @@ async function SectionList({ locale }: { locale: string }) {
           </section>
         ))}
       <p className="faint" style={{ marginTop: 12, fontSize: 12 }}>
-        {t.t("docs.fallbackNotice", { served: DOC_FALLBACK })}
+        {/* The index has no body of its own, so it cannot have "fallen back" —
+            using the fallback notice here told a Chinese reader that their page
+            was showing English, which was false. This states the policy instead;
+            the notice stays on pages that actually fall back. */}
+        {t.t("docs.localePolicy")}
       </p>
     </>
   );

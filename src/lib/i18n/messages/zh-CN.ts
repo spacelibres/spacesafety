@@ -575,6 +575,7 @@ export const zhCN: MessageTable = {
   "docs.indexCounts": "{pages} 个端点 · {extensions} 个扩展 · {articles} 篇文档",
   "docs.indexNote": "这套文档描述的是本部署的实际行为。端点路径、参数与响应字段与实现一致；凡是官方契约之外的附加项，都标注为「扩展」。",
   "docs.pageCount": "{count} 篇",
+  "docs.localePolicy": "文档正文以英文和中文撰写；其他语种显示英文原文，发生回退的页面会在顶部注明。",
   "docs.fallbackNotice": "文档正文以英文和中文撰写。本页暂缺当前语种的译文，因此显示 {served} 原文。",
   "docs.requestParams": "请求参数",
   "docs.requestBody": "请求体",

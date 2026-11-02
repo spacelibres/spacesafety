@@ -580,6 +580,7 @@ export const ja: MessageTable = {
   "docs.indexCounts": "{pages} エンドポイント · {extensions} 拡張 · {articles} ページ",
   "docs.indexNote": "このドキュメントは本配備の実際の挙動を記述しています。パス・パラメータ・レスポンス項目は実装と一致し、公式契約に対する追加分は「拡張」と明記しています。",
   "docs.pageCount": "{count} ページ",
+  "docs.localePolicy": "本文は英語と中国語で書かれています。他の言語では英語の原文を表示し、フォールバックしたページは上部にその旨を明記します。",
   "docs.fallbackNotice": "本文は英語と中国語で書かれています。このページは該当言語の訳がまだ無いため {served} の原文を表示しています。",
   "docs.requestParams": "リクエストパラメータ",
   "docs.requestBody": "リクエスト本文",

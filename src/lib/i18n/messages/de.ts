@@ -580,6 +580,7 @@ export const de: MessageTable = {
   "docs.indexCounts": "{pages} Endpunkte · {extensions} Erweiterungen · {articles} Seiten",
   "docs.indexNote": "Diese Dokumentation beschreibt das tatsächliche Verhalten dieser Installation. Pfade, Parameter und Antwortfelder entsprechen der Implementierung; was über den offiziellen Vertrag hinausgeht, ist als Erweiterung gekennzeichnet.",
   "docs.pageCount": "{count} Seiten",
+  "docs.localePolicy": "Die Texte sind auf Englisch und Chinesisch verfasst; andere Sprachen zeigen das englische Original, und eine betroffene Seite weist oben darauf hin.",
   "docs.fallbackNotice": "Die Texte sind auf Englisch und Chinesisch verfasst. Diese Seite wird auf {served} angezeigt, weil noch keine Übersetzung vorliegt.",
   "docs.requestParams": "Anfrageparameter",
   "docs.requestBody": "Anfragetext",

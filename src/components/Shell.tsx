@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 
 import { useTranslator } from "@/lib/i18n/client";
 import { LOGO_MARKS } from "@/lib/vi/logo-marks";
-import type { ThemeMode } from "@/lib/vi/theme-bridge";
 
 import { PreferenceDock } from "./PreferenceDock";
 
@@ -98,7 +97,16 @@ export function Icon({ name }: { name: string }) {
   );
 }
 
-export function Sidebar({ theme }: { theme: ThemeMode }) {
+/**
+ * The sidebar.
+ *
+ * Takes no theme argument: the mark is inline SVG whose two colour roles are bound
+ * to `var(--color-planet)` / `var(--color-primary)`, so it follows `data-theme` on
+ * `<html>` without any JavaScript knowing which mode is active. The `theme` prop it
+ * used to accept was never read by the body — a prop implying a mechanism it did
+ * not have.
+ */
+export function Sidebar() {
   const pathname = usePathname();
   const t = useTranslator();
   const [clock, setClock] = useState("");

@@ -46,6 +46,7 @@ interface Local {
   sizeBytes: number;
   previewUrl: string | null;
   localPath: string | null;
+  localPreview?: string | null;
 }
 
 const DDL = `
@@ -185,6 +186,26 @@ async function main(): Promise<void> {
     });
   }
 
+  // A catalogue-only sync used to record every row with `local_path = NULL`, even
+  // when the .glb files were already on disk — so a restored database reported
+  // "本地已下载 0" against 257 files and 780 MB sitting in `data/models/nasa`.
+  // Probing the filesystem here costs 257 stat calls and makes the row reflect
+  // reality; the download pass then has nothing to fetch.
+  const modelDir = "data/models/nasa";
+  const previewDirOnDisk = "data/models/previews";
+  const destOf = (id: string) => join(modelDir, id.replace(/^nasa:/, "").replace(/[^\w().-]+/g, "_"));
+  const previewOf = (id: string) =>
+    join(previewDirOnDisk, id.replace(/^nasa:/, "").replace(/[^\w().-]+/g, "_") + ".png");
+  for (const r of records) {
+    const dest = destOf(r.id);
+    if (existsSync(dest)) r.localPath = dest;
+    // Previews are probed too: they are stored as a separate column and the page
+    // prefers them over the GitHub URL, so a restored catalogue must know they
+    // are here — otherwise every thumbnail depends on githubusercontent.com.
+    const preview = previewOf(r.id);
+    if (r.previewUrl && existsSync(preview)) r.localPreview = preview;
+  }
+
   const totalMb = records.reduce((a, r) => a + r.sizeBytes, 0) / 1e6;
   const withPreview = records.filter((r) => r.previewUrl).length;
   const names = new Set(records.map((r) => r.name));
@@ -203,14 +224,18 @@ async function main(): Promise<void> {
   const now = new Date().toISOString();
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO model_asset
-       (id, source, name, path, filename, url, size_bytes, preview_url, local_path, fetched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, source, name, path, filename, url, size_bytes, preview_url, local_path,
+        local_preview, fetched_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   db.transaction((rows: Local[]) => {
     // Only NASA rows are replaced; Spacebook's come from its own sync.
     db.prepare("DELETE FROM model_asset WHERE source = 'nasa-github'").run();
     for (const r of rows) {
-      stmt.run(r.id, r.source, r.name, r.path, r.filename, r.url, r.sizeBytes, r.previewUrl, r.localPath, now);
+      stmt.run(
+        r.id, r.source, r.name, r.path, r.filename, r.url, r.sizeBytes,
+        r.previewUrl, r.localPath, r.localPreview ?? null, now,
+      );
     }
   })(records);
   console.log(`  入库        ${records.length} 行`);
@@ -221,11 +246,7 @@ async function main(): Promise<void> {
     mkdirSync(outDir, { recursive: true });
     mkdirSync(previewDir, { recursive: true });
 
-    const items = records.map((r) => ({
-      id: r.id,
-      url: r.url,
-      dest: join(outDir, r.id.replace(/^nasa:/, "").replace(/[^\w().-]+/g, "_")),
-    }));
+    const items = records.map((r) => ({ id: r.id, url: r.url, dest: destOf(r.id) }));
     const res = await downloadAll(items, db);
     console.log(`  模型下载    新增 ${res.done}  已存在 ${res.skipped}  失败 ${res.failed}`);
 
@@ -234,11 +255,7 @@ async function main(): Promise<void> {
     // breaks the moment the network or the repository path changes.
     const previews = records
       .filter((r) => r.previewUrl)
-      .map((r) => ({
-        id: r.id,
-        url: r.previewUrl!,
-        dest: join(previewDir, r.id.replace(/^nasa:/, "").replace(/[^\w().-]+/g, "_") + ".png"),
-      }));
+      .map((r) => ({ id: r.id, url: r.previewUrl!, dest: previewOf(r.id) }));
     const pres = await downloadAll(previews, db, 12, "local_preview");
     console.log(`  预览下载    新增 ${pres.done}  已存在 ${pres.skipped}  失败 ${pres.failed}`);
   }
