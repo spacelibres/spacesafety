@@ -188,6 +188,23 @@ validator 存在 `source_fetches.etag` / `source_fetches.last_modified`，
 判断是否到期用 `status IN ('ok','unchanged')`——两者都算"检查过了"；只有 `ok` 才触发重建；
 `aborted` 不算成功，所以一次崩溃的抓取不会把该端点静默掉一整个刷新周期。
 
+### 归档清理（`npm run archive:dedupe`）
+
+`archive.store()` 曾经因为"12 位哈希 vs 64 位摘要"的比较错误，每次抓取都写新档，
+四天攒出 **1,005 MB（40%）** 逐字节重复。修复后不再产生新的重复，历史遗留用这个工具清：
+
+```bash
+npm run archive:dedupe              # 只报告，不删
+npm run archive:dedupe -- --apply   # 写清单后删除，并修复账本里的悬挂引用
+```
+
+判定依据是**从磁盘字节算出的 sha256**（不是文件名里的哈希——那正是当初出错的地方），
+每个 (端点, 哈希) 只保留最新一份，且每个端点的最新一次抓取永不删除。
+清单写到 `data/archive-dedupe/`（归档根目录只放上游字节）。
+删除后会核对账本：被删路径的 `source_fetches` 行按同端点同摘要重指向保留副本，
+找不到就只统计不猜。计划逻辑有 12 条断言（`tests/archive-plan.test.ts`），
+因为这是删证据库的操作。
+
 ### 怎么观察"数据更新得怎么样"
 
 ```bash

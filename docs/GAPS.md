@@ -61,6 +61,7 @@
 | G19 | 11 个数据集、226,637 行入库后无人读取 | 逐表断言 + 清单文档；公开 CDM 接到 `/conjunctions` 与 `/api/v1/cdm?source=public` | `npm run data:inventory`（11 表全过）；`docs/DATA-INVENTORY.md` |
 | G20 | 公开 CDM 按消息逐行展示，把历史最坏 Pc 当当前风险 | 按「物体对 + TCA 60 s 内」折叠：3,164 条消息 → 509 个交会，只显示最新估计并标出消息数 | `tests/cdm-cluster.test.ts` 8 条 |
 | G21 | 9 个事件/环境/发射数据集无页面 | 新建 `/reentry`、`/environment`、`/launches` 三个页面，侧栏加入口；`data:inventory` 报 0 个无消费方 | `npm run audit:viewport`（17 页 × 7 视口，含新页）；`tests/event-feeds-ui.test.ts` 12 条 |
+| G22 | 归档 40% 是逐字节重复（同哈希去重从未生效）| 修 `sameDigest()` 前缀比较 + `capture()` 记 `unchanged`；`npm run archive:dedupe` 清历史遗留（1,005.9 MB / 50 文件），并修复 27 条悬挂账本引用 | `tests/archive-dedupe.test.ts` 6 条 + `tests/archive-plan.test.ts` 12 条；清理后账本 106 条引用全部可解析且摘要一致 |
 
 ---
 
