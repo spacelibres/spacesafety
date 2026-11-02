@@ -12,6 +12,65 @@
 
 ---
 
+## [0.1.76] - 2026-11-02
+
+按官方截图（`docs/reference-screenshots/` + `docs/UI-SPEC.md`）逐项对照实现，补齐两处
+**看起来有、实际没有**的功能。
+
+### 补齐 1：列表页的筛选栏之前是装饰
+
+`/objects` 与 `/trajectories` 的筛选栏有三个 `<select>`，**没有 `name`、没有外层
+`<form>`、背后也没有任何查询**。它和官方截图长得一模一样，且什么都不筛——比没有筛选
+更糟：读者缩小范围后发现列表没变，只会得出"数据里没有匹配项"。
+
+改法是把它变成真正的 GET 表单（不需要客户端 JS，结果 URL 可分享），并把筛选接到 SQL：
+
+- `/objects`：`alive`（全部/是/否）、`name`（包含）、`norad`（等于）。
+  非数字的 NORAD 会被丢弃而不是原样传下去——否则等价于"筛选框无效"。
+- `/trajectories`：`upload_type`、`status`，取值先按官方枚举校验，非法值**不返回全部**。
+- `/operators`：原本没有筛选栏，补 `q`（运营方名称包含）。
+- `/conjunctions`：补「仅未来 TCA」，这是决定一行是否可行动的那个维度。
+
+实测：`/objects?name=STARLINK-1309` 42,427 → 2；`?alive=false` → 0（本部署登记的对象全部在役）；
+交会 558 → **36**（仅未来）；`?risk=high&upcoming=1` → 34。
+
+### 补齐 2：表头可排序（官方 `Name ↕`）
+
+新增 `src/lib/sort.ts`：
+
+- **白名单**：每页给一张「排序键 → SQL 表达式」的定表，URL 里的 `?sort=` 只做键查找，
+  从不拼接。`?sort=id;DROP TABLE objects--` 会回落到默认列。
+- **稳定次级排序**：`ORDER BY <col> <dir> NULLS LAST, <tiebreaker> ASC`。没有它，值相同的
+  两行会在翻页的两次查询之间互换，出现重复行与漏行。
+- **链接构造**保留全部现有筛选参数，点当前列翻转方向、点别的列升序。
+
+四个列表页共 **20 个可排序表头**。实测：`/objects?sort=noradId&dir=desc` 首行
+60236 → 270449；`/conjunctions?sort=tca&dir=asc` 首行变成最早的 TCA（2026-09-30）。
+
+### 对照表
+
+`docs/UI-SPEC.md` 末尾新增「对齐状态」，逐条列规格条目、状态与取证方式。已对齐的包括：
+侧栏（272 px、14 项、分组可展开）、品牌 240 px 矢量母版、staging 横幅、UTC 时钟、
+顶栏完整 UUID、`类型 + UUID 前 8 位` 标题、元信息横条、布尔胶囊、键值卡、
+Mean Orbital Elements 六要素切换、Prediction Error / CDF / Mahalanobis、
+CDM 表的 json/kvn 下载与 state source 胶囊、等宽字体用于 UUID/时间/数值。
+
+**未对齐的两条**单列在 `docs/GAPS.md`：交会页的 Prediction Consistency 图（需要为每条
+CDM 复算两端轨迹误差，是计算工作量而非画图工作量）、筛选栏的列设置齿轮。
+
+### 验证
+
+- 新增 `tests/sort-filter.test.ts`（12 条）：未知排序键不进 SQL、非法方向被忽略、
+  排序链接保留筛选、稳定次级排序、真实库上的名称/NORAD/alive 筛选与升序降序对比。
+  该测试**显式固定 `SPACE_SAFETY_DB=data/catalogue.sqlite`**——第一版没固定，
+  于是读到了工作库（`data/spacesafety.sqlite`）里 10 条轨迹，断言因此失败。
+- 浏览器实测：四个列表页在 1440/1024/360 三档下 **文档滚动均为 0**，`.th-sort` 计数
+  7/3/6/4，`form.filters` 与带 `name` 的控件均存在。
+- `npm test`：**49 个套件、949 条断言全过**；`npm run check` 十项全过；
+  `npm run check:css` 无未定义变量。
+
+---
+
 ## [0.1.75] - 2026-11-02
 
 按 `spacesafety-audit` 的六层顺序做了一次全站审核。**结论：可用，但有 5 处缺陷已修**，

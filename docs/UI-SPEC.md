@@ -135,3 +135,38 @@ graph TD
 - 截图未覆盖：`Home` 总览页、`Objects` 列表页、`Keys` 页、登录/凭证页。
   这些按现有模式（左侧栏 + 标题 + 筛选栏 + 表格）推导实现。
 - 3D 轨道视图官方未公开截图，属我方扩展能力，不受此规格约束。
+
+---
+
+## 对齐状态（2026-11-02 实测）
+
+`docs/UI-SPEC.md` 里的条目逐项核对过，结论如下。核对方式一律是真实浏览器取证
+（`getComputedStyle` / DOM 查询 / URL 参数对比），不是读代码推断。
+
+| 规格条目 | 状态 | 取证 |
+|---|---|---|
+| 左侧栏固定宽度 + 品牌字标 | **已对齐（用 VI 矢量母版，非字标）** | 272 px；品牌 240 px 内联 SVG（VI 导航下限 240） |
+| 环境横幅（staging） | 已对齐 | `.sidebar-env` 渲染 `staging` |
+| UTC 实时时钟 | 已对齐 | `.sidebar-clock` |
+| 搜索框 `Search (/)` + `/` 快捷键 | 已对齐 | 侧栏搜索框 |
+| 导航 9 项 | 已对齐并超出（14 项） | `.nav-icon` 计数 14；分组可展开 |
+| 顶栏：面包屑 + 完整 UUID | 已对齐 | 四个详情页传 `entityId`，顶栏右侧等宽 UUID |
+| 详情页标题 `类型 + UUID 前 8 位` | 已对齐 | `conjunction.titleWithId` / `trajectory.titleWithId` |
+| 元信息横条（标签在上、值在下） | 已对齐 | `.meta-strip`，交会页与轨迹页均渲染 |
+| 表头可排序 `Name ↕` | **本轮补齐** | 四个列表页共 20 个 `.th-sort`；`?sort=noradId&dir=desc` 实测改变首行 |
+| 筛选栏三段式（字段 + 操作符 + 值） | **本轮补齐（之前是装饰）** | `/objects`、`/trajectories` 的 `<select>` 之前无 `name`、无 form，改完实测缩小结果集 |
+| 计数提示 `Showing N of M` | 已对齐 | `共 42,427 个物体，显示 200 个` |
+| 布尔值胶囊徽章 | 已对齐 | `.chip.true` / `.chip.false` |
+| 键值信息卡（左列深灰） | 已对齐 | `.kv` + `.k` / `.v-mono` |
+| 图表：Mean Orbital Elements（六要素切换） | 已对齐 | `ElementsChart`，SMA/Inc/Ecc/RAAN/AoP/MA |
+| 图表：Prediction Error / CDF / Mahalanobis | 已对齐 | `AccuracyPanels` 挂在对象详情页 |
+| 交会页 Prediction Consistency（R/T/N 双栏） | **部分**：本部署用 `PcHistoryChart`（Pc 随时间）替代 | 见下方"未对齐" |
+| CDM 表（json/kvn 下载图标 + state source 胶囊） | 已对齐 | 轨迹页与交会页均有两个下载链接 |
+| 等宽字体用于 UUID/时间/数值 | 已对齐 | `.mono-sm` / `.v-mono` 贯穿 |
+
+### 未对齐（记录在案）
+
+- **交会详情页的 Prediction Consistency 图**：官方是"R/T/N 方向误差随时间"的双栏图，
+  我们画的是 Pc 随 CDM 版本的历史。要画官方那张，需要为每条 CDM 在其创建时刻
+  对两端轨迹做一次误差复算——那是计算工作量，不是画图工作量，单列在 `docs/GAPS.md`。
+- **列设置（齿轮）**：官方筛选栏右侧有列显隐设置，我们未实现；当前列固定。

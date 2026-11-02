@@ -67,6 +67,8 @@
 | G25 | 三维模型库整体不可用（磁盘 257 个 glb + 257 预览，页面显示 0）| `model_asset` 表被 `catalogue:build` 删过；`models:sync` 只同步目录、不探测磁盘。现探测磁盘填 `local_path`/`local_preview`：页面 257 个模型、缩略图全本地 | API 实测 `/api/models/nasa/…glb` → 200 / 329,596 字节 / 合法 glTF；`catalogue:build` 的保护现在会列出 model_asset（15 张表）|
 | G26 | `<meta name="theme-color">` 完全缺失 | Next 15 要求放 `generateViewport`；迁出后实测输出两条按 media 区分的 meta | 浏览器实测 dark #0D1721 / light #F1F5F9 |
 | G27 | 死代码与假机制：`useThemeMode` 零引用、`Sidebar` 的 `theme` 参数从未被读 | 两者删除，并在原位写明真实机制（inline SVG + CSS token，不需要 JS 知道模式）| `tsc` + 浏览器实测（272px 侧栏、240px 品牌、主题切换仍生效）|
+| G28 | 列表页筛选栏是**装饰**（`/objects`、`/trajectories` 的 select 无 name、无 form、无查询）| 改成真正的 GET 表单并把筛选接到 SQL；`/operators` 补筛选栏；交会页补「仅未来 TCA」| 浏览器实测：`/objects?name=STARLINK-1309` 42,427 → 2；`?alive=false` → 0；交会 558 → 36（仅未来）|
+| G29 | 列表页表头不可排序（官方 `Name ↕`）| 新增 `src/lib/sort.ts`（白名单 + 稳定次级排序 + 链接构造）与 `SortableTh`；四个列表页共 20 个可排序表头 | `tests/sort-filter.test.ts` 12 条；`/objects?sort=noradId&dir=desc` 实测首行 60236 → 270449；交会 `?sort=tca&dir=asc` 首行变为最早 TCA |
 
 ---
 
@@ -87,6 +89,8 @@
 | P12 | ~~再入 / 发射 / 解体事件没有页面~~ | **已完成**：`/reentry`、`/environment`、`/launches` | — |
 | P14 | 文档正文只有 en / zh-CN | ja / fr / es / de 回退到英文并明示（`docs.fallbackNotice`）| 需要把这 14 篇正文翻译 4 个语种；结构已就绪，只缺译文 |
 | P15 | 41 个零引用导出 | 多为 `src/lib/core`、`geo`、`orbit` 的库函数（留给测试与后续使用），非组件故不影响上线 | 需要时逐个判定"接口保留"还是"删掉"，本轮只记录 |
+| P17 | 交会详情页缺少官方的 Prediction Consistency 图（R/T/N 误差 vs 时间）| 现用 Pc 历史图替代 | 需要为每条 CDM 在其创建时刻复算两端轨迹误差——计算工作量而非画图工作量 |
+| P18 | 筛选栏没有官方的「列设置」（齿轮显隐列）| 列固定 | 需要列偏好持久化（cookie 或 DB），属产品决定 |
 | P16 | 生产构建下的行为未复核 | 审核期间 dev 服务在跑；prod 的 chunk 与 PWA/SW 路径只由 `check` 的 build-artifacts 检查覆盖 | 需要一次 `next build` + `next start` 的实测（会打断 dev 服务，故本轮没做）|
 | P13 | `discos_fragmentation.member_count` 恒为 0 | 上游只给关系链接，`meta.pagination` 无 `total`，`discos_objects` 无反向关系 | 逐事件分页遍历（673 次）或等 DISCOS 提供计数；当前按"未知"处理 |
 | P8 | 条件请求目前省 0 字节 | 实测 Spacebook / Space-Track / DISCOS **都不发** `ETag` / `Last-Modified`，多数还带 `cache-control: no-store`。机制已就绪且无副作用，去掉反而会丢掉将来 CDN 支持时的收益 | 无客户端解法：没有 validator，就无法在传输前判断内容是否变化。当前的省法是 gzip + 节奏 + 同哈希不重建、不重算 |

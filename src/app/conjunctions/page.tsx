@@ -1,14 +1,17 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
+import { SortableTh } from "@/components/SortableTh";
 import { getTranslator } from "@/lib/i18n/registry";
 import {
+  CONJUNCTION_SORTS,
   listConjunctions,
   listPublishedConjunctions,
   publishedConjunctionCounts,
   riskThresholds,
   type RiskBand,
 } from "@/lib/queries";
+import { parseSort } from "@/lib/sort";
 import { countdownTo, countdownToIso } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
@@ -38,16 +41,18 @@ const LIMIT = 200;
 export default async function ConjunctionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ risk?: string }>;
+  searchParams: Promise<{ risk?: string; upcoming?: string; sort?: string; dir?: string }>;
 }) {
   const sp = await searchParams;
   const limits = riskThresholds();
   const t = await getTranslator();
 
   const counts = publishedConjunctionCounts();
+  const sort = parseSort(sp, CONJUNCTION_SORTS, { key: "pc", dir: "desc" });
+  const sorted = sp.sort !== undefined;
   // One query, then filter/slice in memory: the whole set is ~500 rows, so a
   // separate count query per band would be three round-trips for the same data.
-  const published = listPublishedConjunctions(100_000);
+  const published = listPublishedConjunctions(100_000, new Date(), sorted ? sort : undefined);
   const own = listConjunctions(LIMIT);
 
   const BANDS = ["high", "medium", "low", "unknown"] as const;
@@ -58,7 +63,10 @@ export default async function ConjunctionsPage({
       : "all";
   const inBand = (band: "all" | RiskBand) =>
     band === "all" ? published : published.filter((c) => c.band === band);
-  const matched = inBand(active);
+  // "Still ahead" is a different question from "which band", and it is the one
+  // that decides whether a row is actionable, so it gets its own control.
+  const onlyUpcoming = sp.upcoming === "1";
+  const matched = inBand(active).filter((c) => (onlyUpcoming ? c.tcaInFuture : true));
   const visible = matched.slice(0, LIMIT);
 
   // `unknown` is a band here, not an error: 22 conjunctions arrive without a Pc
@@ -99,16 +107,37 @@ export default async function ConjunctionsPage({
         </div>
 
         <div className="filters">
-          {bands.map((band) => (
-            <Link
-              key={band.key}
-              href={band.key === "all" ? "/conjunctions" : `/conjunctions?risk=${band.key}`}
-              className={`btn${active === band.key ? " is-on" : ""}`}
-            >
-              {band.label}
-              <span className="faint"> {inBand(band.key).length}</span>
-            </Link>
-          ))}
+          {bands.map((band) => {
+            const query = new URLSearchParams();
+            if (band.key !== "all") query.set("risk", band.key);
+            if (onlyUpcoming) query.set("upcoming", "1");
+            const value = query.toString();
+            return (
+              <Link
+                key={band.key}
+                href={value ? `/conjunctions?${value}` : "/conjunctions"}
+                className={`btn${active === band.key ? " is-on" : ""}`}
+              >
+                {band.label}
+                <span className="faint"> {inBand(band.key).length}</span>
+              </Link>
+            );
+          })}
+          <Link
+            href={
+              onlyUpcoming
+                ? active === "all"
+                  ? "/conjunctions"
+                  : `/conjunctions?risk=${active}`
+                : active === "all"
+                  ? "/conjunctions?upcoming=1"
+                  : `/conjunctions?risk=${active}&upcoming=1`
+            }
+            className={`btn${onlyUpcoming ? " is-on" : ""}`}
+          >
+            {t.t("filter.upcomingOnly")}
+            <span className="faint"> {published.filter((c) => c.tcaInFuture).length}</span>
+          </Link>
         </div>
 
         {matched.length > visible.length && (
@@ -128,12 +157,39 @@ export default async function ConjunctionsPage({
                   <th>{t.t("column.cdm")}</th>
                   <th>{t.t("column.object1")}</th>
                   <th>{t.t("column.object2")}</th>
-                  <th className="num">{t.t("column.missDistance")}</th>
-                  <th className="num">{t.t("column.pc")}</th>
-                  <th>{t.t("column.tca")}</th>
+                  <SortableTh
+                    label={t.t("column.missDistance")}
+                    column="miss"
+                    current={sort}
+                    pathname="/conjunctions"
+                    params={sp}
+                    className="num"
+                  />
+                  <SortableTh
+                    label={t.t("column.pc")}
+                    column="pc"
+                    current={sort}
+                    pathname="/conjunctions"
+                    params={sp}
+                    className="num"
+                  />
+                  <SortableTh
+                    label={t.t("column.tca")}
+                    column="tca"
+                    current={sort}
+                    pathname="/conjunctions"
+                    params={sp}
+                  />
                   <th>{t.t("column.countdown")}</th>
                   <th>{t.t("column.risk")}</th>
-                  <th className="num">{t.t("column.messages")}</th>
+                  <SortableTh
+                    label={t.t("column.messages")}
+                    column="messages"
+                    current={sort}
+                    pathname="/conjunctions"
+                    params={sp}
+                    className="num"
+                  />
                 </tr>
               </thead>
               <tbody>

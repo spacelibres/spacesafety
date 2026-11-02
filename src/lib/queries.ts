@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, or, sql, type SQL } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { normaliseTrajectory } from "@/lib/api/validate-trajectory";
@@ -15,6 +15,7 @@ import {
   trajectories,
 } from "@/db/schema";
 import { gpsNanosToDate } from "@/lib/space-safety/gps";
+import { orderByClause, type SortColumns, type SortSpec } from "@/lib/sort";
 
 /** Risk bands, configurable so operators can match their own action thresholds. */
 export function riskThresholds() {
@@ -282,10 +283,25 @@ export interface PublishedConjunctionRow {
  * drizzle (it is loaded from an archive file, not written by the app), so this
  * reads it with raw SQL too.
  */
+/** Columns the published-conjunction table may sort by. */
+export const CONJUNCTION_SORTS: SortColumns<"pc" | "tca" | "miss" | "messages"> = {
+  pc: "pc",
+  tca: "tca",
+  miss: "min_range_km",
+  messages: "message_count",
+};
+
 export function listPublishedConjunctions(
   limit = 200,
   now: Date = new Date(),
+  sort?: SortSpec<keyof typeof CONJUNCTION_SORTS>,
 ): PublishedConjunctionRow[] {
+  // The default order is "still ahead first, then by risk" — an actionable row
+  // before an interesting one. An explicit sort replaces it: a reader who asks for
+  // TCA ascending wants TCA ascending, not "the upcoming ones, sorted by TCA".
+  const order = sort
+    ? `${CONJUNCTION_SORTS[sort.key]} ${sort.dir === "desc" ? "DESC" : "ASC"} NULLS LAST, cdmId ASC`
+    : "(tca >= @now) DESC, pc DESC NULLS LAST, tca ASC";
   const { sqlite } = getDb();
   const nowIso = now.toISOString();
   const rows = sqlite
@@ -305,9 +321,7 @@ export function listPublishedConjunctions(
               message_count     AS messageCount
          FROM ranked
         WHERE rn = 1
-        ORDER BY (tca >= @now) DESC,
-                 pc DESC NULLS LAST,
-                 tca ASC
+        ORDER BY ${order}
         LIMIT @limit`,
     )
     .all({ now: nowIso, limit }) as Array<Omit<PublishedConjunctionRow, "tcaInFuture" | "band">>;
@@ -394,9 +408,30 @@ export function getEventDetail(eventId: string): EventDetail {
   };
 }
 
-export function listOperators() {
-  const { db } = getDb();
-  return db.select().from(operators).orderBy(operators.name).all();
+/** Columns the operators table may sort by; anything else falls back to name. */
+export const OPERATOR_SORTS: SortColumns<"name" | "email" | "maxObjects"> = {
+  name: "name",
+  email: "email",
+  maxObjects: "max_objects",
+};
+
+export function listOperators(
+  sort: SortSpec<keyof typeof OPERATOR_SORTS> = { key: "name", dir: "asc" },
+) {
+  const { sqlite } = getDb();
+  return sqlite
+    .prepare(
+      `SELECT id, name, email, phone, max_objects AS maxObjects
+         FROM operators
+        ORDER BY ${orderByClause(OPERATOR_SORTS, sort, "id")}`,
+    )
+    .all() as Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    maxObjects: number;
+  }>;
 }
 
 export interface ObjectRow {
@@ -433,13 +468,65 @@ export interface ObjectRow {
  * vendor's UI shows "Showing 50 of >10000 objects", so the count is fetched
  * separately and the header reports both.
  */
-export function countObjects(): number {
+export function countObjects(filters: ObjectFilters = {}): number {
   const { sqlite } = getDb();
-  const row = sqlite.prepare("SELECT COUNT(*) AS n FROM objects").get() as { n: number };
+  const where = objectWhere(filters);
+  const row = sqlite
+    .prepare(`SELECT COUNT(*) AS n FROM objects o ${where.clause}`)
+    .get(...where.params) as { n: number };
   return row.n;
 }
 
-export function listObjects(limit = 200): ObjectRow[] {
+/** Columns the objects table may sort by. */
+export const OBJECT_SORTS: SortColumns<
+  "objectName" | "noradId" | "operatorName" | "objectClass" | "country" | "alive" | "maneuverability"
+> = {
+  objectName: "o.object_name",
+  noradId: "o.norad_id",
+  operatorName: "COALESCE(op.name, 'UNKNOWN')",
+  objectClass: "m.object_class",
+  country: "m.country",
+  alive: "o.alive",
+  maneuverability: "o.maneuverability",
+};
+
+/**
+ * Filters the objects table offers.
+ *
+ * The page rendered a filter bar before this existed — three `<select>`s with no
+ * `name` and no enclosing form, which looked like filtering and did nothing. Every
+ * filter here is applied in SQL.
+ */
+export interface ObjectFilters {
+  alive?: boolean;
+  /** Substring match, ASCII case-insensitive. */
+  nameContains?: string;
+  noradId?: number;
+}
+
+function objectWhere(filters: ObjectFilters): { clause: string; params: unknown[] } {
+  const parts: string[] = [];
+  const params: unknown[] = [];
+  if (filters.alive !== undefined) {
+    parts.push("o.alive = ?");
+    params.push(filters.alive ? 1 : 0);
+  }
+  if (filters.nameContains) {
+    parts.push("o.object_name LIKE ?");
+    params.push("%" + filters.nameContains + "%");
+  }
+  if (filters.noradId !== undefined) {
+    parts.push("o.norad_id = ?");
+    params.push(filters.noradId);
+  }
+  return { clause: parts.length ? "WHERE " + parts.join(" AND ") : "", params };
+}
+
+export function listObjects(
+  limit = 200,
+  sort: SortSpec<keyof typeof OBJECT_SORTS> = { key: "objectName", dir: "asc" },
+  filters: ObjectFilters = {},
+): ObjectRow[] {
   const { sqlite } = getDb();
   const rows = sqlite
     .prepare(
@@ -452,10 +539,11 @@ export function listObjects(limit = 200): ObjectRow[] {
          FROM objects o
          LEFT JOIN operators op ON op.id = o.operator_id
          LEFT JOIN master_object m ON m.norad_id = o.norad_id
-        ORDER BY o.object_name
+        ${objectWhere(filters).clause}
+        ORDER BY ${orderByClause(OBJECT_SORTS, sort, "o.id")}
         LIMIT ?`,
     )
-    .all(limit) as Array<Record<string, unknown>>;
+    .all(...objectWhere(filters).params, limit) as Array<Record<string, unknown>>;
 
   return rows.map((r) => ({
     id: String(r.id),
@@ -490,7 +578,73 @@ export interface TrajectoryRow {
   format: string;
 }
 
-export function listTrajectories(limit = 200): TrajectoryRow[] {
+/** Columns the trajectory stream may sort by. */
+export const TRAJECTORY_SORTS: SortColumns<
+  | "uploadedAt"
+  | "startAt"
+  | "endAt"
+  | "screenedStatus"
+  | "stateSource"
+  | "uploadType"
+  | "objectName"
+  | "pointCount"
+> = {
+  uploadedAt: "trajectories.uploaded_at",
+  startAt: "trajectories.start_at",
+  endAt: "trajectories.end_at",
+  screenedStatus: "trajectories.screened_status",
+  stateSource: "trajectories.state_source",
+  uploadType: "trajectories.upload_type",
+  objectName: "objects.object_name",
+  pointCount: "trajectories.point_count",
+};
+
+/**
+ * Filters the trajectory stream offers.
+ *
+ * Values are validated against the official enums before they reach SQL: an
+ * unknown `upload_type` must not quietly return everything, because a reader who
+ * asked for `definitive` and got the whole table will believe the filter worked.
+ */
+export interface TrajectoryFilters {
+  uploadType?: string;
+  stateSource?: string;
+  screenedStatus?: string;
+}
+
+export const UPLOAD_TYPES = ["definitive", "candidate", "hypothetical"] as const;
+export const STATE_SOURCES = ["operator_ephemeris", "spacex_optical"] as const;
+export const SCREENED_STATUSES = [
+  "not_screened",
+  "screened",
+  "superseded",
+  "candidate_to_definitive",
+  "unknown_trajectory_fetching_error",
+  "failed_interpolation",
+] as const;
+
+function trajectoryWhere(filters: TrajectoryFilters): SQL[] {
+  const parts: SQL[] = [];
+  if (filters.uploadType && (UPLOAD_TYPES as readonly string[]).includes(filters.uploadType)) {
+    parts.push(eq(trajectories.uploadType, filters.uploadType));
+  }
+  if (filters.stateSource && (STATE_SOURCES as readonly string[]).includes(filters.stateSource)) {
+    parts.push(eq(trajectories.stateSource, filters.stateSource));
+  }
+  if (
+    filters.screenedStatus &&
+    (SCREENED_STATUSES as readonly string[]).includes(filters.screenedStatus)
+  ) {
+    parts.push(eq(trajectories.screenedStatus, filters.screenedStatus));
+  }
+  return parts;
+}
+
+export function listTrajectories(
+  limit = 200,
+  sort: SortSpec<keyof typeof TRAJECTORY_SORTS> = { key: "uploadedAt", dir: "desc" },
+  filters: TrajectoryFilters = {},
+): TrajectoryRow[] {
   const { db } = getDb();
   // Select columns explicitly. `select({ t: trajectories })` pulls every column,
   // including `file_text` — the raw ephemeris, 674 MB across this table — and the
@@ -513,7 +667,12 @@ export function listTrajectories(limit = 200): TrajectoryRow[] {
     .from(trajectories)
     .leftJoin(objects, eq(objects.id, trajectories.objectId))
     .leftJoin(operators, eq(operators.id, trajectories.operatorId))
-    .orderBy(desc(trajectories.uploadedAt))
+    .where(and(...trajectoryWhere(filters)))
+    // Sorting is applied in SQL through a whitelist rather than with drizzle's
+    // `orderBy(desc(...))`, because the column comes from the URL.
+    .orderBy(
+      sql.raw(orderByClause(TRAJECTORY_SORTS, sort, "trajectories.id")),
+    )
     .limit(limit)
     .all();
 

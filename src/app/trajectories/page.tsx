@@ -1,14 +1,29 @@
 import Link from "next/link";
 
 import { Topbar } from "@/components/Shell";
+import { SortableTh } from "@/components/SortableTh";
 import { getTranslator } from "@/lib/i18n/registry";
-import { listTrajectories } from "@/lib/queries";
+import { listTrajectories, TRAJECTORY_SORTS, type TrajectoryFilters } from "@/lib/queries";
+import { parseSort } from "@/lib/sort";
 
 export const dynamic = "force-dynamic";
 
-export default async function TrajectoriesPage() {
+export default async function TrajectoriesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
   const t = await getTranslator();
-  const rows = listTrajectories(200);
+  const sort = parseSort(sp, TRAJECTORY_SORTS, { key: "uploadedAt", dir: "desc" });
+  // The query rejects values outside the official enums, so a typo narrows to
+  // nothing rather than silently returning the whole table.
+  const filters: TrajectoryFilters = {
+    uploadType: sp.upload_type || undefined,
+    stateSource: sp.state_source || undefined,
+    screenedStatus: sp.status || undefined,
+  };
+  const rows = listTrajectories(200, sort, filters);
 
   return (
     <>
@@ -21,9 +36,12 @@ export default async function TrajectoriesPage() {
           </span>
         </div>
 
-        <div className="filters">
+        {/* Real GET form: these selects previously had no `name` and no form, so
+            they changed nothing. */}
+        <form className="filters" method="get">
           <button
             className="filter-btn"
+            type="button"
             title={t.t("filter.title")}
             aria-label={t.t("filter.title")}
           >
@@ -33,10 +51,10 @@ export default async function TrajectoriesPage() {
           </button>
           <div className="filter-group">
             <span>{t.t("column.type")}</span>
-            <select defaultValue="">
+            <select aria-label={t.t("filter.equals")} disabled>
               <option value="equals">{t.t("filter.equals")}</option>
             </select>
-            <select defaultValue="">
+            <select name="upload_type" defaultValue={sp.upload_type ?? ""} aria-label={t.t("column.type")}>
               <option value="">{t.t("filter.any")}</option>
               <option value="definitive">{t.t("filter.type.definitive")}</option>
               <option value="hypothetical">{t.t("filter.type.hypothetical")}</option>
@@ -45,14 +63,21 @@ export default async function TrajectoriesPage() {
           </div>
           <div className="filter-group">
             <span>{t.t("column.status")}</span>
-            <select defaultValue="">
+            <select name="status" defaultValue={sp.status ?? ""} aria-label={t.t("column.status")}>
               <option value="">{t.t("filter.any")}</option>
               <option value="screened">{t.t("filter.status.screened")}</option>
               <option value="not_screened">{t.t("filter.status.notScreened")}</option>
               <option value="superseded">{t.t("filter.status.superseded")}</option>
             </select>
           </div>
-        </div>
+          <button className="btn" type="submit">
+            {t.t("filter.apply")}
+          </button>
+          <Link className="btn" href="/trajectories">
+            {t.t("filter.reset")}
+          </Link>
+          <div className="filters-spacer" />
+        </form>
 
         <div className="card">
           <div className="table-wrap" style={{ borderTop: "none" }}>
@@ -60,14 +85,51 @@ export default async function TrajectoriesPage() {
               <thead>
                 <tr>
                   <th>{t.t("column.id")}</th>
-                  <th>{t.t("column.object")}</th>
+                  <SortableTh
+                    label={t.t("column.object")}
+                    column="objectName"
+                    current={sort}
+                    pathname="/trajectories"
+                    params={sp}
+                  />
                   <th>{t.t("column.operator")}</th>
-                  <th>{t.t("column.type")}</th>
-                  <th>{t.t("column.stateSource")}</th>
-                  <th>{t.t("column.screenedStatus")}</th>
+                  <SortableTh
+                    label={t.t("column.type")}
+                    column="uploadType"
+                    current={sort}
+                    pathname="/trajectories"
+                    params={sp}
+                  />
+                  <SortableTh
+                    label={t.t("column.stateSource")}
+                    column="stateSource"
+                    current={sort}
+                    pathname="/trajectories"
+                    params={sp}
+                  />
+                  <SortableTh
+                    label={t.t("column.screenedStatus")}
+                    column="screenedStatus"
+                    current={sort}
+                    pathname="/trajectories"
+                    params={sp}
+                  />
                   <th>{t.t("trajectory.format")}</th>
-                  <th className="num">{t.t("column.points")}</th>
-                  <th>{t.t("column.uploadedAt")}</th>
+                  <SortableTh
+                    label={t.t("column.points")}
+                    column="pointCount"
+                    current={sort}
+                    pathname="/trajectories"
+                    params={sp}
+                    className="num"
+                  />
+                  <SortableTh
+                    label={t.t("column.uploadedAt")}
+                    column="uploadedAt"
+                    current={sort}
+                    pathname="/trajectories"
+                    params={sp}
+                  />
                 </tr>
               </thead>
               <tbody>
