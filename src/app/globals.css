@@ -1535,3 +1535,131 @@ button.btn.primary:hover {
   border-radius: 3px;
   pointer-events: none;
 }
+
+/* ------------------------------------------------------------ documentation */
+
+/*
+ * The docs body is authored Markdown, so its typography lives here rather than in
+ * the components: prose needs different rhythm from tables and forms (looser
+ * line-height, real paragraph spacing, a monospace block that scrolls internally
+ * instead of widening the page).
+ */
+.doc-body {
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text);
+  max-width: 78ch;
+}
+.doc-body h2 {
+  font-size: 16px;
+  margin: 22px 0 8px;
+  color: var(--text);
+}
+.doc-body h2:first-child {
+  margin-top: 0;
+}
+.doc-body h3 {
+  font-size: 13.5px;
+  margin: 18px 0 6px;
+  color: var(--text);
+}
+.doc-body h4 {
+  font-size: 12.5px;
+  margin: 14px 0 4px;
+  color: var(--text-dim);
+}
+.doc-body p {
+  margin: 0 0 10px;
+}
+.doc-body ul,
+.doc-body ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.doc-body li {
+  margin-bottom: 4px;
+}
+.doc-body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.doc-body a {
+  color: var(--color-primary);
+}
+.doc-body table.data {
+  margin: 0 0 12px;
+}
+.doc-body .table-wrap {
+  margin-bottom: 12px;
+}
+.doc-pre {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  white-space: pre;
+}
+.doc-endpoint {
+  color: var(--color-primary);
+  margin-bottom: 16px;
+}
+.doc-quote {
+  margin: 0 0 12px;
+  padding: 6px 0 6px 12px;
+  border-left: 2px solid var(--color-primary);
+  color: var(--text-dim);
+}
+.doc-hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
+.doc-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.doc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  text-decoration: none;
+}
+.doc-card:hover {
+  text-decoration: none;
+}
+.doc-card:hover .doc-card-title {
+  color: var(--color-accent);
+}
+.doc-card-title {
+  font-size: 13px;
+  color: var(--text);
+}
+.doc-card-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.doc-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}

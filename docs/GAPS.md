@@ -62,6 +62,7 @@
 | G20 | 公开 CDM 按消息逐行展示，把历史最坏 Pc 当当前风险 | 按「物体对 + TCA 60 s 内」折叠：3,164 条消息 → 509 个交会，只显示最新估计并标出消息数 | `tests/cdm-cluster.test.ts` 8 条 |
 | G21 | 9 个事件/环境/发射数据集无页面 | 新建 `/reentry`、`/environment`、`/launches` 三个页面，侧栏加入口；`data:inventory` 报 0 个无消费方 | `npm run audit:viewport`（17 页 × 7 视口，含新页）；`tests/event-feeds-ui.test.ts` 12 条 |
 | G22 | 归档 40% 是逐字节重复（同哈希去重从未生效）| 修 `sameDigest()` 前缀比较 + `capture()` 记 `unchanged`；`npm run archive:dedupe` 清历史遗留（1,005.9 MB / 50 文件），并修复 27 条悬挂账本引用 | `tests/archive-dedupe.test.ts` 6 条 + `tests/archive-plan.test.ts` 12 条；清理后账本 106 条引用全部可解析且摘要一致 |
+| G23 | `/docs` 只有一张 18 行的端点表，官方是 33 页文档 | 建 `content/docs/`（结构参考 + en/zh 正文）+ `/docs` 路由区；**23 个端点**逐个写参数/请求体/状态码字段表与示例，14 篇散文页 | `tests/docs-parity.test.ts` 10 条（路由↔文档双向一致、双语齐全、扩展标记）+ `tests/markdown-render.test.ts` 12 条；浏览器实测 15 条路由 × 3 档视口 |
 
 ---
 
@@ -80,6 +81,7 @@
 | P10 | 8 个 Spacebook 端点不压缩 | `omm/kvn`、`omm/xml`、`entity/tle`、`xp-tle`、两个 csv、`eop`、`weather` 不发 `content-encoding`（kvn 连 `br` 也不行）| 客户端无解法；能省的只有 P9 的重复取数 |
 | P11 | EOP 与空间天气无消费者 | 25,232 + 23,678 行仅入库，传播链路没接 EOP | 属轨道侧改动，按你的要求本轮不做 |
 | P12 | ~~再入 / 发射 / 解体事件没有页面~~ | **已完成**：`/reentry`、`/environment`、`/launches` | — |
+| P14 | 文档正文只有 en / zh-CN | ja / fr / es / de 回退到英文并明示（`docs.fallbackNotice`）| 需要把这 14 篇正文翻译 4 个语种；结构已就绪，只缺译文 |
 | P13 | `discos_fragmentation.member_count` 恒为 0 | 上游只给关系链接，`meta.pagination` 无 `total`，`discos_objects` 无反向关系 | 逐事件分页遍历（673 次）或等 DISCOS 提供计数；当前按"未知"处理 |
 | P8 | 条件请求目前省 0 字节 | 实测 Spacebook / Space-Track / DISCOS **都不发** `ETag` / `Last-Modified`，多数还带 `cache-control: no-store`。机制已就绪且无副作用，去掉反而会丢掉将来 CDN 支持时的收益 | 无客户端解法：没有 validator，就无法在传输前判断内容是否变化。当前的省法是 gzip + 节奏 + 同哈希不重建、不重算 |
 

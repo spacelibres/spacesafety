@@ -1,0 +1,49 @@
+{
+  "sections": [
+    {
+      "id": "start",
+      "title": { "en": "Getting started", "zh-CN": "入门" },
+      "pages": [
+        { "slug": "quick-start", "title": { "en": "Quick-start guide", "zh-CN": "快速开始" } },
+        { "slug": "api-keys", "title": { "en": "API keys and identity", "zh-CN": "API 密钥与身份" } },
+        { "slug": "api-patterns", "title": { "en": "API patterns", "zh-CN": "API 通用约定" } }
+      ]
+    },
+    {
+      "id": "api",
+      "title": { "en": "API reference", "zh-CN": "API 参考" },
+      "endpoints": true,
+      "groups": [
+        { "id": "operator", "title": { "en": "Operators", "zh-CN": "运营方" } },
+        { "id": "object", "title": { "en": "Objects", "zh-CN": "对象" } },
+        { "id": "trajectory", "title": { "en": "Trajectories", "zh-CN": "星历" } },
+        { "id": "cdm", "title": { "en": "CDMs", "zh-CN": "CDM" } },
+        { "id": "event", "title": { "en": "Conjunction events", "zh-CN": "交会事件" } },
+        { "id": "extension", "title": { "en": "This deployment's extensions", "zh-CN": "本部署的扩展" } }
+      ]
+    },
+    {
+      "id": "tutorial-basics",
+      "title": { "en": "Tutorials", "zh-CN": "教程" },
+      "pages": [
+        { "slug": "architecture", "title": { "en": "Architecture and internals", "zh-CN": "架构与内部机制" } },
+        { "slug": "objects", "title": { "en": "Objects", "zh-CN": "对象" } },
+        { "slug": "operators", "title": { "en": "Operators", "zh-CN": "运营方" } },
+        { "slug": "trajectories", "title": { "en": "Trajectories", "zh-CN": "星历" } },
+        { "slug": "cdms", "title": { "en": "CDMs", "zh-CN": "CDM" } },
+        { "slug": "events", "title": { "en": "Conjunction events", "zh-CN": "交会事件" } },
+        { "slug": "stargaze", "title": { "en": "Stargaze", "zh-CN": "Stargaze 观测" } }
+      ]
+    },
+    {
+      "id": "space-safety-articles",
+      "title": { "en": "Articles", "zh-CN": "专题文章" },
+      "pages": [
+        { "slug": "best_practices", "title": { "en": "Space safety best practices", "zh-CN": "空间安全最佳实践" } },
+        { "slug": "constellation_altitudes", "title": { "en": "Constellation altitudes", "zh-CN": "星座高度与碎片环境" } },
+        { "slug": "launch_cola", "title": { "en": "Launch and early mission", "zh-CN": "发射与早期任务阶段" } },
+        { "slug": "starlink_cola_conops", "title": { "en": "Collision avoidance CONOPS", "zh-CN": "避撞运行概念" } }
+      ]
+    }
+  ]
+}

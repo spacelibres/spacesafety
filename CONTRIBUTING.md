@@ -226,3 +226,34 @@ npm run release:verify   # 工作区干净 / HEAD 已打 tag / 每条 tag 自带
 7. **验证方式不能只靠连上游。** `tests/http-conditional.test.ts` 起本地 `node:http`
    文件服务，断言第二次请求是 304 且**写入 socket 的主体字节为 0**。
    改这条链路却让该测试变红，就是改坏了。
+
+## 10. 文档（/docs）
+
+`/docs` 的结构与官方 <https://space-safety.starlink.com/docs> 逐页对齐：入门、API 参考、
+教程、专题文章。**内容按本部署的真实行为写，不抄官方原文**——描述别人服务的散文
+比没有更糟。
+
+### 内容放在哪，为什么不在 src/
+
+- 正文与结构化参考在 `content/docs/`（`nav.json`、`endpoints.json`、`pages/<locale>/*.md`）。
+- **不能放 `src/`**：`npm run check` 要求 `src/` 里每一处用户可见字符串都来自词典，
+  文档正文是内容不是界面文案。`src/` 里只留文档区的标题、表头这些界面词（`docs.*`）。
+
+### 语言政策
+
+- 正文只用 **en** 与 **zh-CN** 两种语言撰写；缺译文的语种**回退到英文并在页面上明示**
+  （`docs.fallbackNotice`）。不带提示的回退，会让读者引用一篇从没为他写过的页面。
+- `Localised` 的键就是 `en` / `zh-CN`。写成 `zh` 会静默取不到值——
+  `tests/docs-parity.test.ts` 会拦住。
+
+### 端点参考的规则
+
+1. **一个端点一条记录**，含方法、路径、每个参数（位置/类型/是否必填/双语义说明）、
+   请求体字段、每个状态码的字段表与示例。
+2. **官方契约之外的必须标 `extension: true`**，并且分组只能是 `extension`。
+3. **路由与文档必须双向一致**：文档写了的路由必须存在，路由存在的必须写进文档
+   （`/api/internal/*` 与 `/api/models/*` 是机器接口，豁免）。
+4. 参数要么写清取值域，要么写清为什么没有——不许留空。
+
+`tests/docs-parity.test.ts` 与 `tests/markdown-render.test.ts` 是这两节的可执行版本：
+改文档结构却让它们变红，就是改坏了。

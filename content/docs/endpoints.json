@@ -1,0 +1,2906 @@
+{
+  "baseUrl": "/api",
+  "note": "Every path here is served by this deployment. The reference below documents the same fields the official space-safety documentation specifies, because the handlers answer with those field names; where this deployment adds something (an extension endpoint or an extra parameter) it is marked `extension: true`.",
+  "endpoints": [
+    {
+      "slug": "get-all-operators",
+      "section": "operator",
+      "title": {
+        "en": "Get all operators",
+        "zh-CN": "获取全部运营方"
+      },
+      "method": "GET",
+      "path": "/api/v1/operator",
+      "summary": {
+        "en": "List the operators on this deployment. An operator owns objects, and every object's trajectories belong to it.",
+        "zh-CN": "列出本部署上的运营方。运营方拥有对象，每个对象的星历都归属某个运营方。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "query",
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": "100",
+          "desc": {
+            "en": "Page size, 1–1000.",
+            "zh-CN": "每页条数，1–1000。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "default": "0",
+          "desc": {
+            "en": "Rows to skip. Stable because the list is ordered by name.",
+            "zh-CN": "跳过的行数。列表按名称排序，因此分页稳定。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string (uuid)"
+            ],
+            [
+              "name",
+              "string"
+            ],
+            [
+              "email",
+              "string"
+            ],
+            [
+              "phone",
+              "string"
+            ],
+            [
+              "max_objects",
+              "integer"
+            ]
+          ],
+          "example": [
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "name": "Starlink",
+              "email": "ops@example.test",
+              "phone": "+1 555 0100",
+              "max_objects": 5000
+            }
+          ]
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        },
+        {
+          "status": 401,
+          "meaning": {
+            "en": "Unauthorized — no valid client certificate",
+            "zh-CN": "未授权——没有有效的客户端证书"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "This deployment identifies the caller by its client certificate; there is no bearer token. See API keys.",
+          "zh-CN": "本部署用客户端证书识别调用方，没有 bearer token。见「API 密钥」。"
+        }
+      ]
+    },
+    {
+      "slug": "show-an-operator",
+      "section": "operator",
+      "title": {
+        "en": "Show an operator",
+        "zh-CN": "查看单个运营方"
+      },
+      "method": "GET",
+      "path": "/api/v1/operator/:id",
+      "summary": {
+        "en": "One operator by id.",
+        "zh-CN": "按 id 取一个运营方。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Operator id.",
+            "zh-CN": "运营方 id。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "name",
+              "string"
+            ],
+            [
+              "email",
+              "string"
+            ],
+            [
+              "phone",
+              "string"
+            ],
+            [
+              "max_objects",
+              "integer"
+            ]
+          ],
+          "example": {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "name": "Starlink",
+            "email": "ops@example.test",
+            "phone": "+1 555 0100",
+            "max_objects": 5000
+          }
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "create-an-operator",
+      "section": "operator",
+      "title": {
+        "en": "Create an operator",
+        "zh-CN": "新建运营方"
+      },
+      "method": "POST",
+      "path": "/api/v1/operator",
+      "summary": {
+        "en": "Create an operator. `name` is required; the rest have defaults.",
+        "zh-CN": "新建运营方。`name` 必填，其余有默认值。"
+      },
+      "auth": "client-certificate",
+      "params": [],
+      "body": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "desc": {
+            "en": "Operator name.",
+            "zh-CN": "运营方名称。"
+          }
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Contact email.",
+            "zh-CN": "联系邮箱。"
+          }
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Contact phone.",
+            "zh-CN": "联系电话。"
+          }
+        },
+        {
+          "name": "max_objects",
+          "type": "integer",
+          "required": false,
+          "default": "100",
+          "desc": {
+            "en": "How many objects this operator may register. Uploads beyond it are rejected with 400.",
+            "zh-CN": "该运营方可登记的对象上限，超出后上传会以 400 拒绝。"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "meaning": {
+            "en": "Created",
+            "zh-CN": "已创建"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ]
+          ],
+          "example": {
+            "id": "22222222-2222-4222-8222-222222222222"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — validation failed",
+            "zh-CN": "请求不合法——校验失败"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "update-operator-information",
+      "section": "operator",
+      "title": {
+        "en": "Update operator information",
+        "zh-CN": "更新运营方信息"
+      },
+      "method": "PATCH",
+      "path": "/api/v1/operator/:id",
+      "summary": {
+        "en": "Partially update an operator. Omitted fields are left untouched.",
+        "zh-CN": "部分更新运营方；未提供的字段保持不变。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Operator id.",
+            "zh-CN": "运营方 id。"
+          }
+        }
+      ],
+      "body": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "New name.",
+            "zh-CN": "新名称。"
+          }
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "New email.",
+            "zh-CN": "新邮箱。"
+          }
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "New phone.",
+            "zh-CN": "新电话。"
+          }
+        },
+        {
+          "name": "max_objects",
+          "type": "integer",
+          "required": false,
+          "desc": {
+            "en": "New object quota.",
+            "zh-CN": "新的对象配额。"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "name",
+              "string"
+            ],
+            [
+              "email",
+              "string"
+            ],
+            [
+              "phone",
+              "string"
+            ],
+            [
+              "max_objects",
+              "integer"
+            ]
+          ],
+          "example": {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "name": "Starlink",
+            "email": "ops@example.test",
+            "phone": "+1 555 0101",
+            "max_objects": 6000
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "get-all-objects",
+      "section": "object",
+      "title": {
+        "en": "Get all objects",
+        "zh-CN": "获取全部对象"
+      },
+      "method": "GET",
+      "path": "/api/v1/object",
+      "summary": {
+        "en": "List objects. An object is a satellite in orbit; every trajectory is associated with one.",
+        "zh-CN": "列出对象。对象是轨道上的一个航天器，每条星历都关联一个对象。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "query",
+          "name": "operator_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Filter objects by operator id.",
+            "zh-CN": "按运营方 id 过滤。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "norad_id",
+          "type": "integer",
+          "required": false,
+          "desc": {
+            "en": "Filter objects by NORAD id.",
+            "zh-CN": "按 NORAD 编号过滤。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "object_name",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Filter by name. Case-insensitive for ASCII, but the whole value must match.",
+            "zh-CN": "按名称过滤。ASCII 大小写不敏感，但必须整体匹配。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": "100",
+          "desc": {
+            "en": "Page size.",
+            "zh-CN": "每页条数。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "default": "0",
+          "desc": {
+            "en": "Rows to skip.",
+            "zh-CN": "跳过的行数。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "object_name",
+              "string"
+            ],
+            [
+              "norad_id",
+              "integer"
+            ],
+            [
+              "operator_id",
+              "string"
+            ],
+            [
+              "hard_body_radius",
+              "number"
+            ],
+            [
+              "maneuverability",
+              "boolean"
+            ],
+            [
+              "alive",
+              "boolean"
+            ]
+          ],
+          "example": [
+            {
+              "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "object_name": "STARLINK-1309",
+              "norad_id": 45414,
+              "operator_id": "22222222-2222-4222-8222-222222222222",
+              "hard_body_radius": 0.00413,
+              "maneuverability": true,
+              "alive": true
+            }
+          ]
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "`hard_body_radius` is in kilometres, which is what the screening kernel consumes. The official schema shows it as a number without a unit.",
+          "zh-CN": "`hard_body_radius` 的单位是公里，也就是筛查内核实际使用的量纲。官方 schema 只写 number，未标单位。"
+        }
+      ]
+    },
+    {
+      "slug": "show-an-object",
+      "section": "object",
+      "title": {
+        "en": "Show an object",
+        "zh-CN": "查看单个对象"
+      },
+      "method": "GET",
+      "path": "/api/v1/object/:id",
+      "summary": {
+        "en": "One object by id.",
+        "zh-CN": "按 id 取一个对象。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Object id.",
+            "zh-CN": "对象 id。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "object_name",
+              "string"
+            ],
+            [
+              "norad_id",
+              "integer"
+            ],
+            [
+              "operator_id",
+              "string"
+            ],
+            [
+              "hard_body_radius",
+              "number"
+            ],
+            [
+              "maneuverability",
+              "boolean"
+            ],
+            [
+              "alive",
+              "boolean"
+            ]
+          ],
+          "example": {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "object_name": "STARLINK-1309",
+            "norad_id": 45414,
+            "operator_id": "22222222-2222-4222-8222-222222222222",
+            "hard_body_radius": 0.00413,
+            "maneuverability": true,
+            "alive": true
+          }
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "create-an-object",
+      "section": "object",
+      "title": {
+        "en": "Create an object",
+        "zh-CN": "新建对象"
+      },
+      "method": "POST",
+      "path": "/api/v1/object",
+      "summary": {
+        "en": "Register an object. `object_name` and `hard_body_radius` are required; the radius drives Pc.",
+        "zh-CN": "登记对象。`object_name` 与 `hard_body_radius` 必填；半径直接决定碰撞概率。"
+      },
+      "auth": "client-certificate",
+      "params": [],
+      "body": [
+        {
+          "name": "object_name",
+          "type": "string",
+          "required": true,
+          "desc": {
+            "en": "Display name.",
+            "zh-CN": "显示名称。"
+          }
+        },
+        {
+          "name": "hard_body_radius",
+          "type": "number",
+          "required": true,
+          "desc": {
+            "en": "Hard-body radius in km. Must be > 0: a zero radius makes Pc always zero.",
+            "zh-CN": "硬体半径（公里），必须 > 0——为 0 会让碰撞概率永远是 0。"
+          }
+        },
+        {
+          "name": "norad_id",
+          "type": "integer",
+          "required": false,
+          "desc": {
+            "en": "NORAD catalogue number, when the object has one.",
+            "zh-CN": "NORAD 编号（若该对象有）。"
+          }
+        },
+        {
+          "name": "maneuverability",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "Whether the object can be manoeuvred. Shown in the event stream.",
+            "zh-CN": "该对象是否可机动，会显示在事件流里。"
+          }
+        },
+        {
+          "name": "alive",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "Whether the object is still operating.",
+            "zh-CN": "该对象是否仍在工作。"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "meaning": {
+            "en": "Created",
+            "zh-CN": "已创建"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ]
+          ],
+          "example": {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — validation failed",
+            "zh-CN": "请求不合法——校验失败"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "update-an-object",
+      "section": "object",
+      "title": {
+        "en": "Update an object",
+        "zh-CN": "更新对象"
+      },
+      "method": "PATCH",
+      "path": "/api/v1/object/:id",
+      "summary": {
+        "en": "Partially update an object.",
+        "zh-CN": "部分更新对象。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Object id.",
+            "zh-CN": "对象 id。"
+          }
+        }
+      ],
+      "body": [
+        {
+          "name": "object_name",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "New name.",
+            "zh-CN": "新名称。"
+          }
+        },
+        {
+          "name": "hard_body_radius",
+          "type": "number",
+          "required": false,
+          "desc": {
+            "en": "New hard-body radius in km (> 0).",
+            "zh-CN": "新的硬体半径（公里，> 0）。"
+          }
+        },
+        {
+          "name": "norad_id",
+          "type": "integer",
+          "required": false,
+          "desc": {
+            "en": "New NORAD id.",
+            "zh-CN": "新的 NORAD 编号。"
+          }
+        },
+        {
+          "name": "maneuverability",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "New manoeuvrability flag.",
+            "zh-CN": "新的可机动标志。"
+          }
+        },
+        {
+          "name": "alive",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "New alive flag.",
+            "zh-CN": "新的在役标志。"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "object_name",
+              "string"
+            ],
+            [
+              "norad_id",
+              "integer"
+            ],
+            [
+              "operator_id",
+              "string"
+            ],
+            [
+              "hard_body_radius",
+              "number"
+            ],
+            [
+              "maneuverability",
+              "boolean"
+            ],
+            [
+              "alive",
+              "boolean"
+            ]
+          ],
+          "example": {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "object_name": "STARLINK-1309",
+            "norad_id": 45414,
+            "operator_id": "22222222-2222-4222-8222-222222222222",
+            "hard_body_radius": 0.0045,
+            "maneuverability": true,
+            "alive": true
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "get-all-trajectories",
+      "section": "trajectory",
+      "title": {
+        "en": "Get all trajectories",
+        "zh-CN": "获取全部星历"
+      },
+      "method": "GET",
+      "path": "/api/v1/trajectory",
+      "summary": {
+        "en": "The trajectory stream: metadata for every trajectory the caller's operator owns, oldest first, paginated by `token`.",
+        "zh-CN": "星历流：调用方运营方名下每条星历的元数据，按时间先后排列，用 `token` 翻页。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "query",
+          "name": "token",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Cursor from the previous page's response.",
+            "zh-CN": "上一页响应里的游标。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "object_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Only trajectories of this object.",
+            "zh-CN": "只取该对象的星历。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "operator_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Only trajectories of this operator.",
+            "zh-CN": "只取该运营方的星历。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "upload_type",
+          "type": "string",
+          "required": false,
+          "values": [
+            "definitive",
+            "candidate",
+            "hypothetical"
+          ],
+          "desc": {
+            "en": "Filter by upload type. Any other value is a 400.",
+            "zh-CN": "按上传类型过滤；其他取值返回 400。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "state_source",
+          "type": "string",
+          "required": false,
+          "values": [
+            "operator_ephemeris",
+            "spacex_optical"
+          ],
+          "desc": {
+            "en": "Filter by state source. Any other value is a 400.",
+            "zh-CN": "按状态来源过滤；其他取值返回 400。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "min_update_time",
+          "type": "string (ISO-8601)",
+          "required": false,
+          "desc": {
+            "en": "Only trajectories updated at or after this instant.",
+            "zh-CN": "只取在该时刻之后更新的星历。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "result",
+              "array"
+            ],
+            [
+              "token",
+              "string"
+            ]
+          ],
+          "example": {
+            "result": [
+              {
+                "id": "5b1f1f2a-0000-4000-8000-000000000001",
+                "object_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "operator_id": "22222222-2222-4222-8222-222222222222",
+                "upload_type": "definitive",
+                "state_source": "operator_ephemeris",
+                "screened_status": "screened",
+                "start_at": "2026-11-02T00:00:00.000Z",
+                "end_at": "2026-11-03T00:00:00.000Z",
+                "uploaded_at": "2026-11-02T05:00:00.000Z",
+                "created_at": "2026-11-02T05:00:00.000Z",
+                "screened_at": "2026-11-02T05:00:07.000Z",
+                "auto_relinquish_pc_threshold": null
+              }
+            ],
+            "token": "eyJ2IjoxfQ"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "A `hypothetical` trajectory is excluded from conjunction screening by contract; it exists to ask \"what would happen if\", not to warn anyone.",
+          "zh-CN": "`hypothetical` 星历按契约不参与交会筛查：它的用途是回答「假如会怎样」，不是发告警。"
+        }
+      ]
+    },
+    {
+      "slug": "upload-a-trajectory",
+      "section": "trajectory",
+      "title": {
+        "en": "Upload a trajectory",
+        "zh-CN": "上传星历"
+      },
+      "method": "POST",
+      "path": "/api/v1/trajectory",
+      "summary": {
+        "en": "Upload an ephemeris. The file is stored byte-for-byte and screening is queued against the catalogue.",
+        "zh-CN": "上传星历。文件按原字节保存，并向编目排队筛查。"
+      },
+      "auth": "client-certificate",
+      "params": [],
+      "body": [
+        {
+          "name": "object_id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "The object this ephemeris describes.",
+            "zh-CN": "该星历描述的对象。"
+          }
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "required": true,
+          "desc": {
+            "en": "The ephemeris text. CCSDS OEM, OCM, and the Starlink modified ITC are accepted; the format is detected, not declared.",
+            "zh-CN": "星历正文。接受 CCSDS OEM、OCM 与 Starlink 修改版 ITC；格式靠内容识别，不需要声明。"
+          }
+        },
+        {
+          "name": "upload_type",
+          "type": "string",
+          "required": true,
+          "values": [
+            "definitive",
+            "candidate",
+            "hypothetical"
+          ],
+          "desc": {
+            "en": "`definitive` is the operator's own trajectory, `candidate` is a proposed one, `hypothetical` never screens.",
+            "zh-CN": "`definitive` 是运营方正式星历，`candidate` 是候选方案，`hypothetical` 永不参与筛查。"
+          }
+        },
+        {
+          "name": "state_source",
+          "type": "string",
+          "required": true,
+          "values": [
+            "operator_ephemeris",
+            "spacex_optical"
+          ],
+          "desc": {
+            "en": "Where the states came from. `spacex_optical` marks the Stargaze feed.",
+            "zh-CN": "状态来源。`spacex_optical` 标记 Stargaze 观测来源。"
+          }
+        },
+        {
+          "name": "auto_relinquish_pc_threshold",
+          "type": "number",
+          "required": false,
+          "desc": {
+            "en": "Optional Pc threshold; reserved for cooperative manoeuvre handover and currently stored, not acted on.",
+            "zh-CN": "可选的碰撞概率阈值，预留给协同机动移交；当前只存储，不据此动作。"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "meaning": {
+            "en": "Created",
+            "zh-CN": "已创建"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ]
+          ],
+          "example": {
+            "id": "5b1f1f2a-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — the file failed validation",
+            "zh-CN": "请求不合法——文件未通过校验"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ],
+          "example": {
+            "correlation_id": "1f0a…",
+            "error": "trajectory failed validation (1 issue)",
+            "error_type": "trajectory_invalid",
+            "metadata": {
+              "issues": [
+                {
+                  "field": "file",
+                  "reason": "at least 6 state vectors are required (got 2)"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "notes": [
+        {
+          "en": "Validation rejects a file whose states end more than 24 hours in the past. That rule applies to *upload only*: an already-stored trajectory keeps screening after its window closes, because the arc did not become invalid — the clock moved.",
+          "zh-CN": "校验会拒绝整段结束于 24 小时之前的文件。这条规则**只在上传时**生效：已入库的星历在窗口过后仍可筛查——失效的不是数据，是时钟走了一格。"
+        },
+        {
+          "en": "The raw bytes are what is stored and what `GET /api/v1/trajectory/:id` returns, so a format round-trip through this API is lossless.",
+          "zh-CN": "存的是原始字节，`GET /api/v1/trajectory/:id` 返回的也是原始字节，因此经本 API 的往返是无损的。"
+        }
+      ]
+    },
+    {
+      "slug": "get-a-trajectory-file",
+      "section": "trajectory",
+      "title": {
+        "en": "Get a trajectory file",
+        "zh-CN": "获取星历文件"
+      },
+      "method": "GET",
+      "path": "/api/v1/trajectory/:id",
+      "summary": {
+        "en": "The trajectory body. `reference_frame` re-expresses it without changing the orbit.",
+        "zh-CN": "星历正文。`reference_frame` 只换表达，不改轨道。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Trajectory id.",
+            "zh-CN": "星历 id。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "reference_frame",
+          "type": "string",
+          "required": false,
+          "default": "original",
+          "values": [
+            "original",
+            "itrf",
+            "eme2000"
+          ],
+          "desc": {
+            "en": "`original` returns the uploaded bytes untouched; `itrf` and `eme2000` transform and re-serialise. Any other value is a 400.",
+            "zh-CN": "`original` 原样返回上传字节；`itrf` / `eme2000` 变换后重新序列化。其他取值返回 400。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK — the file",
+            "zh-CN": "成功——文件正文"
+          },
+          "fields": [
+            [
+              "(body)",
+              "text/plain or application/json"
+            ],
+            [
+              "x-reference-frame",
+              "header — the frame actually produced"
+            ]
+          ],
+          "example": "CCSDS_OEM_VERS = 2.0\nORIGINATOR = OPERATOR\nREF_FRAME = ITRF\n\n2026-11-02T00:00:00.000 7000.000 0.000 0.000 0.000 7.500 0.000\n2026-11-02T00:01:00.000 6999.900 0.500 0.200 -0.004 7.499 0.001"
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — unknown frame",
+            "zh-CN": "请求不合法——未知参考系"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "Velocity is not merely rotated when converting frames: the ITRF state subtracts ω×r (about 0.47 km/s at the equator). Rotating alone would be wrong by that much.",
+          "zh-CN": "转帧时速度不只是旋转：ITRF 状态要减掉 ω×r（赤道上约 0.47 km/s）。只旋转就会差这么多。"
+        }
+      ]
+    },
+    {
+      "slug": "show-metadata-for-a-trajectory",
+      "section": "trajectory",
+      "title": {
+        "en": "Show metadata for a trajectory",
+        "zh-CN": "查看星历元数据"
+      },
+      "method": "GET",
+      "path": "/api/v1/trajectory/:id/metadata",
+      "summary": {
+        "en": "Everything about a trajectory except its body.",
+        "zh-CN": "除正文以外关于这条星历的全部信息。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Trajectory id.",
+            "zh-CN": "星历 id。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "object_id",
+              "string"
+            ],
+            [
+              "operator_id",
+              "string"
+            ],
+            [
+              "upload_type",
+              "string"
+            ],
+            [
+              "state_source",
+              "string"
+            ],
+            [
+              "screened_status",
+              "string"
+            ],
+            [
+              "start_at",
+              "string"
+            ],
+            [
+              "end_at",
+              "string"
+            ],
+            [
+              "uploaded_at",
+              "string"
+            ],
+            [
+              "created_at",
+              "string"
+            ],
+            [
+              "screened_at",
+              "string"
+            ],
+            [
+              "auto_relinquish_pc_threshold",
+              "number|null"
+            ]
+          ],
+          "example": {
+            "id": "5b1f1f2a-0000-4000-8000-000000000001",
+            "object_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "operator_id": "22222222-2222-4222-8222-222222222222",
+            "upload_type": "definitive",
+            "state_source": "operator_ephemeris",
+            "screened_status": "screened",
+            "start_at": "2026-11-02T00:00:00.000Z",
+            "end_at": "2026-11-03T00:00:00.000Z",
+            "uploaded_at": "2026-11-02T05:00:00.000Z",
+            "created_at": "2026-11-02T05:00:00.000Z",
+            "screened_at": "2026-11-02T05:00:07.000Z",
+            "auto_relinquish_pc_threshold": null
+          }
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "`screened_status` takes exactly six official values: `not_screened`, `candidate_to_definitive`, `unknown_trajectory_fetching_error`, `superseded`, `failed_interpolation`, and `screened`.",
+          "zh-CN": "`screened_status` 只有官方规定的六个取值：`not_screened`、`candidate_to_definitive`、`unknown_trajectory_fetching_error`、`superseded`、`failed_interpolation`、`screened`。"
+        }
+      ]
+    },
+    {
+      "slug": "get-cd-ms",
+      "section": "cdm",
+      "title": {
+        "en": "Get CDMs",
+        "zh-CN": "获取 CDM"
+      },
+      "method": "GET",
+      "path": "/api/v2/cdm",
+      "summary": {
+        "en": "The CDM stream. Unlike the deprecated v1 list this includes Stargaze (`spacex_optical`) CDMs and is the endpoint to poll.",
+        "zh-CN": "CDM 流。与弃用的 v1 列表不同，这里包含 Stargaze（`spacex_optical`）CDM，是应当轮询的端点。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "query",
+          "name": "token",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Cursor from the previous page.",
+            "zh-CN": "上一页游标。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "trajectory_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Only CDMs involving this trajectory. One of this, `operator1_id`, or `object1_id` is required.",
+            "zh-CN": "只取涉及该星历的 CDM。本参数与 `operator1_id`、`object1_id` 至少给一个。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "operator1_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "First participant's operator.",
+            "zh-CN": "第一个参与方的运营方。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "operator2_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Second participant's operator; requires `operator1_id`.",
+            "zh-CN": "第二个参与方的运营方；需同时给 `operator1_id`。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "object1_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "First participant's object.",
+            "zh-CN": "第一个参与方的对象。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "object2_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Second participant's object; requires `object1_id`.",
+            "zh-CN": "第二个参与方的对象；需同时给 `object1_id`。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "min_creation_time",
+          "type": "string (ISO-8601)",
+          "required": false,
+          "desc": {
+            "en": "Only CDMs created at or after this instant.",
+            "zh-CN": "只取在该时刻之后创建的 CDM。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "pc_min",
+          "type": "number",
+          "required": false,
+          "desc": {
+            "en": "Only CDMs with Pc ≥ this value. A missing Pc never satisfies it.",
+            "zh-CN": "只取碰撞概率 ≥ 该值的 CDM。概率缺失的行不会满足它。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "tca_min",
+          "type": "integer",
+          "required": false,
+          "desc": {
+            "en": "Only CDMs whose TCA is at or after this epoch (seconds).",
+            "zh-CN": "只取 TCA 不早于该时刻（秒）的 CDM。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "tca_max",
+          "type": "integer",
+          "required": false,
+          "desc": {
+            "en": "Only CDMs whose TCA is at or before this epoch (seconds).",
+            "zh-CN": "只取 TCA 不晚于该时刻（秒）的 CDM。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "only_active",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "Only CDMs that have not been superseded.",
+            "zh-CN": "只取尚未被取代的 CDM。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "exclude_self_on_self",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "Drop conjunctions where both participants are the same object.",
+            "zh-CN": "去掉两个参与方是同一物体的交会。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "include_cdm_file",
+          "type": "boolean",
+          "required": false,
+          "desc": {
+            "en": "Include the serialised CDM body in each row (large).",
+            "zh-CN": "在每行里附带序列化后的 CDM 正文（体积较大）。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "format",
+          "type": "string",
+          "required": false,
+          "values": [
+            "json",
+            "kvn"
+          ],
+          "desc": {
+            "en": "`json` (default) or `kvn`. Any other value is a 400.",
+            "zh-CN": "`json`（默认）或 `kvn`；其他取值返回 400。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "result",
+              "array"
+            ],
+            [
+              "token",
+              "string"
+            ]
+          ],
+          "example": {
+            "result": [
+              {
+                "id": "9e0c6f2e-0000-4000-8000-000000000001",
+                "event_id": "0b2e…",
+                "creation_time": "2026-11-02T05:00:07.000Z",
+                "tca_gps_nanos": "1462127401367770377",
+                "probability_of_collision": 0.0033,
+                "is_active": true,
+                "trajectory1_id": "5b1f…",
+                "trajectory2_id": "7c2a…",
+                "object1_id": "3fa8…",
+                "object1_name": "STARLINK-1309",
+                "object2_id": "9d1b…",
+                "object2_name": "COSMOS 2251 DEB"
+              }
+            ],
+            "token": "eyJ2IjoxfQ"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — missing or conflicting filters",
+            "zh-CN": "请求不合法——缺少或冲突的过滤条件"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        },
+        {
+          "status": 503,
+          "meaning": {
+            "en": "Rate limit exceeded — carries `Retry-After`",
+            "zh-CN": "超过速率上限——响应带 `Retry-After`"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "Polling without `only_active` returns the whole revision history, so one conjunction appears once per issued CDM. That is what the stream is for; filter with `only_active=true` (or take the newest per event) if you want current risk only.",
+          "zh-CN": "不带 `only_active` 轮询会返回完整修订历史，同一个交会按发出的每条 CDM 各出现一次——这正是「流」的用途。只要当前风险就加 `only_active=true`，或按事件取最新一条。"
+        }
+      ]
+    },
+    {
+      "slug": "get-all-cd-ms-related-to-a-trajectory",
+      "section": "cdm",
+      "title": {
+        "en": "Get all CDMs related to a trajectory",
+        "zh-CN": "获取与某星历相关的全部 CDM"
+      },
+      "method": "GET",
+      "path": "/api/v2/trajectory/:id/cdms",
+      "summary": {
+        "en": "Every CDM in which this trajectory took part, paginated.",
+        "zh-CN": "该星历参与过的全部 CDM，分页返回。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Trajectory id.",
+            "zh-CN": "星历 id。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "token",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Cursor from the previous page.",
+            "zh-CN": "上一页游标。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "result",
+              "array"
+            ],
+            [
+              "token",
+              "string"
+            ]
+          ],
+          "example": {
+            "result": [
+              {
+                "id": "9e0c6f2e-0000-4000-8000-000000000001",
+                "event_id": "0b2e…",
+                "creation_time": "2026-11-02T05:00:07.000Z",
+                "tca_gps_nanos": "1462127401367770377",
+                "probability_of_collision": 0.0033,
+                "is_active": true
+              }
+            ],
+            "token": "eyJ2IjoxfQ"
+          }
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "show-a-conjunction-data-message-cdm",
+      "section": "cdm",
+      "title": {
+        "en": "Show a Conjunction Data Message (CDM)",
+        "zh-CN": "查看单条 CDM"
+      },
+      "method": "GET",
+      "path": "/api/v1/cdm/:id",
+      "summary": {
+        "en": "The serialised CDM itself — what the screening kernel produced, in `json` or `kvn`.",
+        "zh-CN": "序列化后的 CDM 正文——筛查内核产出的原文，可用 `json` 或 `kvn`。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "CDM id.",
+            "zh-CN": "CDM id。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "format",
+          "type": "string",
+          "required": false,
+          "values": [
+            "json",
+            "kvn"
+          ],
+          "desc": {
+            "en": "Serialisation of the body.",
+            "zh-CN": "正文的序列化格式。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK — the CDM",
+            "zh-CN": "成功——CDM 正文"
+          },
+          "fields": [
+            [
+              "(body)",
+              "text/plain (kvn) or application/json"
+            ]
+          ],
+          "example": "CCSDS_CDM_VERS = 1.0\nCREATION_DATE = 2026-11-02T05:00:07\nORIGINATOR = SPACE-SAFETY\nTCA = 2026-11-03T02:10:00.000\nMISS_DISTANCE = 71\nCOLLISION_PROBABILITY = 3.30e-03"
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "show-conjunction-data-message-cdm-metadata",
+      "section": "cdm",
+      "title": {
+        "en": "Show CDM metadata",
+        "zh-CN": "查看 CDM 元数据"
+      },
+      "method": "GET",
+      "path": "/api/v1/cdm/:id/metadata",
+      "summary": {
+        "en": "Summarised fields of one CDM without its body.",
+        "zh-CN": "单条 CDM 的摘要字段，不含正文。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "CDM id.",
+            "zh-CN": "CDM id。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "event_id",
+              "string"
+            ],
+            [
+              "created_at",
+              "string"
+            ],
+            [
+              "tca",
+              "string"
+            ],
+            [
+              "probability_of_collision",
+              "number"
+            ],
+            [
+              "trajectory1_id",
+              "string"
+            ],
+            [
+              "trajectory2_id",
+              "string"
+            ]
+          ],
+          "example": {
+            "id": "9e0c6f2e-0000-4000-8000-000000000001",
+            "event_id": "0b2e…",
+            "created_at": "2026-11-02T05:00:07.000Z",
+            "tca": "2026-11-03T02:10:00.000Z",
+            "probability_of_collision": 0.0033,
+            "trajectory1_id": "5b1f…",
+            "trajectory2_id": "7c2a…"
+          }
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "get-cd-ms-for-a-conjunction-event",
+      "section": "event",
+      "title": {
+        "en": "Get CDMs for a conjunction event",
+        "zh-CN": "获取某交会事件的 CDM"
+      },
+      "method": "GET",
+      "path": "/api/v1/event/:id/cdms",
+      "summary": {
+        "en": "The CDM history of one event — how the estimate moved, message by message.",
+        "zh-CN": "一个交会事件的 CDM 历史——估计随每条消息如何变化。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Event id.",
+            "zh-CN": "事件 id。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "event_id",
+              "string"
+            ],
+            [
+              "created_at",
+              "string"
+            ],
+            [
+              "tca",
+              "string"
+            ],
+            [
+              "probability_of_collision",
+              "number"
+            ],
+            [
+              "is_active",
+              "boolean"
+            ]
+          ],
+          "example": [
+            {
+              "id": "9e0c6f2e-0000-4000-8000-000000000001",
+              "event_id": "0b2e…",
+              "created_at": "2026-11-02T05:00:07.000Z",
+              "tca": "2026-11-03T02:10:00.000Z",
+              "probability_of_collision": 0.0033,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "show-a-conjunction-event",
+      "section": "event",
+      "title": {
+        "en": "Show a conjunction event",
+        "zh-CN": "查看交会事件"
+      },
+      "method": "GET",
+      "path": "/api/v2/event/:id",
+      "summary": {
+        "en": "One event with its participants, claim state, and the CDMs that built it.",
+        "zh-CN": "一个事件及其参与方、申报状态，以及构成它的 CDM。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "path",
+          "name": "id",
+          "type": "string (uuid)",
+          "required": true,
+          "desc": {
+            "en": "Event id.",
+            "zh-CN": "事件 id。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "id",
+              "string"
+            ],
+            [
+              "created_at",
+              "string"
+            ],
+            [
+              "updated_time",
+              "string"
+            ],
+            [
+              "first_cdm_tca_gps_nanos",
+              "string"
+            ],
+            [
+              "object1_id",
+              "string"
+            ],
+            [
+              "object1_name",
+              "string"
+            ],
+            [
+              "object1_maneuverable",
+              "boolean"
+            ],
+            [
+              "object2_id",
+              "string"
+            ],
+            [
+              "object2_name",
+              "string"
+            ],
+            [
+              "object2_maneuverable",
+              "boolean"
+            ],
+            [
+              "operator1_id",
+              "string"
+            ],
+            [
+              "operator2_id",
+              "string"
+            ],
+            [
+              "claim_status_operator1",
+              "string"
+            ],
+            [
+              "claim_status_operator2",
+              "string"
+            ],
+            [
+              "last_status_update_time_operator1",
+              "string"
+            ],
+            [
+              "last_status_update_time_operator2",
+              "string"
+            ],
+            [
+              "cdms",
+              "array"
+            ]
+          ],
+          "example": {
+            "id": "0b2e…",
+            "created_at": "2026-11-02T05:00:07.000Z",
+            "updated_time": "2026-11-02T05:20:00.000Z",
+            "first_cdm_tca_gps_nanos": "1462127401367770377",
+            "object1_id": "3fa8…",
+            "object1_name": "STARLINK-1309",
+            "object1_maneuverable": true,
+            "object2_id": "9d1b…",
+            "object2_name": "COSMOS 2251 DEB",
+            "object2_maneuverable": false,
+            "operator1_id": "22222222-…",
+            "operator2_id": "22222222-…",
+            "claim_status_operator1": "assumed",
+            "claim_status_operator2": "none",
+            "last_status_update_time_operator1": "2026-11-02T05:20:00.000Z",
+            "last_status_update_time_operator2": null,
+            "cdms": []
+          }
+        },
+        {
+          "status": 404,
+          "meaning": {
+            "en": "Not Found",
+            "zh-CN": "不存在"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "`claim_status_*` records who says they will manoeuvre. It is a coordination signal, not a computed quantity, and it is never inferred from fleet behaviour.",
+          "zh-CN": "`claim_status_*` 记录谁声明要机动。它是协同信号，不是计算出来的量，也绝不从星座整体行为去推断。"
+        }
+      ]
+    },
+    {
+      "slug": "get-all-events-v1",
+      "section": "extension",
+      "extension": true,
+      "title": {
+        "en": "List events (deprecated v1)",
+        "zh-CN": "列出事件（弃用的 v1）"
+      },
+      "method": "GET",
+      "path": "/api/v1/event",
+      "summary": {
+        "en": "The deprecated v1 event list. Kept because a client written against the tutorial still calls it; scoped to the caller's operator only.",
+        "zh-CN": "弃用的 v1 事件列表。保留是因为按官方教程写的客户端仍会调用它；只返回调用方运营方的数据。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "query",
+          "name": "token",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Cursor from the previous page.",
+            "zh-CN": "上一页游标。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "result",
+              "array"
+            ],
+            [
+              "token",
+              "string"
+            ]
+          ],
+          "example": {
+            "result": [
+              {
+                "id": "0b2e…",
+                "created_at": "2026-11-02T05:00:07.000Z",
+                "updated_at": "2026-11-02T05:20:00.000Z",
+                "first_cdm_tca_gps_nanos": "1462127401367770377",
+                "object1_id": "3fa8…",
+                "object1_name": "STARLINK-1309",
+                "object2_id": "9d1b…",
+                "object2_name": "COSMOS 2251 DEB",
+                "operator1_id": "22222222-…",
+                "operator2_id": "22222222-…"
+              }
+            ],
+            "token": "eyJ2IjoxfQ"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "get-cdms-v1",
+      "section": "extension",
+      "extension": true,
+      "title": {
+        "en": "List CDMs (deprecated v1)",
+        "zh-CN": "列出 CDM（弃用的 v1）"
+      },
+      "method": "GET",
+      "path": "/api/v1/cdm",
+      "summary": {
+        "en": "The deprecated v1 CDM list: owner/operator data only, and both trajectories must be `operator_ephemeris`. `?source=public` is this deployment's documented extension.",
+        "zh-CN": "弃用的 v1 CDM 列表：只含本运营方数据，且两条星历都必须是 `operator_ephemeris`。`?source=public` 是本部署的扩展。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "query",
+          "name": "token",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Cursor from the previous page.",
+            "zh-CN": "上一页游标。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "source",
+          "type": "string",
+          "required": false,
+          "values": [
+            "operator",
+            "public"
+          ],
+          "extension": true,
+          "desc": {
+            "en": "`operator` (default) keeps the official scope. `public` returns the published-CDM feed folded into conjunctions, with a `source` field and no operator scoping. Any other value is a 400.",
+            "zh-CN": "`operator`（默认）保持官方语义。`public` 返回折叠后的公开发布 CDM（带 `source` 字段、无运营方限定）。其他取值返回 400。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "result",
+              "array"
+            ],
+            [
+              "token",
+              "string|null"
+            ]
+          ],
+          "example": {
+            "result": [
+              {
+                "id": "1776427876",
+                "source": "space-track-public-cdm",
+                "created_at": "2026-10-30T05:37:31.000000Z",
+                "tca": "2026-10-30T22:49:39.096000Z",
+                "probability_of_collision": 0.0032998,
+                "miss_distance_km": 71,
+                "message_count": 14,
+                "object1": {
+                  "norad_id": 42643,
+                  "name": "DELTA 1 DEB",
+                  "type": "DEBRIS"
+                },
+                "object2": {
+                  "norad_id": 16910,
+                  "name": "H-1 R/B(MABES)",
+                  "type": "DEBRIS"
+                },
+                "operator1_id": null,
+                "operator2_id": null,
+                "is_active": true
+              }
+            ],
+            "token": null
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — unknown `source`",
+            "zh-CN": "请求不合法——未知的 `source`"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ],
+          "example": {
+            "correlation_id": "1f0a…",
+            "error": "invalid_source",
+            "error_type": "bad_request",
+            "metadata": {}
+          }
+        }
+      ],
+      "notes": [
+        {
+          "en": "`source=public` returns one row per conjunction, not one per message: the published feed re-issues a CDM whenever its estimate moves, and listing every message would present historical worst cases as current risk.",
+          "zh-CN": "`source=public` 每个交会返回一行，不是每条消息一行：公开 feed 每当估计变化就重发 CDM，逐条列出会把历史最坏值当成当前风险。"
+        }
+      ]
+    },
+    {
+      "slug": "tle-extension",
+      "section": "extension",
+      "extension": true,
+      "title": {
+        "en": "TLE derivation (extension)",
+        "zh-CN": "TLE 推导（扩展）"
+      },
+      "method": "GET",
+      "path": "/api/v1/tle",
+      "summary": {
+        "en": "Not part of the official contract. Derives SGP4 states and orbital elements for catalogue objects from the stored element sets.",
+        "zh-CN": "不属于官方契约。从已存根数推导编目对象的 SGP4 状态与轨道要素。"
+      },
+      "auth": "client-certificate",
+      "params": [
+        {
+          "in": "query",
+          "name": "object_id",
+          "type": "string",
+          "required": false,
+          "desc": {
+            "en": "Catalogue object id.",
+            "zh-CN": "编目对象 id。"
+          }
+        },
+        {
+          "in": "query",
+          "name": "format",
+          "type": "string",
+          "required": false,
+          "values": [
+            "json",
+            "kvn"
+          ],
+          "desc": {
+            "en": "Response serialisation.",
+            "zh-CN": "响应序列化格式。"
+          }
+        }
+      ],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "norad_id",
+              "integer"
+            ],
+            [
+              "object_name",
+              "string"
+            ],
+            [
+              "epoch",
+              "string"
+            ],
+            [
+              "inclination_deg",
+              "number"
+            ],
+            [
+              "raan_deg",
+              "number"
+            ],
+            [
+              "eccentricity",
+              "number"
+            ],
+            [
+              "arg_perigee_deg",
+              "number"
+            ],
+            [
+              "mean_anomaly_deg",
+              "number"
+            ],
+            [
+              "mean_motion_rev_per_day",
+              "number"
+            ],
+            [
+              "bstar",
+              "number"
+            ],
+            [
+              "states",
+              "array"
+            ],
+            [
+              "position",
+              "object"
+            ],
+            [
+              "velocity",
+              "object"
+            ]
+          ],
+          "example": {
+            "norad_id": 45414,
+            "object_name": "STARLINK-1309",
+            "epoch": "2026-11-02T00:00:00.000Z",
+            "inclination_deg": 53.0547,
+            "raan_deg": 141.5,
+            "eccentricity": 0.00013,
+            "arg_perigee_deg": 89.2,
+            "mean_anomaly_deg": 271.1,
+            "mean_motion_rev_per_day": 15.0639,
+            "bstar": 0.000021,
+            "states": [],
+            "position": {
+              "x": -1234.5,
+              "y": 6543.2,
+              "z": 1200.9
+            },
+            "velocity": {
+              "x": -1.2,
+              "y": -2.3,
+              "z": 6.4
+            }
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "get-cdms-plural-alias",
+      "section": "extension",
+      "extension": true,
+      "title": {
+        "en": "CDM stream (plural spelling)",
+        "zh-CN": "CDM 流（复数写法）"
+      },
+      "method": "GET",
+      "path": "/api/v2/cdms",
+      "summary": {
+        "en": "Identical to `GET /api/v2/cdm`. The upstream tutorial tells operators to call `/v2/cdms` while the endpoint reference spells `/v2/cdm`, so both answer here — one implementation, two paths.",
+        "zh-CN": "与 `GET /api/v2/cdm` 完全相同。上游教程让运营方调用 `/v2/cdms`，而端点参考页写的是 `/v2/cdm`，所以两种写法在这里都响应——同一份实现，两个路径。"
+      },
+      "auth": "client-certificate",
+      "params": [],
+      "body": [],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK — same body as /api/v2/cdm",
+            "zh-CN": "成功——与 /api/v2/cdm 响应一致"
+          },
+          "fields": [
+            [
+              "result",
+              "array"
+            ],
+            [
+              "token",
+              "string"
+            ]
+          ],
+          "example": {
+            "result": [],
+            "token": "eyJ2IjoxfQ"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request",
+            "zh-CN": "请求不合法"
+          },
+          "fields": [
+            [
+              "correlation_id",
+              "string"
+            ],
+            [
+              "error",
+              "string"
+            ],
+            [
+              "error_type",
+              "string"
+            ],
+            [
+              "metadata",
+              "object"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "The plural path re-exports the singular handler rather than copying it, so the two cannot drift apart.",
+          "zh-CN": "复数路径重新导出了单数的处理函数而不是复制一份，因此两者不可能跑偏。"
+        }
+      ]
+    },
+    {
+      "slug": "catalogue-field-choice",
+      "section": "extension",
+      "extension": true,
+      "title": {
+        "en": "Choose a catalogue field's source",
+        "zh-CN": "选择编目字段的取值来源"
+      },
+      "method": "PATCH",
+      "path": "/api/v1/catalogue/choice",
+      "summary": {
+        "en": "Set which source a field of one catalogue object is displayed from. This is this deployment's own feature — the wide catalogue lists several sources side by side, and this records a preference.",
+        "zh-CN": "设置某个编目对象的某个字段从哪个源展示。这是本部署自有功能——宽表并列多个来源，这个端点记录偏好。"
+      },
+      "auth": "client-certificate",
+      "params": [],
+      "body": [
+        {
+          "name": "norad_id",
+          "type": "integer",
+          "required": true,
+          "desc": {
+            "en": "Catalogue object the choice applies to.",
+            "zh-CN": "该选择适用的编目对象。"
+          }
+        },
+        {
+          "name": "field",
+          "type": "string",
+          "required": true,
+          "desc": {
+            "en": "One of the wide catalogue's 157 fields.",
+            "zh-CN": "宽表 157 个字段之一。"
+          }
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "values": [
+            "spacetrack",
+            "spacebook",
+            "discos",
+            "keeptrack",
+            "sbsup"
+          ],
+          "desc": {
+            "en": "Source to display, or `null` to clear the choice and fall back to the default.",
+            "zh-CN": "要展示的来源；传 `null` 表示清除选择、回到默认。"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "meaning": {
+            "en": "OK",
+            "zh-CN": "成功"
+          },
+          "fields": [
+            [
+              "norad_id",
+              "integer"
+            ],
+            [
+              "field",
+              "string"
+            ],
+            [
+              "source",
+              "string|null"
+            ]
+          ],
+          "example": {
+            "norad_id": 45414,
+            "field": "mass_kg",
+            "source": "discos"
+          }
+        },
+        {
+          "status": 400,
+          "meaning": {
+            "en": "Bad Request — invalid norad_id, field or source",
+            "zh-CN": "请求不合法——norad_id、field 或 source 无效"
+          },
+          "fields": [
+            [
+              "error",
+              "string"
+            ]
+          ]
+        },
+        {
+          "status": 503,
+          "meaning": {
+            "en": "Service Unavailable — the wide catalogue has not been built",
+            "zh-CN": "服务不可用——宽表还没构建"
+          },
+          "fields": [
+            [
+              "error",
+              "string"
+            ]
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "en": "Choices are stored in the wide catalogue, which is a build artefact: rebuilding it (`tools/build-wide-catalogue.ts`) resets every choice.",
+          "zh-CN": "选择存在宽表里，而宽表是构建产物：重建它（`tools/build-wide-catalogue.ts`）会重置所有选择。"
+        }
+      ]
+    }
+  ]
+}

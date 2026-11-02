@@ -38,6 +38,9 @@ const PAGES = [
   "/screening/socrates",
   "/keys",
   "/docs",
+  "/docs/api",
+  "/docs/api/get-cd-ms",
+  "/docs/tutorial-basics/trajectories",
   "/users",
   "/feedback",
 ];
