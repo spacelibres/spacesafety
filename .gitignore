@@ -69,3 +69,6 @@ data/reference/*
 .idea/
 .vscode/
 *.swp
+
+# 审查时的临时截图与探针产物
+.cache/

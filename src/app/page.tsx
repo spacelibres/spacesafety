@@ -10,6 +10,8 @@ import {
   listConjunctions,
   riskThresholds,
 } from "@/lib/queries";
+import { statistics } from "@/lib/statistics";
+import { getDb } from "@/db";
 import { countdownTo, formatGps } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +23,29 @@ export default async function HomePage() {
   const catalog = getCatalogSummary(6);
   const thresholds = riskThresholds();
   const t = await getTranslator();
+
+  // Two different populations, and the page used to show only the second one.
+  //
+  //   catalogue  the ingested reference data: 72,432 objects from four sources
+  //   workspace  what this installation has been given: operators, uploads,
+  //              trajectories, CDMs
+  //
+  // The six counters here were all workspace, and every one of them was zero or
+  // near it on a fresh install, so the front page said "0 trajectories, 0 CDMs"
+  // while the catalogue held 72,432 objects and 3,523 public CDMs. Reading as an
+  // error was reasonable; it was showing the wrong population.
+  const catalogue = statistics();
+  const { sqlite, wideAttached } = getDb();
+  const publicCdms = wideAttached
+    ? ((sqlite.prepare("SELECT COUNT(*) AS n FROM space_track_cdm_public").get() as
+        | { n: number }
+        | undefined)?.n ?? 0)
+    : 0;
+  const liveCatalogue =
+    catalogue.objectClass.find((b) => b.label === "PAYLOAD") !== undefined;
+  const payloads = catalogue.objectClass.find((b) => b.label === "PAYLOAD")?.count ?? 0;
+  const debris = catalogue.objectClass.find((b) => b.label === "DEBRIS")?.count ?? 0;
+  const rocketBodies = catalogue.objectClass.find((b) => b.label === "ROCKET BODY")?.count ?? 0;
 
   return (
     <>
@@ -54,6 +79,29 @@ export default async function HomePage() {
           </div>
         </div>
 
+        {/* The catalogue comes first: it is the data the product is about, and it
+            is the only population that is populated on a fresh install. */}
+        <div className="card-head" style={{ marginTop: 18 }}>
+          <span>{t.t("overview.catalogueSection")}</span>
+          <Link href="/catalogue">{t.t("overview.viewAll")}</Link>
+        </div>
+        <div className="stats-row">
+          <Stat
+            label={t.t("overview.catalogueTotal")}
+            value={catalogue.total}
+            t={t.number.bind(t)}
+          />
+          <Stat label={t.t("overview.catalogueInOrbit")} value={catalogue.inOrbit} t={t.number.bind(t)} />
+          <Stat label={t.t("overview.cataloguePayloads")} value={payloads} t={t.number.bind(t)} />
+          <Stat label={t.t("overview.catalogueDebris")} value={debris} t={t.number.bind(t)} />
+          <Stat label={t.t("overview.catalogueRocketBodies")} value={rocketBodies} t={t.number.bind(t)} />
+          <Stat label={t.t("overview.cataloguePublicCdms")} value={publicCdms} t={t.number.bind(t)} />
+        </div>
+        {!liveCatalogue && <div className="empty">{t.t("overview.catalogueMissing")}</div>}
+
+        <div className="card-head" style={{ marginTop: 18 }}>
+          <span>{t.t("overview.workspaceSection")}</span>
+        </div>
         <div className="stats-row">
           <Stat label={t.t("nav.operators")} value={overview.operators} t={t.number.bind(t)} />
           <Stat label={t.t("nav.objects")} value={overview.objects} t={t.number.bind(t)} />

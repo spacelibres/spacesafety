@@ -15,6 +15,8 @@
  * dimension is a single read.
  */
 
+import { statSync } from "node:fs";
+
 import { getDb } from "@/db";
 
 export interface Bucket {
@@ -79,7 +81,42 @@ function median(values: number[]): number {
   return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 }
 
+/**
+ * Cache the result against the identity of the two files it reads.
+ *
+ * The whole-catalogue aggregation measures 355 ms: it joins 72,432 wide rows to
+ * the classification table and groups the result twelve times in memory. The home
+ * page was rendering six counters from an unrelated table and paid nothing for it,
+ * so wiring the real catalogue in would have made the front page the slowest in
+ * the product.
+ *
+ * Nothing changes until one of the two files is rewritten, and both are rebuilt by
+ * explicit commands, so the size-and-mtime of each is a sound key: a rebuild
+ * changes it, a request does not.
+ */
+function catalogueStamp(): string | null {
+  const wide = process.env.SPACE_SAFETY_WIDE_DB ?? "data/catalogue-wide.sqlite";
+  const base = process.env.SPACE_SAFETY_DB ?? "data/catalogue.sqlite";
+  try {
+    const a = statSync(wide);
+    const b = statSync(base);
+    return `${a.size}:${a.mtimeMs}:${b.size}:${b.mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+
+let statsCache: { stamp: string; value: Statistics } | null = null;
+
 export function statistics(): Statistics {
+  const stamp = catalogueStamp();
+  if (stamp && statsCache?.stamp === stamp) return statsCache.value;
+  const value = computeStatistics();
+  if (stamp) statsCache = { stamp, value };
+  return value;
+}
+
+function computeStatistics(): Statistics {
   const { sqlite, wideAttached } = getDb();
   const empty: Statistics = {
     total: 0,
