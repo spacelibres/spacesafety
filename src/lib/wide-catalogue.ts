@@ -17,6 +17,8 @@
  * one row per object and still show five sources per cell.
  */
 
+import { statSync } from "node:fs";
+
 import { getDb } from "@/db";
 import type { MessageTable } from "@/lib/i18n/messages/en";
 
@@ -300,9 +302,42 @@ export function getWideObject(noradId: number): WideRow | null {
 /** Coverage per field per source, plus the union across all five, for the catalogue page. */
 export function wideStats(): WideStats {
   if (!wideReady()) return { objects: 0, coverage: [] };
-  const { sqlite } = getDb();
+
+  // The coverage table is 26 fields × 5 sources × 3 expressions, which SQLite
+  // evaluates as ~78 full scans of a 72,432-row × 157-column table: measured at
+  // 703 ms and paid on every `/catalogue` request, while the list query itself
+  // takes 0.7 ms. Nothing in it changes between rebuilds — it is a property of the
+  // wide file, not of the request — so it is cached against the file's identity.
+  // The stat check is two syscalls; a cache keyed on nothing would keep serving
+  // last week's percentages after a rebuild.
+  const stamp = wideFileStamp();
+  if (stamp && statsCache?.stamp === stamp) {
+    return { objects: statsCache.objects, coverage: statsCache.coverage };
+  }
 
   const objects = countWideObjects();
+  const coverage = computeCoverage();
+  if (stamp) statsCache = { stamp, objects, coverage };
+  return { objects, coverage };
+}
+
+let statsCache: { stamp: string; objects: number; coverage: WideStats["coverage"] } | null = null;
+
+/** Identify the wide file well enough to notice a rebuild. */
+function wideFileStamp(): string | null {
+  const path = process.env.SPACE_SAFETY_WIDE_DB ?? "data/catalogue-wide.sqlite";
+  try {
+    const st = statSync(path);
+    return `${st.size}:${st.mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+
+/** The expensive half of `wideStats`, split out so the cache logic stays readable. */
+function computeCoverage(): WideStats["coverage"] {
+  const { sqlite } = getDb();
+
   const filled = (f: WideField, s: SourceId): string =>
     `CASE WHEN "${f}__${s}" IS NOT NULL AND "${f}__${s}" <> '' THEN 1 ELSE 0 END`;
 
@@ -316,14 +351,11 @@ export function wideStats(): WideStats {
 
   const row = sqlite.prepare(`SELECT ${selects} FROM wide.catalogue_wide`).get() as Record<string, number>;
 
-  return {
-    objects,
-    coverage: WIDE_FIELDS.map((f) => ({
-      field: f,
-      values: Object.fromEntries(SOURCE_IDS.map((s) => [s, row[`${f}__${s}`] ?? 0])) as Record<SourceId, number>,
-      union: row[`${f}__union`] ?? 0,
-    })),
-  };
+  return WIDE_FIELDS.map((f) => ({
+    field: f,
+    values: Object.fromEntries(SOURCE_IDS.map((s) => [s, row[`${f}__${s}`] ?? 0])) as Record<SourceId, number>,
+    union: row[`${f}__union`] ?? 0,
+  }));
 }
 
 /**
