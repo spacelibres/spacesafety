@@ -106,6 +106,8 @@ export const es: MessageTable = {
   "overview.cataloguePublicCdms": "CDM públicos",
   "overview.catalogueMissing": "El catálogo no está construido. Ejecute npm run catalogue:build.",
   "overview.workspaceSection": "Área de trabajo local",
+  "overview.publishedConjunctions": "{conjunctions} conjunciones públicas · {upcoming} aún por delante",
+  "overview.recentAdded": "Lo más reciente del catálogo",
   "overview.orbitalView": "Vista orbital",
   "overview.orbitalViewCaption": "en vivo · trayectorias del catálogo",
   "overview.highestRisk": "Conjunciones de mayor riesgo",
@@ -373,6 +375,7 @@ export const es: MessageTable = {
 
   "column.mass": "Masa (kg)",
 
+  "column.launchDate": "Fecha de lanzamiento",
   "column.country": "País",
 
   "column.hardBodyRadius": "Radio del cuerpo rígido (m)",
@@ -447,7 +450,7 @@ export const es: MessageTable = {
   "object.trajectories": "Trayectorias",
   "object.upcomingConjunctions": "Próximas conjunciones",
   "object.uploadCount": "{count} cargas",
-  "overview.catalogCaption": "última trayectoria definitiva por objeto y origen de estado",
+  "overview.recentCaption": "Los objetos lanzados más recientemente del catálogo",
   "overview.noConjunctions": "Aún no hay conjunciones activas.",
   "overview.pcAtLeast": "Pc ≥ {threshold}",
   "overview.queueCounts": "{pending} pendientes · {failed} fallidos",

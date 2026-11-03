@@ -106,6 +106,8 @@ export const zhCN: MessageTable = {
   "overview.cataloguePublicCdms": "公开碰撞告警",
   "overview.catalogueMissing": "编目库尚未构建。运行 npm run catalogue:build。",
   "overview.workspaceSection": "本机工作区",
+  "overview.publishedConjunctions": "{conjunctions} 个公开交会 · {upcoming} 个尚未发生",
+  "overview.recentAdded": "最新入编目",
   "overview.orbitalView": "轨道视图",
   "overview.orbitalViewCaption": "实时 · 星表轨迹",
   "overview.highestRisk": "风险最高的交会",
@@ -368,6 +370,7 @@ export const zhCN: MessageTable = {
 
   "column.mass": "质量 (kg)",
 
+  "column.launchDate": "发射日期",
   "column.country": "国家/地区",
 
   "column.hardBodyRadius": "刚体半径 (m)",
@@ -442,7 +445,7 @@ export const zhCN: MessageTable = {
   "object.trajectories": "轨迹",
   "object.upcomingConjunctions": "即将到来的交会",
   "object.uploadCount": "{count} 次上传",
-  "overview.catalogCaption": "每个对象与状态来源的最新定轨轨迹",
+  "overview.recentCaption": "编目库中最新发射的对象",
   "overview.noConjunctions": "暂无活动交会事件。",
   "overview.pcAtLeast": "Pc ≥ {threshold}",
   "overview.queueCounts": "待处理 {pending} · 失败 {failed}",

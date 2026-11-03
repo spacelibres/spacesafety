@@ -106,6 +106,8 @@ export const ja: MessageTable = {
   "overview.cataloguePublicCdms": "公開 CDM",
   "overview.catalogueMissing": "カタログが未構築です。npm run catalogue:build を実行してください。",
   "overview.workspaceSection": "ローカルワークスペース",
+  "overview.publishedConjunctions": "公開交会 {conjunctions} 件 · 未到来 {upcoming} 件",
+  "overview.recentAdded": "最新カタログ",
   "overview.orbitalView": "軌道ビュー",
   "overview.orbitalViewCaption": "ライブ · カタログ軌道",
   "overview.highestRisk": "リスクの高い接近事象",
@@ -373,6 +375,7 @@ export const ja: MessageTable = {
 
   "column.mass": "質量 (kg)",
 
+  "column.launchDate": "打上げ日",
   "column.country": "国・地域",
 
   "column.hardBodyRadius": "硬体半径 (m)",
@@ -447,7 +450,7 @@ export const ja: MessageTable = {
   "object.trajectories": "軌道データ",
   "object.upcomingConjunctions": "今後の接近事象",
   "object.uploadCount": "{count} 件のアップロード",
-  "overview.catalogCaption": "オブジェクトと状態の出典ごとの最新確定軌道",
+  "overview.recentCaption": "カタログ内で最新の打上げ対象",
   "overview.noConjunctions": "有効な接近事象はまだありません。",
   "overview.pcAtLeast": "Pc ≥ {threshold}",
   "overview.queueCounts": "待機 {pending} · 失敗 {failed}",

@@ -4,10 +4,12 @@ import { Topbar } from "@/components/Shell";
 import { ConstellationGlobe } from "@/components/cesium/ConstellationGlobe";
 import { getTranslator } from "@/lib/i18n/registry";
 import {
-  getCatalogSummary,
   getOverview,
   getSystemHealth,
   listConjunctions,
+  listPublishedConjunctions,
+  listRecentCatalogue,
+  publishedConjunctionCounts,
   riskThresholds,
 } from "@/lib/queries";
 import { statistics } from "@/lib/statistics";
@@ -20,7 +22,14 @@ export default async function HomePage() {
   const overview = getOverview();
   const conjunctions = listConjunctions(12);
   const health = getSystemHealth();
-  const catalog = getCatalogSummary(6);
+  // The workspace list is *our* screening output, which exists only after an
+  // operator uploads an ephemeris; this deployment has none, so the panel was empty
+  // next to a counter showing 3,523 public CDMs. `listPublishedConjunctions`
+  // already collapses those messages into 571 conjunctions and is what
+  // `/conjunctions` renders — the home page simply was not asking for it.
+  const published = listPublishedConjunctions(12);
+  const recent = listRecentCatalogue(12);
+  const publishedCounts = publishedConjunctionCounts();
   const thresholds = riskThresholds();
   const t = await getTranslator();
 
@@ -141,7 +150,45 @@ export default async function HomePage() {
               <Link href="/conjunctions">{t.t("overview.viewAll")}</Link>
             </div>
             <div className="card-body flush">
-              {conjunctions.length === 0 ? (
+              {/* Published CDMs first: they are the only conjunctions that exist on
+                  an installation without uploaded ephemerides, and the panel used to
+                  show our (empty) screening output while the counter beside it said
+                  3,523 public CDMs. Our own results replace them only when we
+                  actually have some. */}
+              {published.length > 0 ? (
+                <>
+                  <div className="card-note">
+                    {t.t("overview.publishedConjunctions", {
+                      conjunctions: t.number(publishedCounts.conjunctions),
+                      upcoming: t.number(publishedCounts.upcoming),
+                    })}
+                  </div>
+                  <div className="table-wrap">
+                    <table className="data">
+                      <thead>
+                        <tr>
+                          <th>{t.t("column.primary")}</th>
+                          <th>{t.t("column.secondary")}</th>
+                          <th className="num">{t.t("column.pc")}</th>
+                          <th>{t.t("column.tca")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {published.map((c) => (
+                          <tr key={`${c.object1Norad}-${c.object2Norad}-${c.tcaIso}`}>
+                            <td>{c.object1Name}</td>
+                            <td className="muted">{c.object2Name}</td>
+                            <td className={`num pc ${c.band}`}>
+                              {c.pc === null ? t.t("common.none") : t.probability(c.pc)}
+                            </td>
+                            <td className="mono-sm nowrap">{c.tcaIso ? formatGmt(c.tcaIso, t.t("common.none")) : t.t("common.none")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : conjunctions.length === 0 ? (
                 <div className="empty">{t.t("overview.noConjunctions")}</div>
               ) : (
                 <div className="table-wrap">
@@ -187,36 +234,38 @@ export default async function HomePage() {
 
         <section className="card" style={{ marginTop: 16 }}>
           <div className="card-head">
-            <span>{t.t("overview.catalog")}</span>
-            <span className="count">{t.t("overview.catalogCaption")}</span>
+            <span>{t.t("overview.recentAdded")}</span>
+            <span className="count">{t.t("overview.recentCaption")}</span>
           </div>
           <div className="card-body flush">
-            {catalog.length === 0 ? (
+            {/* Newest catalogue entries, not "newest trajectory per object".
+                The latter is populated by uploads, so on an ingested-only
+                installation it is empty by definition — and the panel said
+                "catalogue is empty" next to a header claiming 72,432 objects. */}
+            {recent.length === 0 ? (
               <div className="empty">{t.t("overview.catalogEmpty")}</div>
             ) : (
               <div className="table-wrap">
                 <table className="data">
                   <thead>
                     <tr>
+                      <th>{t.t("column.norad")}</th>
                       <th>{t.t("column.object")}</th>
-                      <th>{t.t("column.stateSource")}</th>
-                      <th>{t.t("column.trajectory")}</th>
-                      <th>{t.t("column.updated")}</th>
+                      <th>{t.t("column.objectClass")}</th>
+                      <th>{t.t("column.launchDate")}</th>
+                      <th>{t.t("column.country")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {catalog.map((c) => (
-                      <tr key={`${c.objectId}-${c.stateSource}`}>
-                        <td>{c.objectName}</td>
-                        <td>
-                          <span className={`chip ${c.stateSource}`}>{c.stateSource}</span>
+                    {recent.map((c) => (
+                      <tr key={c.noradId}>
+                        <td className="mono-sm">
+                          <Link href={`/catalogue/${c.noradId}`}>{c.noradId}</Link>
                         </td>
-                        <td>
-                          <Link href={`/trajectories/${c.trajectoryId}`}>
-                            {c.trajectoryId.slice(0, 8)}
-                          </Link>
-                        </td>
-                        <td className="mono-sm faint">{formatGmt(c.updatedAt, t.t("common.none"))}</td>
+                        <td>{c.name}</td>
+                        <td className="muted">{c.objectClass ?? t.t("common.none")}</td>
+                        <td className="mono-sm faint">{c.launchDate ?? t.t("common.none")}</td>
+                        <td className="muted">{c.country ?? t.t("common.none")}</td>
                       </tr>
                     ))}
                   </tbody>

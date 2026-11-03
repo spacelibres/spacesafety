@@ -994,6 +994,54 @@ export function getCatalogSummary(limit = 10) {
     }));
 }
 
+export interface RecentCatalogueRow {
+  noradId: number;
+  name: string;
+  objectClass: string | null;
+  launchDate: string | null;
+  country: string | null;
+}
+
+/**
+ * The most recently launched objects in the ingested catalogue.
+ *
+ * ## Why the home page needed this
+ *
+ * The panel it replaces was "star catalogue: the newest trajectory per object and
+ * state source". That table is populated by uploads — it records which of *our*
+ * trajectories is current for an object — so on an installation that has ingested
+ * the reference data but received no uploads it is empty by definition. The panel
+ * therefore read "the catalogue is empty" while the page header said 72,432
+ * objects, which is worse than showing nothing: it asserts a fact that is false.
+ *
+ * What a reader actually wants in that slot is "what is new in the catalogue".
+ *
+ * ## Ordering
+ *
+ * By launch date descending, then NORAD descending within a day: a launch produces
+ * a batch of objects sharing one date, and the higher catalogue numbers in that
+ * batch are the later deployments. Rows without a launch date are excluded rather
+ * than sorted last — an object whose launch is unknown says nothing about recency.
+ */
+export function listRecentCatalogue(limit = 12): RecentCatalogueRow[] {
+  const { sqlite, wideAttached } = getDb();
+  if (!wideAttached) return [];
+  return sqlite
+    .prepare(
+      `SELECT norad_id AS noradId,
+              COALESCE(name__spacetrack, name__spacebook, name__discos) AS name,
+              COALESCE(object_class__spacetrack, object_class__discos) AS objectClass,
+              COALESCE(launch_date__spacetrack, launch_date__spacebook) AS launchDate,
+              country__spacetrack AS country
+         FROM wide.catalogue_wide
+        WHERE COALESCE(launch_date__spacetrack, launch_date__spacebook) IS NOT NULL
+          AND COALESCE(launch_date__spacetrack, launch_date__spacebook) <> ''
+        ORDER BY COALESCE(launch_date__spacetrack, launch_date__spacebook) DESC, norad_id DESC
+        LIMIT ?`,
+    )
+    .all(limit) as RecentCatalogueRow[];
+}
+
 export function getSystemHealth() {
   const { db } = getDb();
   const pending = db

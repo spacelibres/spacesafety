@@ -106,6 +106,8 @@ export const fr: MessageTable = {
   "overview.cataloguePublicCdms": "CDM publics",
   "overview.catalogueMissing": "Le catalogue n'est pas construit. Exécutez npm run catalogue:build.",
   "overview.workspaceSection": "Espace de travail local",
+  "overview.publishedConjunctions": "{conjunctions} conjonctions publiques · {upcoming} à venir",
+  "overview.recentAdded": "Derniers ajouts au catalogue",
   "overview.orbitalView": "Vue orbitale",
   "overview.orbitalViewCaption": "en direct · trajectoires du catalogue",
   "overview.highestRisk": "Conjonctions les plus risquées",
@@ -373,6 +375,7 @@ export const fr: MessageTable = {
 
   "column.mass": "Masse (kg)",
 
+  "column.launchDate": "Date de lancement",
   "column.country": "Pays",
 
   "column.hardBodyRadius": "Rayon du corps rigide (m)",
@@ -447,7 +450,7 @@ export const fr: MessageTable = {
   "object.trajectories": "Trajectoires",
   "object.upcomingConjunctions": "Conjonctions à venir",
   "object.uploadCount": "{count} imports",
-  "overview.catalogCaption": "dernière trajectoire définitive par objet et source d'état",
+  "overview.recentCaption": "Les objets les plus récemment lancés du catalogue",
   "overview.noConjunctions": "Aucune conjonction active pour l'instant.",
   "overview.pcAtLeast": "Pc ≥ {threshold}",
   "overview.queueCounts": "{pending} en attente · {failed} en échec",
