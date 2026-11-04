@@ -199,6 +199,20 @@ export function listConjunctions(limit = 100): ConjunctionRow[] {
  * The pair is order-insensitive (\`MIN\`/\`MAX\` of the two NORAD ids): the same
  * conjunction also arrives with \`object1\`/\`object2\` swapped a few minutes later.
  *
+ * ## Why the pair is also *reordered*
+ *
+ * Clustering only needs the unordered pair, but display does not. Measured before
+ * the change: of 598 published conjunctions, 472 listed the **larger** NORAD id
+ * first, because the screening centre sends the objects in whatever order it
+ * processed them — so the same satellite appeared in the left column on some rows
+ * and the right column on others, and eye-scanning a column for one object found
+ * half of its events.
+ *
+ * So \`base\` swaps the two objects when needed and every field moves with its
+ * object: name, object type and RCS all travel together. Object 1 is then always
+ * the lower NORAD id. This is a display order, not a claim about which object is
+ * at fault — a CDM says nothing of the sort.
+ *
  * `extraCtes` is appended inside the `WITH` list so a caller can add a CTE that
  * resolves the target cluster **once**. Building it as three correlated subqueries
  * (`getPublishedConjunction` used to) makes SQLite evaluate the whole gaps-and-
@@ -206,14 +220,26 @@ export function listConjunctions(limit = 100): ConjunctionRow[] {
  */
 function cdmAsConjunctions(extraCtes = ""): string {
   return `
-  WITH base AS (
+  WITH raw AS (
     SELECT cdm_id, created, tca, min_range_km, pc,
            sat1_norad, sat1_name, sat1_object_type, sat1_rcs,
            sat2_norad, sat2_name, sat2_object_type, sat2_rcs,
-           MIN(sat1_norad, sat2_norad) AS lo,
-           MAX(sat1_norad, sat2_norad) AS hi,
            julianday(tca) AS jd
       FROM space_track_cdm_public
+  ),
+  base AS (
+    SELECT cdm_id, created, tca, min_range_km, pc, jd,
+           MIN(sat1_norad, sat2_norad) AS lo,
+           MAX(sat1_norad, sat2_norad) AS hi,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat1_norad ELSE sat2_norad END AS sat1_norad,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat1_name ELSE sat2_name END AS sat1_name,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat1_object_type ELSE sat2_object_type END AS sat1_object_type,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat1_rcs ELSE sat2_rcs END AS sat1_rcs,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat2_norad ELSE sat1_norad END AS sat2_norad,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat2_name ELSE sat1_name END AS sat2_name,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat2_object_type ELSE sat1_object_type END AS sat2_object_type,
+           CASE WHEN sat1_norad <= sat2_norad THEN sat2_rcs ELSE sat1_rcs END AS sat2_rcs
+      FROM raw
   ),
   starts AS (
     SELECT *,
