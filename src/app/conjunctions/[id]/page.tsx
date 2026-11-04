@@ -14,7 +14,7 @@ import {
   riskBand,
   type PublishedConjunctionDetail,
 } from "@/lib/queries";
-import { countdownTo, countdownUnits, formatGps } from "@/lib/space-safety/gps";
+import { countdownTo, countdownUnits, formatCountdown, formatGps } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
 
@@ -400,7 +400,12 @@ async function PublishedConjunctionPage({ detail }: { detail: PublishedConjuncti
                       </td>
                       <td className="num mono-sm">{t.probability(m.pc ?? NaN)}</td>
                       <td className="num mono-sm">
-                        {m.hoursToTca === null ? "—" : `T-${m.hoursToTca.toFixed(1)}h`}
+                        {m.hoursToTca === null
+                          ? "—"
+                          : formatCountdown(
+                              m.hoursToTca * 3_600_000,
+                              countdownUnits((k) => t.t(k)),
+                            )}
                       </td>
                       <td className="muted mono-sm">{delta(prev?.minRangeKm ?? null, m.minRangeKm, (km) => distanceLabel(km, "—", (k) => t.t(k)))}</td>
                     </tr>

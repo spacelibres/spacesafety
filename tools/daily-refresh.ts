@@ -77,6 +77,7 @@ export class DailyRefresh {
       { label: "下载各源（按各自节奏）", command: "npm", args: ["run", "sources:download", ...download] },
       { label: "KeepTrack 编目", command: "npm", args: ["run", "keeptrack:sync"] },
       { label: "KeepTrack 五类 feeds", command: "npm", args: ["run", "keeptrack:feeds"] },
+      { label: "SOCRATES 全量（CelesTrak）", command: "npm", args: ["run", "socrates:sync"] },
       { label: "归档 → 各源原样表", command: "npm", args: ["run", "sources:load"] },
       { label: "宽表 157 列重建", command: "npx", args: ["tsx", "tools/build-wide-catalogue.ts"] },
       { label: "分类表重建", command: "npm", args: ["run", "catalogue:classify"] },

@@ -116,7 +116,7 @@ export default async function ReentryPage() {
                     <td className="num mono-sm">
                       {r.windowMinutes === null
                         ? t.t("common.none")
-                        : `${Math.round(r.windowMinutes)} min`}
+                        : `${t.number(Math.round(r.windowMinutes))} ${t.t("unit.minute")}`}
                     </td>
                     <td className="muted">{r.direction ?? t.t("common.none")}</td>
                     <td className="num mono-sm">{deg(r.latDeg)}</td>

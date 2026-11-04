@@ -120,7 +120,7 @@ export function ConvergenceChart({ points }: { points: ConvergencePoint[] }) {
         {panel(
           usable.map((p) => p.minRangeKm),
           theme.series,
-          (v) => `${Math.round(v)} km`,
+          (v) => `${Math.round(v)} ${t.t("unit.km")}`,
           "range",
         )}
         {panel(

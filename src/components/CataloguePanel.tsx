@@ -40,9 +40,9 @@ function iso(ms: number): string {
 }
 
 /** Format an age in hours as "3.2 h" or "2.1 d". */
-function age(hours: number): string {
-  if (Math.abs(hours) < 48) return `${hours.toFixed(1)} h`;
-  return `${(hours / 24).toFixed(1)} d`;
+function age(hours: number, t: (key: string) => string): string {
+  if (Math.abs(hours) < 48) return `${hours.toFixed(1)} ${t("unit.hour")}`;
+  return `${(hours / 24).toFixed(1)} ${t("unit.day")}`;
 }
 
 /**
@@ -128,7 +128,7 @@ export async function CataloguePanel({ noradId, objectId }: CataloguePanelProps)
         <span>{t.t("catalogue.referenceSgp4")}</span>
         <span className="count">
           <span className={`chip ${fresh.cls}`}>{t.t(fresh.labelKey)}</span>{" "}
-          {t.t("catalogue.age", { age: age(ageHours) })}
+          {t.t("catalogue.age", { age: age(ageHours, (k) => t.t(k)) })}
         </span>
       </div>
       <div className="card-body muted" style={{ paddingTop: 0, paddingBottom: 8, fontSize: 12 }}>
@@ -146,10 +146,10 @@ export async function CataloguePanel({ noradId, objectId }: CataloguePanelProps)
           {row(t.t("catalogue.argPerigee"), `${tle.argPerigeeDeg.toFixed(4)}°`)}
           {row(t.t("catalogue.meanAnomaly"), `${tle.meanAnomalyDeg.toFixed(4)}°`)}
           {row(t.t("catalogue.meanMotion"), `${tle.meanMotionRevPerDay.toFixed(8)} rev/day`)}
-          {row(t.t("catalogue.period"), `${el.periodMin.toFixed(3)} min`)}
+          {row(t.t("catalogue.period"), `${el.periodMin.toFixed(3)} ${t.t("unit.minute")}`)}
           {row(
             t.t("catalogue.apogeePerigee"),
-            `${el.apogeeKm.toFixed(1)} / ${el.perigeeKm.toFixed(1)} km`,
+            `${el.apogeeKm.toFixed(1)} ${t.t("unit.km")} / ${el.perigeeKm.toFixed(1)} ${t.t("unit.km")}`,
           )}
           {row("B*", tle.bstar.toExponential(4))}
           {row(t.t("catalogue.elementSet"), String(tle.elementSetNumber), true)}

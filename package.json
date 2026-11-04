@@ -1,6 +1,6 @@
 {
   "name": "spacesafety",
-  "version": "0.1.89",
+  "version": "0.1.90",
   "private": true,
   "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
@@ -111,7 +111,8 @@
     "archive:dedupe": "node --conditions=react-server --import tsx tools/archive-dedupe.ts",
     "perf:probe": "node --conditions=react-server --import tsx tools/perf-probe.ts",
     "schedule:keepalive": "node --conditions=react-server --import tsx tools/schedule-keepalive.ts",
-    "test:distance": "node --conditions=react-server --import tsx tests/distance.test.ts"
+    "test:distance": "node --conditions=react-server --import tsx tests/distance.test.ts",
+    "socrates:sync": "node --conditions=react-server --import tsx tools/socrates-sync.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",

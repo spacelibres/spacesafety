@@ -106,7 +106,9 @@ export default async function OperatorPage({
                       <Link href={`/objects/${o.id}`}>{o.objectName}</Link>
                     </td>
                     <td className="mono-sm muted">{o.noradId ?? t.t("common.none")}</td>
-                    <td className="num">{o.hardBodyRadius.toFixed(2)}</td>
+                    <td className="num">
+                      {o.hardBodyRadius.toFixed(2)} {t.t("unit.m")}
+                    </td>
                     <td>
                       <span className={`chip ${o.alive}`}>{String(o.alive)}</span>
                     </td>

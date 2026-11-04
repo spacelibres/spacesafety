@@ -16,6 +16,94 @@
 
 ---
 
+## [0.1.90] - 2026-11-04
+
+同一个页面里，单位一半跟着值走、一半写死在表头，以及四处硬编码单位。
+
+### 问题
+
+距离列已经改为「单位跟值走」（v0.1.88）：同一列里可能是 `41 m` 也可能是
+`101 km`。但表头仍写着「最小距离 (km)」——于是表头在米制行上是错的。
+
+同一类问题还有四处：
+
+| 位置 | 现象 |
+|---|---|
+| `/screening/socrates` 相对速度 | 表头 `(km/s)`，值是裸数字 `7.55` |
+| `/operators/[id]` 刚体半径 | 表头 `(m)`，值是裸数字 `1.25` |
+| `/launches` 解体高度 | `${Math.round(...)} km` 硬编码 |
+| `/reentry` 再入窗口 | `${Math.round(...)} min` 硬编码 |
+| 交会详情 消息历史 | `T-${h.toFixed(1)}h` 硬编码，绕过了 v0.1.89 的 i18n 倒计时 |
+
+以及编目参考卡里的周期、远/近地点、龄期三个值。
+
+### 规则
+
+**表头不写单位，单位跟值走。** 只有一列固定为同一单位时才在表头写。
+目前没有这样的列——距离按量级变，其余都是分散单元格。
+
+### 改动
+
+- i18n 去掉 `socrates.missDistance`、`socrates.relSpeed`、
+  `column.hardBodyRadius` 的表头单位，六语种。
+- 新增 `unit.s`（符号，紧挨 `unit.m` / `unit.km`）。`unit.second` 是词
+  （「秒」），给倒计时用，不能用在这里。
+- 上述六处及 `CataloguePanel`、`ConvergenceChart` 全部改为读字典。
+- 交会详情的消息历史改用 `formatCountdown` + `countdownUnits`，与页面顶部
+  的 TCA 倒计时同一套输出。`hoursToTca` 是相对 CDM 生成时刻的，负值自然
+  输出 `T+`。
+
+### 验证
+
+- `tsc --noEmit` 无错。
+- `test:distance` 7 项、`test:wide` 22 项、`check`（含 `i18n-hardcoded`）
+  全部通过。
+- 复查 `src/` 下所有模板字符串，无残留的 `km` / `min` / `h` 字面量。
+
+### 同时发现并修复：SOCRATES 交会数据只有 10 行且内容是错的
+
+单位一致性地查下来，`/screening/socrates` 的数据本身站不住：
+
+| | 值 |
+|---|---|
+| 行数 | **10** |
+| 对象 | 全部是 `ISS (ZARYA) × SOYUZ-MS 29` |
+| 最小距离 | 全部 `0.006 km` |
+| 相对速度 | 全部 **`0`** |
+| 概率 | 全部 `1`（哨兵值，入库时已丢弃） |
+
+六米距离、零相对速度——这不是交会，是已对接的一对。KeepTrack 把 CelesTrak 的
+SOCRATES 重新发布在 `/socrates/latest`，但那个端点返回的只是某一对的一次筛查
+快照，不是筛查本身。
+
+直接取 CelesTrak 的源文件 `celestrak.org/SOCRATES/sort-minRange.csv`：
+
+| | 值 |
+|---|---|
+| 行数 | **197 600** |
+| 1 km 内 | 10 197 |
+| 最近 | 0.011 km |
+| 相对速度 | 1–15 km/s（符合轨道交会） |
+
+新增：
+
+- `src/lib/sources/celestrak-socrates.ts` —— 下载 + 解析。完整性判定看最后一行的
+  列数与日期，因为这份文件没有尾标记，`content-length` 也不可信。
+- `src/lib/sources/socrates-store.ts` —— `socrates_event` 表，整表替换（SOCRATES
+  是滚动窗口，不能累积）。首次写入后删除旧的 `keeptrack_conjunction`。
+- `npm run socrates:sync`，已接入调度器（编目周期）与 `daily-refresh`。
+- 页面重写：距离分档筛选（<1/5/25/100 km）、仅未来 TCA、"排除伴飞"、分页 100 行/页。
+
+**「排除伴飞」的阈值不是拍的。** 1 km/s 是这份数据自己给出的分界：交会在
+7–15 km/s，伴飞（对接、刚释放、同一次解体）在 0.0–0.5 km/s，1 km 档里两者之间
+没有行。这个筛选默认开启但可关闭，行不删除——只影响展示。
+
+实测：不排除伴飞 197 600 件，其中 1 km 内 10 197 件几乎全是同一对
+「PRC TEST SPACECRAFT 4 × CZ-2F DEB」以 93 分钟为间隔的重复行；排除后 1 km 内
+剩 8 532 件，首批是 STARLINK-37392 × STARLINK-37623（11 m，12.22 km/s）。
+
+---
+
 ## [0.1.89] - 2026-11-04
 
 倒计时的单位缩写改为按语种取，消除与距离单位的歧义。

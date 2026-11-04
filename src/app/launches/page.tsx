@@ -269,7 +269,9 @@ export default async function LaunchesPage() {
                     <td className="mono-sm">{f.epoch ?? "—"}</td>
                     <td>{f.eventType ?? t.t("common.unknown")}</td>
                     <td className="num mono-sm">
-                      {f.altitudeKm === null ? "—" : `${Math.round(f.altitudeKm)} km`}
+                      {f.altitudeKm === null
+                        ? "—"
+                        : `${t.number(Math.round(f.altitudeKm))} ${t.t("unit.km")}`}
                     </td>
                     <td className="num mono-sm">{f.latDeg === null ? "—" : `${f.latDeg.toFixed(1)}°`}</td>
                     <td className="num mono-sm">{f.lonDeg === null ? "—" : `${f.lonDeg.toFixed(1)}°`}</td>

@@ -198,8 +198,13 @@ export class DataScheduler {
     if (keepTrack) {
       try {
         run("npm", ["run", "keeptrack:sync"]);
+        // `keeptrack:feeds` still writes reentries, launches and metrics. Its
+        // conjunctions feed is kept in sync but ends up unused: KeepTrack
+        // re-publishes SOCRATES as ten rows, so the full CelesTrak file is fetched
+        // separately below and wins.
         run("npm", ["run", "keeptrack:feeds"]);
-        log("KeepTrack 已同步（编目 + 五类 feeds）");
+        run("npm", ["run", "socrates:sync"]);
+        log("KeepTrack 已同步（编目 + feeds），SOCRATES 全量已更新");
       } catch (err) {
         log(`KeepTrack 同步失败：${String((err as { stderr?: string }).stderr ?? "").trim().slice(-200)}`);
         return 1;
