@@ -353,7 +353,15 @@ export const DOWNLOADS: readonly DownloadSpec[] = [
     upstream: "discos",
     path: "launch-vehicles",
     format: "json",
-    refreshMinutes: 10080,
+    // 24 h, the cadence every other DISCOS feed uses.
+    //
+    // These three were on 10 080 min (7 days) because they are "nearly static".
+    // Measured, all three together take 1.3 s when unchanged — the conditional
+    // request returns 304 and nothing is downloaded — so holding them back for a
+    // week saved no time and cost freshness: a launcher or orbit added yesterday
+    // would not appear until the following week. DISCOS publishes on no fixed
+    // schedule, which is the argument for checking often rather than rarely.
+    refreshMinutes: 1440,
     authenticated: true,
     viaProxy: false,
     purpose: "Launcher models, their stages and engines. Nearly static.",
@@ -365,7 +373,7 @@ export const DOWNLOADS: readonly DownloadSpec[] = [
     upstream: "discos",
     path: "object-classes",
     format: "json",
-    refreshMinutes: 10080,
+    refreshMinutes: 1440,
     authenticated: true,
     viaProxy: false,
     purpose:
@@ -378,7 +386,7 @@ export const DOWNLOADS: readonly DownloadSpec[] = [
     upstream: "discos",
     path: "destination-orbits",
     format: "json",
-    refreshMinutes: 10080,
+    refreshMinutes: 1440,
     authenticated: true,
     viaProxy: false,
     purpose:
