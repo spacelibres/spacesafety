@@ -4,6 +4,7 @@ import { DownloadMenu } from "@/components/DownloadMenu";
 import { Topbar } from "@/components/Shell";
 import { SortableTh } from "@/components/SortableTh";
 import { getTranslator } from "@/lib/i18n/registry";
+import { distanceLabel } from "@/lib/space-safety/distance";
 import {
   CONJUNCTION_SORTS,
   listConjunctions,
@@ -233,7 +234,7 @@ export default async function ConjunctionsPage({
                       <span className="faint mono-sm"> {c.object2Norad}</span>
                     </td>
                     <td className="num mono-sm">
-                      {c.minRangeKm === null ? t.t("common.none") : `${c.minRangeKm.toFixed(1)} km`}
+                      {distanceLabel(c.minRangeKm, t.t("common.none"), (k) => t.t(k))}
                     </td>
                     <td className={`num pc ${c.band}`}>{t.probability(c.pc ?? NaN)}</td>
                     <td className="mono-sm">{fmt(c.tcaIso, t.t("common.none"))}</td>

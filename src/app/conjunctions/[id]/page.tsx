@@ -7,6 +7,7 @@ import { ConvergenceChart } from "@/components/ConvergenceChart";
 import { Topbar } from "@/components/Shell";
 import { getTranslator } from "@/lib/i18n/registry";
 import { pageMetadata } from "@/lib/i18n/page-title";
+import { distanceLabel, formatDistance } from "@/lib/space-safety/distance";
 import {
   getEventDetail,
   getPublishedConjunction,
@@ -300,7 +301,7 @@ async function PublishedConjunctionPage({ detail }: { detail: PublishedConjuncti
           <div>
             <span className="k">{t.t("column.missDistance")}</span>
             <span className="v">
-              {c.minRangeKm === null ? t.t("common.none") : `${c.minRangeKm.toFixed(1)} km`}
+              {distanceLabel(c.minRangeKm, t.t("common.none"), (k) => t.t(k))}
             </span>
           </div>
           <div>
@@ -361,7 +362,7 @@ async function PublishedConjunctionPage({ detail }: { detail: PublishedConjuncti
                 <td className="v-mono">
                   {fmtIso(firstMessage.createdIso, t.t("common.none"))} ·{" "}
                   {t.t("publishedConjunction.missAtFirst", {
-                    km: firstMessage.minRangeKm === null ? "—" : firstMessage.minRangeKm.toFixed(1),
+                    distance: distanceLabel(firstMessage.minRangeKm, "—", (k) => t.t(k)),
                   })}
                 </td>
               </tr>
@@ -395,13 +396,13 @@ async function PublishedConjunctionPage({ detail }: { detail: PublishedConjuncti
                       <td className="mono-sm">{m.cdmId}</td>
                       <td className="mono-sm">{fmtIso(m.createdIso, t.t("common.none"))}</td>
                       <td className="num mono-sm">
-                        {m.minRangeKm === null ? "—" : `${m.minRangeKm.toFixed(1)} km`}
+                        {distanceLabel(m.minRangeKm, "—", (k) => t.t(k))}
                       </td>
                       <td className="num mono-sm">{t.probability(m.pc ?? NaN)}</td>
                       <td className="num mono-sm">
                         {m.hoursToTca === null ? "—" : `T-${m.hoursToTca.toFixed(1)}h`}
                       </td>
-                      <td className="muted mono-sm">{delta(prev?.minRangeKm ?? null, m.minRangeKm)}</td>
+                      <td className="muted mono-sm">{delta(prev?.minRangeKm ?? null, m.minRangeKm, (km) => distanceLabel(km, "—", (k) => t.t(k)))}</td>
                     </tr>
                   );
                 })}
@@ -420,10 +421,16 @@ function fmtIso(iso: string | null, dash: string): string {
   return iso.replace("T", " ").replace(/\.\d+Z$/, "").replace(/Z$/, "");
 }
 
-/** Change in miss distance since the previous message. */
-function delta(previous: number | null, current: number | null): string {
-  if (previous === null || current === null) return "—";
-  const d = current - previous;
-  if (Math.abs(d) < 0.05) return "0.0";
-  return `${d > 0 ? "+" : ""}${d.toFixed(1)} km`;
+/**
+ * Change in miss distance since the previous message.
+ *
+ * Signed, and the sign carries the meaning: a shrinking miss is the trend that
+ * matters. The magnitude goes through `distanceLabel`, so a 40 m change reads as
+ * "-40 m" rather than collapsing to "0.0".
+ */
+function delta(prev: number | null, cur: number | null, fix: (km: number) => string): string {
+  if (prev === null || cur === null) return "—";
+  const d = cur - prev;
+  if (Math.abs(d) < 0.0005) return fix(0);
+  return `${d > 0 ? "+" : "-"}${fix(Math.abs(d))}`;
 }

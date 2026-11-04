@@ -5,6 +5,7 @@ import { Topbar } from "@/components/Shell";
 import { getDb } from "@/db";
 import { getTranslator } from "@/lib/i18n/registry";
 import { pageMetadata } from "@/lib/i18n/page-title";
+import { distanceLabel } from "@/lib/space-safety/distance";
 
 export const dynamic = "force-dynamic";
 
@@ -115,7 +116,7 @@ export default async function SocratesPage() {
                       </td>
                       <td className="mono-sm muted">{r.tca ? r.tca.replace("T", " ").slice(0, 19) : "—"}</td>
                       <td className="num">
-                        {r.minRangeKm === null ? "—" : r.minRangeKm.toFixed(3)}
+                        {distanceLabel(r.minRangeKm, "—", (k) => t.t(k))}
                       </td>
                       <td className="num">
                         {r.relSpeedKmS === null ? "—" : r.relSpeedKmS.toFixed(2)}
