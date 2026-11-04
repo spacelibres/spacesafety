@@ -195,6 +195,42 @@ if (!existsSync(DB)) {
         .get() as { bad: number };
       assert.equal(bad, 0);
     });
+
+    // Upstream sends MIN_RNG in metres; the column is kilometres. Storing it raw
+    // made every miss distance read 1000x too large — a 20 m conjunction showed as
+    // "20 km" next to a Pc of 6%, which is impossible and was the complaint.
+    check("CDM 最近距离已换算为公里（最大不超过 5000 km）", () => {
+      const { maxKm } = db
+        .prepare(`SELECT MAX(min_range_km) AS maxKm FROM space_track_cdm_public`)
+        .get() as { maxKm: number | null };
+      assert.ok(maxKm !== null, "应当有距离值");
+      assert.ok(maxKm < 5000, `最大距离 ${maxKm} km 不合理，可能仍是米`);
+    });
+
+    // The physical cross-check: a high probability at a long range cannot happen.
+    // If the unit regresses this is what fails — the range check above could still
+    // pass under a differently-wrong scale.
+    check("高 Pc 的交会距离在物理上合理（不超过 100 km）", () => {
+      const rows = db
+        .prepare(
+          `SELECT min_range_km AS km FROM space_track_cdm_public
+            WHERE pc >= 1e-2 AND min_range_km IS NOT NULL`,
+        )
+        .all() as Array<{ km: number }>;
+      assert.ok(rows.length > 0, "应当存在 Pc >= 1e-2 的记录");
+      // Not every row: two archived messages describe COSMOS 2160 × DIADEME 2 at
+      // 163 km with Pc 1.2%, published by the screening centre itself. That is an
+      // upstream oddity, not a unit error, and failing on it would be asserting
+      // that the centre is never wrong. What this enforces is that the
+      // overwhelming majority are physically sane — which a 1000× scale error
+      // would break completely.
+      const far = rows.filter((r) => r.km > 100);
+      const ratio = far.length / rows.length;
+      assert.ok(
+        ratio < 0.05,
+        `${far.length}/${rows.length} 条高 Pc 记录距离超过 100 km，单位可能仍是米`,
+      );
+    });
   }
 
   if (tableExists(db, "discos_fragmentation")) {

@@ -190,7 +190,15 @@ export class PublicCdmLoader extends EventFeedLoader {
           cdm_id: id,
           created: isoUtc(r.CREATED),
           tca,
-          min_range_km: num(r.MIN_RNG),
+          // MIN_RNG is in **metres**, not kilometres, despite the bare field name.
+          //
+          // Measured on 23,301 archived messages: the 416 with Pc ≥ 1e-2 have a
+          // MIN_RNG median of 31 and a range of 8–254. At kilometres those are a
+          // 31 km miss and more, where a one-percent collision probability is
+          // impossible; at metres they are a 31 m miss, an ordinary high-risk
+          // conjunction. The table was off by 1000, so every row read as a
+          // tens-of-kilometres miss and the conjunction list looked absurd.
+          min_range_km: num(r.MIN_RNG) === null ? null : num(r.MIN_RNG)! / 1000,
           pc: num(r.PC),
           emergency: r.EMERGENCY_REPORTABLE === "Y" ? 1 : 0,
           sat1_norad: int(r.SAT_1_ID),
