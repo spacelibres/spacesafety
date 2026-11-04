@@ -170,8 +170,20 @@ export function defaultChartTheme(mode: ThemeMode = "dark"): ChartTheme {
  * components may call this — it subscribes to a DOM observer.
  */
 export function useChartTheme(): ChartTheme {
-  const [theme, setTheme] = useState<ChartTheme>(() => defaultChartTheme(currentMode()));
-  useEffect(() => onThemeChange((mode) => setTheme(defaultChartTheme(mode))), []);
+  // The first render must match what the server produced, and the server has no
+  // `document`: `currentMode()` answers "dark" there while the browser may be on
+  // "light". Seeding the state from `currentMode()` gave the client a different
+  // chart colour than the HTML it was hydrating, and React reported it as an
+  // attribute mismatch — a warning that appeared only on pages drawing a chart.
+  //
+  // The initial value is now the server's answer and the real mode is read after
+  // mount. A one-frame flash of the default palette is the cost, the same trade
+  // the theme bootstrap already makes for the document attribute.
+  const [theme, setTheme] = useState<ChartTheme>(() => defaultChartTheme("dark"));
+  useEffect(() => {
+    setTheme(defaultChartTheme(currentMode()));
+    return onThemeChange((mode) => setTheme(defaultChartTheme(mode)));
+  }, []);
   return theme;
 }
 

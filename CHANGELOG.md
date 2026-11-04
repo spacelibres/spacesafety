@@ -16,6 +16,43 @@
 
 ---
 
+## [0.1.84] - 2026-11-03
+
+修 `/reentry` 的重复 key 与图表 hydration 警告。
+
+### 重复 key
+
+`space_track_tip` 的主键是 `(norad_id, msg_epoch, decay_epoch)`：同一个对象关于
+**同一个再入时刻**会收到多条 TIP 消息。`listUpcomingReentries` 把它们全列了出来，
+于是 `key={source}-{noradId}-{decayIso}` 重复。
+
+界面上看不出来，是因为 `issuedIso` 没有渲染——两行完全相同。React 的重复 key
+是唯一的症状。
+
+改成按 `(norad_id, decay_epoch)` 取 `msg_epoch` 最大的一行。这个分组是刻意的：
+一个对象**真的**有两个不同再入预测时应当保留两行（实测 NORAD 45755 就有 13:37
+与 03:16 两个时刻），只丢掉针对同一时刻的重发消息。
+
+### hydration 警告
+
+`useChartTheme()` 用 `currentMode()` 作初始值。服务端没有 `document`，
+`currentMode()` 返回 "dark"；浏览器可能处于 "light"。首帧颜色与它要 hydrate
+的 HTML 不一致，React 报属性不匹配。只在画了图表的页面出现
+（`/reentry`、`/statistics` 有，`/catalogue` 没有）。
+
+改为初值固定用服务端的答案，挂载后再读真实主题。代价是默认调色板闪烁一帧，
+与主题引导对 `data-theme` 属性已经做的取舍相同。
+
+### 验证
+
+- 查询层：`listUpcomingReentries(200)` 返回 11 行、唯一 key 11 个、重复 0；
+  NORAD 45755 正确保留两个**不同时刻**。
+- 浏览器：`/reentry`、`/`、`/statistics`、`/catalogue` 控制台错误均为 **0**
+  （修复前 `/reentry` 有 1 条）。
+- `tsc`、`test:wide` 22 项、`check` 全部通过。
+
+---
+
 ## [0.1.83] - 2026-11-03
 
 首页两个面板一直是空的，都对着已有数据却没去读。

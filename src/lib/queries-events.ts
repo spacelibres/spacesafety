@@ -128,9 +128,31 @@ export function listUpcomingReentries(limit = 100, now: Date = new Date()): Upco
               t.high_interest  AS highInterest,
               'space-track'    AS source,
               t.msg_epoch      AS issuedIso
-         FROM space_track_tip t
+         FROM (
+           /* One row per object and predicted instant: the newest message only.
+
+              The primary key is (norad_id, msg_epoch, decay_epoch), so a TIP
+              re-issue for the same object arrives as a separate row with an
+              unchanged decay epoch. Listing them all put the same object twice
+              in "upcoming", with identical visible columns because issuedIso is
+              not rendered — React reported a duplicate key, the only symptom.
+
+              Grouping by (norad_id, decay_epoch) keeps an object that really has
+              two separate predicted re-entries and drops only the repeated
+              message about one of them. A SQL comment inside a template string
+              must be block-style: a line starting with two hyphens would comment
+              out the closing backtick and the rest of the file. */
+           SELECT norad_id, decay_epoch,
+                  msg_epoch, window_min, direction, lat_deg, lon_deg,
+                  high_interest, tip_id,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY norad_id, decay_epoch ORDER BY msg_epoch DESC, tip_id DESC
+                  ) AS rn
+             FROM space_track_tip
+            WHERE decay_epoch >= @now
+         ) t
          LEFT JOIN master_object c ON c.norad_id = t.norad_id
-        WHERE t.decay_epoch >= @now
+        WHERE t.rn = 1
         UNION ALL
        SELECT k.norad_id,
               COALESCE(c.name, k.name),
