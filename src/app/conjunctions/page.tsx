@@ -47,6 +47,23 @@ export async function generateMetadata(): Promise<Metadata> {
   return pageMetadata(t, t.t("conjunctionsPage.title"));
 }
 
+/**
+ * The two radar cross-section classes, abbreviated.
+ *
+ * RCS is the CDM's statement about how large each object is on radar — `SMALL`,
+ * `MEDIUM` or `LARGE` — which decides how bad a hit would be. The CDM carries it
+ * (LARGE 1 004, MEDIUM 358, SMALL 2 193 of 3 649 messages) and the page had been
+ * discarding it.
+ *
+ * Abbreviated to one letter per object because the column sits next to nine others;
+ * the full wording is in the header's tooltip. `—` where the source sent nothing
+ * (94 messages).
+ */
+function rcsPair(a: string | null, b: string | null): string {
+  const short = (v: string | null) => (v ? v.charAt(0).toUpperCase() : "—");
+  return `${short(a)} / ${short(b)}`;
+}
+
 export default async function ConjunctionsPage({
   searchParams,
 }: {
@@ -209,6 +226,9 @@ export default async function ConjunctionsPage({
                   />
                   <th>{t.t("column.countdown")}</th>
                   <th>{t.t("column.risk")}</th>
+                  <th className="num" title={t.t("conjunctionsPage.rcsHint")}>
+                    {t.t("column.rcs")}
+                  </th>
                   <SortableTh
                     label={t.t("column.messages")}
                     column="messages"
@@ -228,10 +248,20 @@ export default async function ConjunctionsPage({
                     <td>
                       {c.object1Name}
                       <span className="faint mono-sm"> {c.object1Norad}</span>
+                      {c.object1Uncatalogued && (
+                        <span className="chip" title={t.t("conjunctionsPage.uncataloguedHint")}>
+                          {t.t("conjunctionsPage.uncatalogued")}
+                        </span>
+                      )}
                     </td>
                     <td>
                       {c.object2Name}
                       <span className="faint mono-sm"> {c.object2Norad}</span>
+                      {c.object2Uncatalogued && (
+                        <span className="chip" title={t.t("conjunctionsPage.uncataloguedHint")}>
+                          {t.t("conjunctionsPage.uncatalogued")}
+                        </span>
+                      )}
                     </td>
                     <td className="num mono-sm">
                       {distanceLabel(c.minRangeKm, t.t("common.none"), (k) => t.t(k))}
@@ -246,12 +276,15 @@ export default async function ConjunctionsPage({
                         {t.t(`risk.${c.band}`).toUpperCase()}
                       </span>
                     </td>
+                    <td className="num mono-sm faint">
+                      {rcsPair(c.object1Rcs, c.object2Rcs)}
+                    </td>
                     <td className="num mono-sm faint">{c.messageCount}</td>
                   </tr>
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="empty">
+                    <td colSpan={10} className="empty">
                       {/* A band with no rows is not the same statement as "nothing
                           has been published": 中/低 are empty by construction
                           because the feed only carries reportable conjunctions. */}

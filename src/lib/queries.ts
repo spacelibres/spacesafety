@@ -208,8 +208,8 @@ function cdmAsConjunctions(extraCtes = ""): string {
   return `
   WITH base AS (
     SELECT cdm_id, created, tca, min_range_km, pc,
-           sat1_norad, sat1_name, sat1_object_type,
-           sat2_norad, sat2_name, sat2_object_type,
+           sat1_norad, sat1_name, sat1_object_type, sat1_rcs,
+           sat2_norad, sat2_name, sat2_object_type, sat2_rcs,
            MIN(sat1_norad, sat2_norad) AS lo,
            MAX(sat1_norad, sat2_norad) AS hi,
            julianday(tca) AS jd
@@ -264,6 +264,18 @@ const CDM_AS_CONJUNCTIONS = cdmAsConjunctions();
  * 0 — a missing probability is not a zero probability, and 0 would sort a
  * possibly real threat below every measured one.
  */
+/**
+ * Whether the screening centre published this object without a catalogue name.
+ *
+ * Space-Track writes the literal string `UNKNOWN` in `SAT_1_NAME`/`SAT_2_NAME` for an
+ * object it tracks but has not catalogued. The name is passed through unchanged — it
+ * is what the publisher said — and the flag exists so the page can explain it rather
+ * than leave the string looking like a parser failure.
+ */
+function isUncatalogued(name: string | null | undefined): boolean {
+  return typeof name === "string" && /^unknown\b/i.test(name.trim());
+}
+
 export interface PublishedConjunctionRow {
   cdmId: string;
   /** When the newest message was published. */
@@ -279,9 +291,22 @@ export interface PublishedConjunctionRow {
   object1Norad: number;
   object1Name: string;
   object1Type: string | null;
+  /** Radar cross-section size class from the CDM: `SMALL` / `MEDIUM` / `LARGE`. */
+  object1Rcs: string | null;
+  /**
+   * True when the screening centre itself published this object as `UNKNOWN`.
+   *
+   * 358 of 3 649 messages carry `SAT_2_NAME: "UNKNOWN"` — Space-Track's own wording
+   * for an object it tracks but has not catalogued. Always object 2, always in the
+   * 8xxxx or 270xxx number blocks. Rendering that string raw reads as a bug in this
+   * site, so the flag lets the page say what it is.
+   */
+  object1Uncatalogued: boolean;
   object2Norad: number;
   object2Name: string;
   object2Type: string | null;
+  object2Rcs: string | null;
+  object2Uncatalogued: boolean;
 }
 
 /**
@@ -329,19 +354,23 @@ export function listPublishedConjunctions(
               sat1_norad        AS object1Norad,
               sat1_name         AS object1Name,
               sat1_object_type  AS object1Type,
+              sat1_rcs          AS object1Rcs,
               sat2_norad        AS object2Norad,
               sat2_name         AS object2Name,
               sat2_object_type  AS object2Type,
+              sat2_rcs          AS object2Rcs,
               message_count     AS messageCount
          FROM ranked
         WHERE rn = 1
         ORDER BY ${order}
         LIMIT @limit`,
     )
-    .all({ now: nowIso, limit }) as Array<Omit<PublishedConjunctionRow, "tcaInFuture" | "band">>;
+    .all({ now: nowIso, limit }) as Array<Omit<PublishedConjunctionRow, "tcaInFuture" | "band" | "object1Uncatalogued" | "object2Uncatalogued">>;
 
   return rows.map((r) => ({
     ...r,
+    object1Uncatalogued: isUncatalogued(r.object1Name),
+    object2Uncatalogued: isUncatalogued(r.object2Name),
     tcaInFuture: r.tcaIso !== null && r.tcaIso >= nowIso,
     band: riskBand(r.pc),
   }));
@@ -407,9 +436,11 @@ export function getPublishedConjunction(
     object1Norad: number;
     object1Name: string;
     object1Type: string | null;
+    object1Rcs: string | null;
     object2Norad: number;
     object2Name: string;
     object2Type: string | null;
+    object2Rcs: string | null;
   };
 
   // Resolve the target cluster once, as its own CTE.
@@ -431,9 +462,11 @@ export function getPublishedConjunction(
               ranked.sat1_norad        AS object1Norad,
               ranked.sat1_name         AS object1Name,
               ranked.sat1_object_type  AS object1Type,
+              ranked.sat1_rcs         AS object1Rcs,
               ranked.sat2_norad        AS object2Norad,
               ranked.sat2_name         AS object2Name,
-              ranked.sat2_object_type  AS object2Type
+              ranked.sat2_object_type  AS object2Type,
+              ranked.sat2_rcs         AS object2Rcs
          FROM ranked
          JOIN target
            ON ranked.lo = target.lo
@@ -462,9 +495,13 @@ export function getPublishedConjunction(
     object1Norad: newest.object1Norad,
     object1Name: newest.object1Name,
     object1Type: newest.object1Type,
+    object1Rcs: newest.object1Rcs,
+    object1Uncatalogued: isUncatalogued(newest.object1Name),
     object2Norad: newest.object2Norad,
     object2Name: newest.object2Name,
     object2Type: newest.object2Type,
+    object2Rcs: newest.object2Rcs,
+    object2Uncatalogued: isUncatalogued(newest.object2Name),
   };
 
   return {
