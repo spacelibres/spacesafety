@@ -83,16 +83,36 @@ export function formatGps(
   }
 }
 
-/** Human-readable countdown, e.g. `T-2d 04h`, `T-13m`, `T+40s`. */
 /**
- * Format a signed countdown from a millisecond delta.
+ * Format a signed countdown from a millisecond delta, e.g. `T-2d 04h`, `T-13m`.
  *
- * Split out so both time representations in this project reach the same string:
- * our own CDMs carry GPS nanoseconds, while a publicly published CDM carries an
- * ISO instant, and a page that shows "T-2d 04h" for one and something else for
- * the other would be reporting the same quantity two ways.
+ * Split out so both time representations reach the same string: our own CDMs
+ * carry GPS nanoseconds, while a published CDM carries an ISO instant, and a page
+ * showing "T-2d 04h" for one and something else for the other would report the
+ * same quantity two ways.
+ *
+ * ## The unit letters are passed in
+ *
+ * They used to be hard-coded `d`/`h`/`m`/`s`. In a conjunction row those sit next
+ * to a miss distance in metres, so `T-02h 30m | 40 m` put one letter on one line
+ * meaning both minutes and metres. The caller supplies them from the dictionary,
+ * so a locale can spell them out (`min`, `分钟`) and the ambiguity disappears
+ * without changing the layout.
+ *
+ * The `T-` prefix is CCSDS notation for "before the event" and stays as-is: it is
+ * a format marker, not a word.
  */
-export function formatCountdown(deltaMs: number): string {
+export interface CountdownUnits {
+  day: string;
+  hour: string;
+  minute: string;
+  second: string;
+}
+
+/** Default letters, for contexts with no translator (logs, CLI output). */
+const ASCII_UNITS: CountdownUnits = { day: "d", hour: "h", minute: "m", second: "s" };
+
+export function formatCountdown(deltaMs: number, units: CountdownUnits = ASCII_UNITS): string {
   const sign = deltaMs >= 0 ? "T-" : "T+";
   const total = Math.floor(Math.abs(deltaMs) / 1000);
   const days = Math.floor(total / 86_400);
@@ -100,17 +120,18 @@ export function formatCountdown(deltaMs: number): string {
   const minutes = Math.floor((total % 3_600) / 60);
   const seconds = total % 60;
 
-  if (days > 0) return `${sign}${days}d ${String(hours).padStart(2, "0")}h`;
+  if (days > 0) return `${sign}${days}${units.day} ${String(hours).padStart(2, "0")}${units.hour}`;
   if (hours > 0) {
-    return `${sign}${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`;
+    return `${sign}${String(hours).padStart(2, "0")}${units.hour} ${String(minutes).padStart(2, "0")}${units.minute}`;
   }
-  if (minutes > 0) return `${sign}${minutes}m ${String(seconds).padStart(2, "0")}s`;
-  return `${sign}${seconds}s`;
+  if (minutes > 0) return `${sign}${minutes}${units.minute} ${String(seconds).padStart(2, "0")}${units.second}`;
+  return `${sign}${seconds}${units.second}`;
 }
 
 export function countdownTo(
   nanos: GpsNanos,
   now: Date = new Date(),
+  units: CountdownUnits = ASCII_UNITS,
 ): string | null {
   let tca: Date;
   try {
@@ -118,13 +139,27 @@ export function countdownTo(
   } catch {
     return null;
   }
-  return formatCountdown(tca.getTime() - now.getTime());
+  return formatCountdown(tca.getTime() - now.getTime(), units);
 }
 
 /** Countdown to an ISO instant; `null` when the value is not a valid date. */
-export function countdownToIso(iso: string | null, now: Date = new Date()): string | null {
+export function countdownToIso(
+  iso: string | null,
+  now: Date = new Date(),
+  units: CountdownUnits = ASCII_UNITS,
+): string | null {
   if (!iso) return null;
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return null;
-  return formatCountdown(ms - now.getTime());
+  return formatCountdown(ms - now.getTime(), units);
+}
+
+/** Read the four countdown unit labels out of the dictionary. */
+export function countdownUnits(t: (key: string) => string): CountdownUnits {
+  return {
+    day: t("unit.day"),
+    hour: t("unit.hour"),
+    minute: t("unit.minute"),
+    second: t("unit.second"),
+  };
 }

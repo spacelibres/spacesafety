@@ -16,7 +16,7 @@ import {
 import { parseSort } from "@/lib/sort";
 import { pageMetadata } from "@/lib/i18n/page-title";
 import type { Metadata } from "next";
-import { countdownTo, countdownToIso } from "@/lib/space-safety/gps";
+import { countdownTo, countdownToIso, countdownUnits } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
 
@@ -239,7 +239,7 @@ export default async function ConjunctionsPage({
                     <td className={`num pc ${c.band}`}>{t.probability(c.pc ?? NaN)}</td>
                     <td className="mono-sm">{fmt(c.tcaIso, t.t("common.none"))}</td>
                     <td className="mono-sm faint">
-                      {countdownToIso(c.tcaIso) ?? t.t("common.none")}
+                      {countdownToIso(c.tcaIso, new Date(), countdownUnits((k) => t.t(k))) ?? t.t("common.none")}
                     </td>
                     <td>
                       <span className={`chip risk-${c.band}`}>
@@ -307,7 +307,7 @@ export default async function ConjunctionsPage({
                       <td className={`num pc ${c.band}`}>{t.probability(c.pc ?? NaN)}</td>
                       <td className="mono-sm">{fmt(c.tcaIso, t.t("common.none"))}</td>
                       <td className="mono-sm faint">
-                        {c.tcaGpsNanos ? countdownTo(c.tcaGpsNanos) : t.t("common.none")}
+                        {c.tcaGpsNanos ? countdownTo(c.tcaGpsNanos, new Date(), countdownUnits((k) => t.t(k))) : t.t("common.none")}
                       </td>
                       <td>
                         <span className={`chip risk-${c.band}`}>

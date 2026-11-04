@@ -14,7 +14,7 @@ import {
 } from "@/lib/queries";
 import { statistics } from "@/lib/statistics";
 import { getDb } from "@/db";
-import { countdownTo, formatGps } from "@/lib/space-safety/gps";
+import { countdownTo, countdownUnits, formatGps } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
 
@@ -215,7 +215,7 @@ export default async function HomePage() {
                           <td className="muted">{c.object2Name}</td>
                           <td className={`num pc ${c.band}`}>{t.probability(c.pc ?? NaN)}</td>
                           <td className="mono-sm nowrap">
-                            {c.tcaGpsNanos ? countdownTo(c.tcaGpsNanos) : t.t("common.none")}
+                            {c.tcaGpsNanos ? countdownTo(c.tcaGpsNanos, new Date(), countdownUnits((k) => t.t(k))) : t.t("common.none")}
                           </td>
                           <td>
                             <span className={`chip risk-${c.band}`}>

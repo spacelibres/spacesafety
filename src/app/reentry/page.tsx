@@ -4,7 +4,7 @@ import { Topbar } from "@/components/Shell";
 import { StatsRow, stat } from "@/components/Stats";
 import { getTranslator } from "@/lib/i18n/registry";
 import { pageMetadata } from "@/lib/i18n/page-title";
-import { countdownToIso } from "@/lib/space-safety/gps";
+import { countdownToIso, countdownUnits } from "@/lib/space-safety/gps";
 import {
   listRecentReentries,
   listUpcomingReentries,
@@ -111,7 +111,7 @@ export default async function ReentryPage() {
                     <td>{r.name ?? <span className="faint">{t.t("common.unknown")}</span>}</td>
                     <td className="mono-sm">{fmt(r.decayIso, t.t("common.none"))}</td>
                     <td className="mono-sm faint">
-                      {countdownToIso(r.decayIso) ?? t.t("common.none")}
+                      {countdownToIso(r.decayIso, new Date(), countdownUnits((k) => t.t(k))) ?? t.t("common.none")}
                     </td>
                     <td className="num mono-sm">
                       {r.windowMinutes === null

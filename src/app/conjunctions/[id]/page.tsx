@@ -14,7 +14,7 @@ import {
   riskBand,
   type PublishedConjunctionDetail,
 } from "@/lib/queries";
-import { countdownTo, formatGps } from "@/lib/space-safety/gps";
+import { countdownTo, countdownUnits, formatGps } from "@/lib/space-safety/gps";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +77,7 @@ export default async function EventPage({
           <div className="meta-cell">
             <div className="meta-label">{t.t("column.countdown")}</div>
             <div className="meta-value">
-              {latest ? (countdownTo(latest.tcaGpsNanos) ?? t.t("common.none")) : t.t("common.none")}
+              {latest ? (countdownTo(latest.tcaGpsNanos, new Date(), countdownUnits((k) => t.t(k))) ?? t.t("common.none")) : t.t("common.none")}
             </div>
           </div>
           <div className="meta-cell">

@@ -1,6 +1,6 @@
 {
   "name": "spacesafety",
-  "version": "0.1.88",
+  "version": "0.1.89",
   "private": true,
   "description": "Space Safety — satellite orbit safety & conjunction assessment dashboard",
   "scripts": {
