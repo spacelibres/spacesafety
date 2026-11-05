@@ -16,6 +16,37 @@
 
 ---
 
+## [0.1.95] - 2026-11-05
+
+README 拆为中英两版；仓库 homepage 设为 spacesafety.spacelibre.cn。
+
+### 为什么
+
+仓库是公开的，但 README 全中文，国际访客打开后无法判断项目内容。
+GitHub 的 About 链接也一直为空。
+
+### 改动
+
+- **`README.md` 改为英文**——GitHub 默认渲染这个文件，国际访客先看到英文
+- **新增 `README.zh-CN.md`**——中文原版保留，两版顶部互相链接
+- 两版结构对齐（19 / 21 节，中文多的是「已实现」下的细分小节）
+- 英文版新增徽章（版本 / 语言 / 框架 / 存储）与 Live 链接
+- 修正中文版遗留的重复章节：架构、多语言各说了两遍；版本号 0.1.93 → 0.1.94
+- 将「版本规则」收进「项目规则」一节，不再散落在首屏引用块
+
+### 链接检查
+
+脚本逐个验证两版的相对链接（`*.md`、目录）均存在；
+仅有的「缺失」是 typescriptlang.org 等外部 URL，本就应该是 URL。
+
+### 验证
+
+- `prettier --write` 两文件通过
+- `npm run check` 全绿
+- `gh repo view` 确认 homepageUrl = `https://spacesafety.spacelibre.cn`
+
+---
+
 ## [0.1.94] - 2026-11-05
 
 补齐 GitHub 仓库的 About（描述、topics）与 README 项目概览。

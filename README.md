@@ -1,34 +1,48 @@
+<div align="center">
+
 # Space Safety
 
-仿制 `space-safety.starlink.com` 的卫星轨道安全与交会筛查平台。
-API 名称、数据结构与服务行为与原站一致；实现与部署方式是我们自己的。
+**An independent space situational awareness platform for satellite conjunction screening.**
 
-当前版本 **0.1.93** —— 完整变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+[![Version](https://img.shields.io/badge/version-0.1.94-blue)](CHANGELOG.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-100%25-3178c6)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-better--sqlite3-003b57)](https://sqlite.org/)
 
-> **版本规则**：每次迭代只递增补丁号（`0.1.65` → `0.1.66` → …），
-> 并同步更新 `package.json`、`package-lock.json`、git tag 与 `CHANGELOG.md`。
-> 提交前请确认这四处一致。
+[中文](README.zh-CN.md) · **English**
+
+</div>
 
 ---
 
-## 这是什么
+A self-hosted reimplementation of [`space-safety.starlink.com`](https://space-safety.starlink.com).
+API names, payload shapes and observable service behaviour match the original;
+the implementation and deployment are our own.
 
-一个**自建**的太空态势感知平台，不依赖任何单一供应商的结论：
-把四个权威数据源的编目数据合并成一份带出处的基础库，在上面做轨道传播、
-接近筛查与碰撞概率计算，再以与 Starlink Space Safety 相同的 REST 接口对外提供。
+**Live:** <https://spacesafety.spacelibre.cn>
 
-**每条数字都能回答「这是谁说的」还是「这是我们算的」**——观测与计算分层存放，
-表名本身就能区分。
+---
+
+## What this is
+
+An SSA platform that does not depend on any single vendor's conclusion. It merges the
+catalogues of four authoritative sources into one provenance-carrying base, propagates
+orbits on top of it, searches for close approaches, computes collision probability, and
+serves the result over the same REST surface as Starlink Space Safety.
+
+**Every number can answer "who said this" versus "we computed this"** — observations and
+computations live in different tables, and the table name alone is enough to tell them
+apart.
 
 ```mermaid
 graph TD
-    A["Space-Track<br/>美国 18th SDS"] --> M
-    B["DISCOSweb<br/>欧空局 ESA"] --> M
+    A["Space-Track<br/>US 18th SDS"] --> M
+    B["DISCOSweb<br/>ESA"] --> M
     C["Spacebook<br/>AGI / ComSpoc"] --> M
-    D["KeepTrack<br/>开源社区"] --> M
-    M["L0 字段声明<br/>每一源的原值"] --> L1["L1 合并<br/>带出处的主表"]
-    L1 --> L2["L2 派生<br/>我们算出来的数"]
-    L1 --> L3["L3 冲突<br/>未裁决的分歧"]
+    D["KeepTrack<br/>open source"] --> M
+    M["L0 field claims<br/>every source's raw value"] --> L1["L1 merge<br/>master table with provenance"]
+    L1 --> L2["L2 derived<br/>what we computed"]
+    L1 --> L3["L3 conflict<br/>undecided disagreements"]
     L2 --> API["REST API<br/>/api/v1 /api/v2"]
     L1 --> API
     API --> UI["Web UI<br/>Next.js + Three.js"]
@@ -36,284 +50,214 @@ graph TD
 
 ---
 
-## 基础编目库
+## The catalogue
 
-四个数据源的原样表**全部保留**，另有一张 157 列的宽表把同一对象的多源取值并排陈列。
+All four sources' raw tables are **kept in full**. A 157-column wide table puts every
+source's value for the same object side by side.
 
-> 以下数字为 **2026-11-05** 实测值，随时可跑 `npm run data:health` 复现。
-> 源数据每日更新，数字会小幅变化。
+> Figures measured **2026-11-05**. Reproduce with `npm run data:health`.
+> Sources update daily, so the numbers drift a little.
 
-| 数据                              | 规模                   |
-| --------------------------------- | ---------------------- |
-| 宽表 `catalogue_wide`             | **72 435 行 × 157 列** |
-| L0 字段声明（每源原值）           | **2 633 721 条**       |
-| L1 合并主表 `master_object`       | **72 375** 个对象      |
-| 各源轨道元素 `object_sources`     | **64 153** 条          |
-| 选定规范星历 `master_element_set` | **32 932** 个对象      |
+| Data                                       | Size                          |
+| ------------------------------------------ | ----------------------------- |
+| Wide table `catalogue_wide`                | **72,435 rows × 157 columns** |
+| L0 field claims (every source's value)     | **2,633,721**                 |
+| L1 master table `master_object`            | **72,375** objects            |
+| Per-source elements `object_sources`       | **64,153** rows               |
+| Canonical element set `master_element_set` | **32,932** objects            |
 
-单源原样表：Space-Track SATCAT 71 231 · 合并 SATCAT 72 310 · DISCOS 对象 71 176 ·
-KeepTrack 35 224 · 解体事件 673。
+Single-source tables: Space-Track SATCAT 71,231 · merged SATCAT 72,310 · DISCOS objects
+71,176 · KeepTrack 35,224 · fragmentation events 673.
 
-分类（`object_classification`，覆盖 72 435 行）：
+Classification (`object_classification`, covering all 72,435 rows):
 
-| 轨道区域 |   数量 | 用途     |  数量 |
-| -------- | -----: | -------- | ----: |
-| LEO      | 64 921 | 通信     | 7 274 |
-| HEO      |  3 459 | 军事通信 |   533 |
-| GEO      |  1 792 | 技术试验 |   375 |
-| MEO      |  1 743 | 导航     |   375 |
-| UNKNOWN  |    520 | 对地观测 |   338 |
+| Orbit regime |  Count | Purpose           | Count |
+| ------------ | -----: | ----------------- | ----: |
+| LEO          | 64,921 | Communication     | 7,274 |
+| HEO          |  3,459 | Military comms    |   533 |
+| GEO          |  1,792 | Technology        |   375 |
+| MEO          |  1,743 | Navigation        |   375 |
+| UNKNOWN      |    520 | Earth observation |   338 |
 
-> **缺口不做猜测**：轨道类型 UNKNOWN 520 个、在轨对象刚体半径缺失 1 539 个，
-> 保持为空而不是按名称推断。见 [`docs/CATALOGUE-GAPS.md`](docs/CATALOGUE-GAPS.md)。
-
----
-
-## 交会与碰撞
-
-两类交会数据**并列展示、从不合并**，因为它们是两种不同的主张：
-
-| 来源                |                          规模 | 是什么                                              |
-| ------------------- | ----------------------------: | --------------------------------------------------- |
-| Space-Track CDM     | **3 728 条报文 → 598 个交会** | 18th SDS 对公开根数做的筛查，无协方差、无运营方申报 |
-| CelesTrak SOCRATES  |            **186 789 个事件** | CelesTrak 用自己根数做的独立筛查                    |
-| Space-Track TIP     |                     26 248 条 | 再入预报                                            |
-| 预测再入 / 解体事件 |                      13 / 673 | KeepTrack、DISCOS                                   |
-
-两者对得上，事件得证；对不上，说明有一方根数已过期——**这正是比对的意义**。
-
-碰撞概率用 **Alfano 方法**计算（与 Starlink 公开文档一致），`2D` 与 `3D` 规格均实现。
+> **Gaps are left as gaps.** 520 objects have an unknown orbit regime and 1,539
+> on-orbit objects have no hard-body radius. Those stay null rather than being inferred
+> from the object's name. See [`docs/CATALOGUE-GAPS.md`](docs/CATALOGUE-GAPS.md).
 
 ---
 
-## 技术栈
+## Conjunctions and collision probability
 
-| 层           | 选型                                          |
-| ------------ | --------------------------------------------- |
-| 语言         | TypeScript（含全部脚本与工具，**无 Python**） |
-| Web          | Next.js 15 App Router + React 19              |
-| 三维         | Three.js / Cesium —— 轨道可视化               |
-| 存储         | SQLite（`better-sqlite3`）                    |
-| 计算节点通信 | gRPC 双向流（`proto/worker.proto`）           |
-| 认证         | mTLS 客户端证书（`npm run cert:issue`）       |
+Two independent screens are shown **side by side and never merged**, because they are
+two different claims:
 
-**326 个 TypeScript 文件，约 76 000 行。**
+| Source                             |                                  Size | What it is                                                           |
+| ---------------------------------- | ------------------------------------: | -------------------------------------------------------------------- |
+| Space-Track CDM                    | **3,728 messages → 598 conjunctions** | 18th SDS screening public elements; no covariance, no operator claim |
+| CelesTrak SOCRATES                 |                    **186,789 events** | CelesTrak's own screening over its own elements                      |
+| Space-Track TIP                    |                                26,248 | Re-entry predictions                                                 |
+| Predicted re-entry / fragmentation |                              13 / 673 | KeepTrack, DISCOS                                                    |
+
+Where they agree the event is corroborated. Where they disagree, one element set has
+gone stale — **that is precisely what the comparison is for.**
+
+Collision probability is computed with the **Alfano method**, matching the published
+Starlink documentation. Both the `2D` and `3D` specifications are implemented.
 
 ---
 
-## 部署形态
+## Stack
+
+| Layer        | Choice                                                     |
+| ------------ | ---------------------------------------------------------- |
+| Language     | TypeScript — every script and tool included, **no Python** |
+| Web          | Next.js 15 App Router + React 19                           |
+| 3D           | Three.js / Cesium for orbit visualisation                  |
+| Storage      | SQLite (`better-sqlite3`)                                  |
+| Worker comms | gRPC bidirectional stream (`proto/worker.proto`)           |
+| Auth         | mTLS client certificates (`npm run cert:issue`)            |
+
+**326 TypeScript files, roughly 76,000 lines.**
+
+---
+
+## Deployment topology
 
 ```mermaid
 graph TD
-    C["外部客户端<br/>mTLS 证书"] -->|REST| V["VPS<br/>API 入口：认证 / 校验 / 存取"]
-    W["本地计算节点<br/>传播 · 筛查 · Pc"] -->|gRPC 双向流<br/>主动外连| V
+    C["External client<br/>mTLS certificate"] -->|REST| V["VPS<br/>API edge: auth / validate / store"]
+    W["Local compute node<br/>propagate · screen · Pc"] -->|gRPC bidi stream<br/>outbound connection| V
     V --> DB[("SQLite")]
 ```
 
-计算留在本地，VPS 只做入口。理由：投影与筛查是 CPU 密集且可能长跑的活，
-放在入口层会阻塞请求；计算节点主动外连，VPS 无需反向访问内网。
+Computation stays local; the VPS is only an edge. Propagation and screening are
+CPU-bound and long-running, so putting them behind the request path would block requests
+and inflate cost. The worker dials out, so the VPS never needs inbound access to the
+private network.
 
 ---
 
-## 界面
+## Interface
 
-6 语种（简体中文 / English / Español / Français / Deutsch / 日本語），
-侧栏可切换；文案全部来自 `src/lib/i18n/messages/`，缺失键会被 `npm run check` 拦截。
+Six languages — 简体中文 / English / Español / Français / Deutsch / 日本語 — switchable
+from the sidebar. Every string comes from `src/lib/i18n/messages/`; a missing key fails
+`npm run check`.
 
-配色与 logo 遵循 [spacelibre VI](https://github.com/spacelibres/vi)。
+Colours and logo follow the [spacelibre visual identity](https://github.com/spacelibres/vi).
 
-19 个主要页面：卫星编目（列表 / 分类浏览 / 分类统计 / 详情）、交会事件、
-SOCRATES 交会、再入、空间环境、发射与解体、三维模型、轨迹、运营方、
-密钥与用户管理。
-
----
-
-## 数据纪律
-
-这是科学数据，不是演示。几条硬规矩：
-
-1. **单位随物理含义走，不随字段名走。** Space-Track CDM 的 `MIN_RNG` 是**米**，
-   同名概念在 CelesTrak 的 `TCA_RANGE` 是**公里**。曾因按字段名假设而错了 1000 倍。
-2. **哨兵值不当数据。** CelesTrak 用 `1.000E+00` 表示「未计算概率」，入库时丢弃
-   ——因为概率 1 与「必然相撞」无法区分。
-3. **缺口保持为空。** 不按名称猜轨道类型，不用 AI 补缺失值。
-4. **子集不当全部。** KeepTrack 转发的 SOCRATES 只有 10 行（全是已对接的一对），
-   而 CelesTrak 源文件有 197 600 行——后来改取源头。
+Nineteen main pages: catalogue (list / faceted browse / statistics / detail),
+conjunctions, SOCRATES screening, re-entry, space environment, launches and
+fragmentations, 3D models, trajectories, operators, keys and users.
 
 ---
 
-## 自检
+## Data discipline
+
+This is scientific data, not a demo. Four rules, each one learned the hard way:
+
+1. **Units follow the physics, not the field name.** Space-Track's CDM `MIN_RNG` is in
+   **metres**; the same concept in CelesTrak's `TCA_RANGE` is in **kilometres**. We were
+   wrong by a factor of 1000 for a while by trusting the name.
+2. **Sentinel values are not data.** CelesTrak writes `1.000E+00` for "probability not
+   computed". It is dropped at ingest, because a probability of 1 cannot be told apart
+   from a certain collision.
+3. **Gaps stay empty.** No inferring orbit regime from names, no backfilling missing
+   values with a language model.
+4. **A subset is not the whole.** KeepTrack republishes SOCRATES as 10 rows — all of them
+   one already-docked pair. The CelesTrak source file has 197,600. We fetch the source.
+
+---
+
+## Health check
 
 ```bash
-npm run data:health    # 一屏回答「昨晚的数据到底好没好」
+npm run data:health
 ```
 
-会同时报：每个源的最后一次**尝试**与最后一次**成功**（`ok` 不等于新鲜）、
-派生表行数与输入表并排（表空不等于源空）、以及任何带 `error` 的记录
-（HTTP 200 带错误体也算失败）。
+Answers "did last night's ingest actually work" on one screen. It reports each source's
+last _attempt_ next to its last _success_ (`ok` is not freshness), derived-table row
+counts beside their input tables (an empty table is not an empty source), and every
+record carrying an `error` — including an HTTP 200 whose body is an error.
 
 ---
 
-## 文档
+## API
 
-| 文件                                                 | 内容                   |
-| ---------------------------------------------------- | ---------------------- |
-| [`docs/CATALOGUE-FINAL.md`](docs/CATALOGUE-FINAL.md) | 编目定稿（权威）       |
-| [`docs/CATALOGUE-GAPS.md`](docs/CATALOGUE-GAPS.md)   | 已知缺口清单           |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)       | 架构与数值内核         |
-| [`docs/DATA-SOURCES.md`](docs/DATA-SOURCES.md)       | 四个源的能力与获取方式 |
-| [`docs/SPEC-BEHAVIOR.md`](docs/SPEC-BEHAVIOR.md)     | 服务行为规格           |
-| [`docs/UI-SPEC.md`](docs/UI-SPEC.md)                 | 界面规格               |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md)                 | 技术栈约束与提交规则   |
+18 endpoints, same names and shapes as the original.
+
+| Resource   | Endpoints                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator   | `GET/POST /api/v1/operator`, `GET/PATCH /api/v1/operator/:id`                                                                         |
+| Object     | `GET/POST /api/v1/object`, `GET/PATCH/PUT /api/v1/object/:id`                                                                         |
+| Trajectory | `GET/POST /api/v1/trajectory`, `GET /api/v1/trajectory/:id`, `GET /api/v1/trajectory/:id/metadata`, `GET /api/v2/trajectory/:id/cdms` |
+| CDM        | `GET /api/v2/cdm`, `GET /api/v1/cdm/:id`, `GET /api/v1/cdm/:id/metadata`                                                              |
+| Event      | `GET /api/v2/event/:id`, `GET /api/v1/event/:id/cdms`                                                                                 |
+
+Behaviour worth knowing:
+
+- **mTLS only.** No client certificate yields `401 RBAC: access denied`.
+- **Streaming pagination.** Reuse the token to fetch increments; an expired token yields
+  `400 pagination_too_old`.
+- **Error envelope:** `{ correlation_id, error, error_type, metadata }`.
+- `hypothetical` trajectories and their CDMs are visible only to the submitter.
+- `spacex_optical` trajectory content is unreadable — only its CDMs are exposed.
 
 ---
 
-## 项目规则
+## Numerical core
 
-技术栈、面向对象标准、版本规则与提交前检查写在 [`CONTRIBUTING.md`](CONTRIBUTING.md)，
-是约束性文件。提交前请跑：
+| Module                | Implementation                                                     |
+| --------------------- | ------------------------------------------------------------------ |
+| Propagation           | Two-body + J2, RK4                                                 |
+| Frames                | Full IAU-76/FK5 ITRF↔J2000 (precession/nutation/GMST/polar motion) |
+| Close approach        | Screening box 2 / 44 / 51 km (RTN), golden-section TCA refinement  |
+| Collision probability | 2D Alfano, polar integration about the hard-body disc              |
 
-```bash
-npx tsc --noEmit && npm test && npm run check
-```
+Accuracy: Alfano agrees with an independent reference integral to **0.00 %**. ITRF→J2000
+semi-major axis drifts 23.6 km over 7 days, with covariance-trace conservation error of
+**1e-15**.
 
-## 多语言
+## Ephemeris formats
 
-界面支持 6 种语言：简体中文、English、Español、Français、Deutsch、日本語。
-语言由 `locale` cookie 决定，侧栏可切换；文案全部来自
-`src/lib/i18n/messages/`，`npm run check` 会拦截缺失、多余或空白的键。
+| Format             | Support                             |
+| ------------------ | ----------------------------------- |
+| CCSDS OCM          | ✅ including manoeuvre plan parsing |
+| CCSDS OEM          | ✅ covariance blocks not yet read   |
+| Modified ITC       | ✅                                  |
+| JSpOC / UTC / NASA | recognised, parser not yet written  |
 
-## 命名约定
+---
 
-项目名 **spacesafety**，代码、配置、数据库与 gRPC 包名统一使用这一个名字：
-
-| 位置                     | 值                                                           |
-| ------------------------ | ------------------------------------------------------------ |
-| 包名 / 目录 / 数据库文件 | `spacesafety`、`data/spacesafety.sqlite`                     |
-| 环境变量前缀             | `SPACE_SAFETY_`（全量清单见 [`.env.example`](.env.example)） |
-| gRPC 包                  | `spacesafety.worker.v1`                                      |
-| 演示认证头               | `x-space-safety-operator`                                    |
-
-## 仓库不含计算数据
-
-星历缓存、SQLite 数据库与 Spacebook 下载文件合计上百 GB，**不入版本库**
-（见 `.gitignore` 中的 `data/*`）。克隆后按 `docs/DATA-SOURCES.md` 重新下载即可。
-证书私钥（`certs/*.key`）与 `.env.local` 中的凭据同样不入库。
-
-## 快速开始
+## Getting started
 
 ```bash
 npm install
-cp .env.example .env.local   # 按需填写凭据；该文件不入库
-npm run demo:seed            # 5 颗真实 Starlink 卫星
-npm run demo:conjunction -- --seed   # 派生合作目标，产生交会事件
+cp .env.example .env.local   # fill in credentials as needed; not committed
+npm run demo:seed            # 5 real Starlink satellites
+npm run demo:conjunction -- --seed   # derive a cooperative target, produce a conjunction
 npm run build && npx next start -p 3000
 ```
 
-打开 <http://localhost:3000>。
+Open <http://localhost:3000>.
 
-演示模式需要两个环境变量（缺一则 API 抛 `401`）：
+Demo mode needs two environment variables (a missing one makes the API return `401`):
 
 ```bash
 SPACE_SAFETY_ALLOW_X_OPERATOR=1 SPACE_SAFETY_DEMO=1 npx next start -p 3000
 ```
 
-## 参考材料
+Real Starlink satellites do not approach each other — their operators keep it that way
+with active collision avoidance. So demo conjunctions come from a cooperative target
+derived from real ephemerides (`--emit` exports it as an ITC file).
 
-| 文件                                                         | 内容                                     |
-| ------------------------------------------------------------ | ---------------------------------------- |
-| [`docs/SPEC-BEHAVIOR.md`](docs/SPEC-BEHAVIOR.md)             | ★ 服务行为规格——实现依据，每条附官方出处 |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)               | 部署拓扑、职责划分、数值内核说明         |
-| [`docs/UI-SPEC.md`](docs/UI-SPEC.md)                         | ★ 界面视觉与布局规格（依据官方截图）     |
-| [`docs/DATA-SOURCES.md`](docs/DATA-SOURCES.md)               | 数据源：官方公开星历入口                 |
-| [`docs/ONBOARDING.md`](docs/ONBOARDING.md)                   | 官方 mTLS 凭证申请指南                   |
-| [`docs/reference-screenshots/`](docs/reference-screenshots/) | 官方界面截图 27 张                       |
-| [`docs/starlink-space-safety/`](docs/starlink-space-safety/) | 官方文档本地快照（33 页）                |
+---
 
-## 架构
-
-```mermaid
-graph TD
-    C["外部客户端<br/>mTLS 证书"] -->|"REST /api/v1 /api/v2"| V["VPS · Next.js 入口层"]
-    V -->|"gRPC 双向流"| W["本地计算节点"]
-    V --> DB[(SQLite)]
-    W -->|"HTTP 拉取星历"| V
-```
-
-- **VPS**：认证、校验、存取、组装响应。不做轨道计算。
-- **计算节点**：传播、接近搜索、Alfano Pc。主动外连，无需公网 IP。
-
-## 已实现
-
-### API（18 个端点，与官方同名同构）
-
-| 资源       | 端点                                                                                                                                  |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Operator   | `GET/POST /api/v1/operator`、`GET/PATCH /api/v1/operator/:id`                                                                         |
-| Object     | `GET/POST /api/v1/object`、`GET/PATCH/PUT /api/v1/object/:id`                                                                         |
-| Trajectory | `GET/POST /api/v1/trajectory`、`GET /api/v1/trajectory/:id`、`GET /api/v1/trajectory/:id/metadata`、`GET /api/v2/trajectory/:id/cdms` |
-| CDM        | `GET /api/v2/cdm`、`GET /api/v1/cdm/:id`、`GET /api/v1/cdm/:id/metadata`                                                              |
-| Event      | `GET /api/v2/event/:id`、`GET /api/v1/event/:id/cdms`                                                                                 |
-
-行为要点：
-
-- **mTLS 认证**，未携带证书返回 `401 RBAC: access denied`
-- **流式分页**：复用 token 取增量，过期返回 `400 pagination_too_old`
-- **错误信封**：`{ correlation_id, error, error_type, metadata }`
-- `hypothetical` 轨迹及其 CDM 仅提交方可见
-- `spacex_optical` 轨迹内容不可读取，只能看 CDM
-
-### 数值内核
-
-| 模块     | 实现                                              |
-| -------- | ------------------------------------------------- |
-| 传播     | 二体 + J2，RK4                                    |
-| 参考系   | ITRF↔J2000 完整 IAU-76/FK5（岁差/章动/GMST/极移） |
-| 接近搜索 | 筛查盒 2 / 44 / 51 km（RTN），黄金分割精修 TCA    |
-| 碰撞概率 | 二维 Alfano，以硬体圆盘为中心的极坐标积分         |
-
-精度验证：Alfano 与独立参考积分误差 **0.00%**；ITRF→J2000 半长轴
-跨 7 天漂移 23.6 km，协方差迹守恒误差 **1e-15**。
-
-### 星历格式
-
-| 格式               | 支持              |
-| ------------------ | ----------------- |
-| CCSDS OCM          | ✅ 含机动计划解析 |
-| CCSDS OEM          | ✅ 协方差段暂忽略 |
-| Modified ITC       | ✅                |
-| JSpOC / UTC / NASA | 已识别，解析待补  |
-
-### Web UI
-
-按 `docs/UI-SPEC.md` 复刻官方布局：
-
-- 左侧栏 + 环境横幅 + UTC 时钟 + 搜索
-- Home（统计 + 3D 轨道视图 + 风险表）
-- Operators / Objects / Trajectories / Conjunctions 列表与详情
-- 交会详情含 Pc 演化图（对数轴）
-- 轨迹详情含轨道根数图（SMA/Inc/Ecc/RAAN/AoP/MA 切换）
-- CDM 支持 `json` / `kvn` 下载
-
-## 演示数据
-
-```bash
-npm run demo:seed                    # 5 颗真实 Starlink 卫星
-npm run demo:conjunction -- --seed   # 派生一个合作目标，产生交会
-```
-
-实测输出：8 个交会事件，Pc 覆盖 `1.7e-8` 到 `3.8e-2`。
-
-真实 Starlink 卫星之间不会接近（由主动避碰维持），所以交会事件来自
-一个由真实星历派生的合作目标（`--emit` 可导出为 ITC 文件）。
-
-## 分布式运行
+## Distributed run
 
 ```bash
 # VPS
 SPACE_SAFETY_WORKER_TOKEN=secret npm run vps        # gRPC :50051
 
-# 计算节点
+# compute node
 SPACE_SAFETY_GRPC_INSECURE=1 \
 SPACE_SAFETY_GRPC_HOST=vps.example.com:50051 \
 SPACE_SAFETY_API_ORIGIN=https://vps.example.com \
@@ -321,33 +265,81 @@ SPACE_SAFETY_WORKER_TOKEN=secret \
 npm run worker
 ```
 
-已验证闭环：上传 → 入队 → gRPC 下发 → 拉取星历 → 计算 → 回传 → CDM 入库。
+Verified end to end: upload → enqueue → dispatch over gRPC → fetch ephemeris → compute →
+return → CDM stored.
 
-## 测试
+---
 
-```
-$ npm test
-…（53 个套件，每个套件独立进程）…
-All 53 suites passed.
-```
+## Testing
 
-53 个套件、993 条断言。套件清单由 `tests/*.test.ts` 自动发现，
-新增测试文件无需再登记（登记名单曾是手写的，因此漏跑过两个套件）。
-
-## 压测
-
-```
-$ npm run bench -- --count 200 --offline
+```bash
+npx tsc --noEmit && npm test && npm run check
 ```
 
-测真实星历上的端到端筛查吞吐，并在最后对预筛做硬断言：预筛丢掉的任何一个
-交会都会让压测失败。结论（包括不利的部分）见 `docs/ARCHITECTURE.md` 的性能一节。
+53 suites, 993 assertions. Suites are discovered from `tests/*.test.ts`, so a new test
+file needs no registration — the hand-maintained list had silently skipped two suites.
 
-## 生产部署注意
+```bash
+npm run bench -- --count 200 --offline
+```
 
-1. **mTLS 必须在 TLS 终止层完成**，并把证书以 `X-Client-Cert`
-   透传给应用（nginx: `$ssl_client_escaped_cert`）。
-2. **计算通道必须启用 TLS**：`SPACE_SAFETY_GRPC_CERT/KEY/CA`。
-   未配置时生产环境会拒绝启动。
-3. `SPACE_SAFETY_DEMO` 与 `SPACE_SAFETY_ALLOW_X_OPERATOR` 仅供演示，
-   生产环境不要设置。
+Measures end-to-end screening throughput on real ephemerides and hard-asserts the
+prefilter at the end: dropping a single real conjunction fails the benchmark. Results,
+including the unfavourable ones, are in `docs/ARCHITECTURE.md`.
+
+---
+
+## Production notes
+
+1. **mTLS must terminate at the TLS layer**, forwarding the certificate as
+   `X-Client-Cert` (nginx: `$ssl_client_escaped_cert`).
+2. **The compute channel must use TLS:** `SPACE_SAFETY_GRPC_CERT/KEY/CA`. The process
+   refuses to start in production without it.
+3. `SPACE_SAFETY_DEMO` and `SPACE_SAFETY_ALLOW_X_OPERATOR` are for demos only. Do not set
+   them in production.
+
+---
+
+## Naming
+
+The project is **spacesafety** — one name across code, config, database and gRPC package:
+
+| Location                       | Value                                                         |
+| ------------------------------ | ------------------------------------------------------------- |
+| Package / directory / database | `spacesafety`, `data/spacesafety.sqlite`                      |
+| Environment prefix             | `SPACE_SAFETY_` (full list in [`.env.example`](.env.example)) |
+| gRPC package                   | `spacesafety.worker.v1`                                       |
+| Demo auth header               | `x-space-safety-operator`                                     |
+
+## No computed data in the repository
+
+Ephemeris caches, SQLite databases and Spacebook downloads total hundreds of GB and are
+**not committed** (see `data/*` in `.gitignore`). Re-download them per
+[`docs/DATA-SOURCES.md`](docs/DATA-SOURCES.md). Certificate private keys (`certs/*.key`)
+and the credentials in `.env.local` are likewise excluded.
+
+---
+
+## Documentation
+
+| File                                                 | Contents                                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`docs/CATALOGUE-FINAL.md`](docs/CATALOGUE-FINAL.md) | Catalogue definition (authoritative)                                         |
+| [`docs/CATALOGUE-GAPS.md`](docs/CATALOGUE-GAPS.md)   | Known gaps                                                                   |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)       | Architecture and numerical core                                              |
+| [`docs/DATA-SOURCES.md`](docs/DATA-SOURCES.md)       | What each source offers and how to fetch it                                  |
+| [`docs/SPEC-BEHAVIOR.md`](docs/SPEC-BEHAVIOR.md)     | Service behaviour spec — the implementation basis, with a citation per claim |
+| [`docs/UI-SPEC.md`](docs/UI-SPEC.md)                 | Visual and layout spec (from the official screenshots)                       |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md)                 | Stack constraints and commit rules                                           |
+
+Reference material: [`docs/reference-screenshots/`](docs/reference-screenshots/) (27 official
+screenshots) and [`docs/starlink-space-safety/`](docs/starlink-space-safety/) (local snapshot
+of the 33-page official documentation).
+
+---
+
+## Versioning
+
+The patch number increments on every iteration (`0.1.65` → `0.1.66` → …) and must agree
+across `package.json`, `package-lock.json`, the git tag and `CHANGELOG.md`. See
+[`CHANGELOG.md`](CHANGELOG.md) for the full history.
