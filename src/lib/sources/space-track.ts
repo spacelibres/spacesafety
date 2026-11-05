@@ -28,6 +28,7 @@
 
 import { parseTleFile, type Tle, type TleParseError } from "../orbit/tle";
 import { download } from "../net/download";
+import { claimQuery } from "./space-track-budget";
 
 export const SPACETRACK_BASE = "https://www.space-track.org";
 
@@ -164,6 +165,16 @@ export async function spaceTrackGet(
 ): Promise<SpaceTrackResult<string>> {
   if (!cfg.user || !cfg.pass) {
     return { ok: false, data: null, notConfigured: true, error: "Space-Track credentials not configured" };
+  }
+
+  // Every Space-Track call passes through here, so this is where the local budget is
+  // enforced. On 2026-11-05 the account was warned for 667 queries in one hour, all of
+  // them from a script that paged the API for 42 000 objects. Refusing locally is the
+  // only thing that actually stops that, because the failure mode was not an error —
+  // it was the absence of one.
+  const refusal = claimQuery();
+  if (refusal) {
+    return { ok: false, data: null, error: refusal.reason };
   }
 
   const url = `${cfg.base ?? SPACETRACK_BASE}/basicspacedata/query/${path}`;

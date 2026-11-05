@@ -126,25 +126,38 @@ async function main() {
     }
   }
 
-  // Anything the archive did not cover: ask the API, in batches. One request per
-  // object trips the rate limit after roughly twenty calls, and the documented
-  // predicate already accepts a comma-separated id list.
+  // Anything the archive did not cover: ask the API.
+  //
+  // This loop is what earned the 2026-11-05 warning: 42 000 objects at 20 per request
+  // and two requests per batch. It now stops on the first budget refusal instead of
+  // continuing, and reports how many objects were left to the archive path.
   const missing = targets.filter((o) => !tleByNorad.has(o.noradId!));
   if (missing.length > 0 && (online || tleByNorad.size === 0)) {
     const BATCH = 20;
+    let budgetRefused = false;
     console.log(`\n  API 补齐      ${missing.length} 个对象，每批 ${BATCH}\n`);
-    for (let start = 0; start < missing.length; start += BATCH) {
+    for (let start = 0; start < missing.length && !budgetRefused; start += BATCH) {
       const batch = missing.slice(start, start + BATCH);
       const norads = batch.map((o) => o.noradId!);
       const res = await fetchGp({ noradIds: norads, limit: norads.length * 2 });
       if (res.error) {
         console.log(`  batch ${start + 1}-${start + batch.length} FAILED: ${res.error}`);
+        if (/budget exhausted/i.test(res.error)) {
+          budgetRefused = true;
+          console.log(
+            `  额度已用尽，停止补齐。剩余 ${missing.length - start} 个对象只能走归档路径，` +
+              `请先跑 sources:download。`,
+          );
+        }
         continue;
       }
       for (const t of res.tles) tleByNorad.set(t.noradId, t);
 
       const ommRes = await fetchOmm({ noradIds: norads, limit: norads.length * 2 });
-      if (ommRes.error) console.log(`  OMM batch failed: ${ommRes.error}`);
+      if (ommRes.error) {
+        console.log(`  OMM batch failed: ${ommRes.error}`);
+        if (/budget exhausted/i.test(ommRes.error)) budgetRefused = true;
+      }
       for (const r of ommRes.records) ommByNorad.set(r.noradId, r);
     }
   }

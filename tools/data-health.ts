@@ -26,6 +26,7 @@
 import Database from "better-sqlite3";
 
 import { loadEnvLocal } from "../scripts/env";
+import { budgetStatus } from "../src/lib/sources/space-track-budget";
 
 loadEnvLocal();
 
@@ -180,3 +181,17 @@ for (const c of counts) {
 
 console.log("");
 db.close();
+
+// ------------------------------------------------------------ Space-Track budget
+//
+// Reported every run, not only when exhausted. The account was warned on 2026-11-05
+// for 667 queries in one hour; a number nobody looks at is not a budget.
+const st = budgetStatus();
+console.log("  ── Space-Track 调用额度 ────────────────────────\n");
+console.log(
+  `  ${st.hourCount >= st.hourly ? "!" : " "} 本小时   ${st.hourCount} / ${st.hourly}`,
+);
+console.log(
+  `  ${st.dayCount >= st.daily ? "!" : " "} 今日     ${st.dayCount} / ${st.daily}`,
+);
+console.log("\n  每次调用 Space-Track 都会先记账；超限时本地直接拒绝发送。\n");
