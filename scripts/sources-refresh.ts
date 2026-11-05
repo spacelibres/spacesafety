@@ -33,6 +33,41 @@
 
 import { readFile } from "node:fs/promises";
 
+/**
+ * Newest `.tle` under `data/archive/<source>/<day>/`, or null when none exists.
+ *
+ * `sources:download` writes every Space-Track response body verbatim, so the archive
+ * holds the same 3LE the API would return — 69 824 element sets, one file per
+ * completed cycle. Reading it is free and cannot hit the per-account rate limit,
+ * which the live `fetchGp` path does (measured: HTTP 429 after a few hundred calls,
+ * and a 200 carrying `You've violated your query rate limit` that used to be
+ * archived as data).
+ */
+async function newestTleArchive(source: string): Promise<string | null> {
+  const { readdir, stat } = await import("node:fs/promises");
+  const root = `data/archive/${source}`;
+  let best: { path: string; mtime: number } | null = null;
+  try {
+    for (const day of await readdir(root)) {
+      let names: string[];
+      try {
+        names = await readdir(`${root}/${day}`);
+      } catch {
+        continue;
+      }
+      for (const name of names) {
+        if (!name.endsWith(".tle")) continue;
+        const path = `${root}/${day}/${name}`;
+        const mtime = (await stat(path)).mtimeMs;
+        if (!best || mtime > best.mtime) best = { path, mtime };
+      }
+    }
+  } catch {
+    return null;
+  }
+  return best?.path ?? null;
+}
+
 async function main(): Promise<void> {
   const { loadEnvLocal } = await import("./env");
   loadEnvLocal();
@@ -156,6 +191,27 @@ async function main(): Promise<void> {
 
       if (source.id === "space-track") {
         const { fetchGp } = await import("../src/lib/sources/space-track");
+
+        // Prefer the archive the scheduled download already produced: same bytes,
+        // no login session, no rate limit. `--online` forces the API path.
+        const archived = await newestTleArchive("space-track-gp");
+        if (archived && !argv.includes("--online")) {
+          const parsed = parseTleFile(await readFile(archived, "utf8"));
+          const sinceMs = Date.now() - Number(flag("--space-track-days") ?? 3) * 86_400_000;
+          const fresh = parsed.tles.filter((t) => t.epochMs >= sinceMs);
+          const written = ingestSourceTle(sqlite, source.id, fresh, nextSeq);
+          ledger.finish(fetchId, {
+            sourceId: source.id,
+            status: written > 0 ? "ok" : "failed",
+            records: written,
+            error: written === 0 ? "no element sets newer than the cutoff" : undefined,
+          });
+          console.log(
+            `  ${source.id}: ${written} element sets from archive ` +
+              `(${parsed.tles.length} in file, ${parsed.errors.length} unparsable)`,
+          );
+          continue;
+        }
         // The `gp` class holds every current element set. Filtering by epoch is
         // what makes bulk retrieval work: unfiltered, Space-Track returns the
         // catalogue from NORAD 1 upward, so the first 1 000 rows are 1966-era

@@ -234,6 +234,25 @@ export class DataScheduler {
       return 1;
     }
 
+    // The master/derived chain is separate from the catalogue chain above: it
+    // writes `object_sources`, `trajectories`, `master_*` and `derived_state`,
+    // which nothing else populates. It used to be run only by hand, so
+    // `object_sources` sat empty and every derived orbit summary was 0 even though
+    // the element sets were on disk. One pass a cycle; the merge reads local files.
+    try {
+      run("npm", ["run", "ingest:tle"]);
+      run("npm", ["run", "master:build", "--", "--skip-orbits"]);
+      log("主库链路已重建：ingest:tle → master:build");
+    } catch (err) {
+      const detail = String((err as { stderr?: string }).stderr ?? "").trim();
+      // A rate-limit failure here is expected when the account is throttled; the
+      // TLE rows from the previous cycle are still valid, so this is a warning
+      // and not a cycle failure.
+      log(
+        `主库链路失败（保留上轮 TLE）：${detail.split("\n").slice(-3).join(" / ").slice(-200)}`,
+      );
+    }
+
     const wide = (
       sqlite.prepare("SELECT COUNT(*) AS n FROM object_classification").get() as { n: number }
     ).n;

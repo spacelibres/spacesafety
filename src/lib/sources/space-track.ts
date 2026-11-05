@@ -204,7 +204,30 @@ export async function spaceTrackGet(
       if (!res.complete) {
         return { ok: false, data: null, error: "Space-Track returned an incomplete or non-text body" };
       }
-      return { ok: true, data: res.body.toString("utf8") };
+
+      // A rate-limit refusal arrives as **HTTP 200** with a JSON body:
+      //
+      //   [{"error":"You've violated your query rate limit. Please refer to our
+      //     Acceptable Use guidelines for further information"}]
+      //
+      // `download()` rejects a body starting with `{` but not one starting with `[`,
+      // and the status is 200, so this used to come back as `ok: true` with an
+      // empty TLE list. `sources:refresh` then reported "0 element sets" and
+      // recorded `failed: no element sets returned` — a message that says what
+      // happened but not why, and one indistinguishable from "the catalogue is
+      // empty". Name it.
+      const text = res.body.toString("utf8");
+      const trimmed = text.trimStart();
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        if (/rate limit/i.test(text)) {
+          return { ok: false, data: null, error: "Space-Track rate limit exceeded" };
+        }
+        // Any other JSON is a real answer for `/format/json` callers.
+        if (!/\/format\/json/.test(path)) {
+          return { ok: false, data: null, error: "Space-Track returned JSON where text was expected" };
+        }
+      }
+      return { ok: true, data: text };
     } catch (err) {
       if (attempt === 1) {
         return {
@@ -462,48 +485,65 @@ export async function fetchOmm(
     return { records: [], error: "gp response was not JSON" };
   }
 
+  return { records: parseOmmRows(rows) };
+}
+
+/**
+ * Map raw Space-Track `class/gp` JSON rows to `OmmRecord`s.
+ *
+ * Exported because the archive on disk holds exactly these rows: `sources:download`
+ * writes the response body verbatim, so anything reading the archive (for example
+ * `scripts/ingest-tle.ts`, which no longer pages the API) must interpret it the same
+ * way the live path does. Two copies of this mapping would drift.
+ */
+export function parseOmmRows(rows: Array<Record<string, unknown>>): OmmRecord[] {
+  const s = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
+  const n = (v: unknown): number | null => num(s(v));
   const records: OmmRecord[] = [];
   for (const r of rows) {
-    const norad = Number.parseInt(r.NORAD_CAT_ID ?? "", 10);
+    const norad = Number.parseInt(s(r.NORAD_CAT_ID), 10);
     // Space-Track has begun issuing Alpha-5 ids; a record with one cannot be read
     // as a plain integer, so skip rather than store NaN.
     if (!Number.isFinite(norad)) continue;
 
-    // Space-Track omits the trailing Z and can emit a space instead of T.
-    const epochText = (r.EPOCH ?? "").replace(" ", "T");
+    // Space-Track omits the trailing Z and can emit a space instead of T. The archive
+    // keeps the same text, minus the trailing zeros in the fraction.
+    const epochRaw = s(r.EPOCH);
+    const epochText = epochRaw.replace(" ", "T");
     const epochMs = Date.parse(epochText.endsWith("Z") ? epochText : `${epochText}Z`);
+    if (!Number.isFinite(epochMs)) continue;
 
     records.push({
       noradId: norad,
-      objectName: r.OBJECT_NAME ?? "",
-      objectId: r.OBJECT_ID ?? "",
-      refFrame: r.REF_FRAME ?? "",
-      meanElementTheory: r.MEAN_ELEMENT_THEORY ?? "",
-      epoch: r.EPOCH ?? "",
-      epochMs: Number.isFinite(epochMs) ? epochMs : 0,
-      meanMotionRevPerDay: num(r.MEAN_MOTION) ?? 0,
-      eccentricity: num(r.ECCENTRICITY) ?? 0,
-      inclinationDeg: num(r.INCLINATION) ?? 0,
-      raanDeg: num(r.RA_OF_ASC_NODE) ?? 0,
-      argPericenterDeg: num(r.ARG_OF_PERICENTER) ?? 0,
-      meanAnomalyDeg: num(r.MEAN_ANOMALY) ?? 0,
-      bstar: num(r.BSTAR) ?? 0,
-      meanMotionDot: num(r.MEAN_MOTION_DOT) ?? 0,
-      meanMotionDdot: num(r.MEAN_MOTION_DDOT) ?? 0,
-      semimajorAxisKm: num(r.SEMIMAJOR_AXIS),
-      periodMin: num(r.PERIOD),
-      apogeeKm: num(r.APOAPSIS),
-      perigeeKm: num(r.PERIAPSIS),
-      objectType: r.OBJECT_TYPE ?? null,
-      rcsSize: r.RCS_SIZE ?? null,
-      launchDate: r.LAUNCH_DATE || null,
-      decayDate: r.DECAY_DATE || null,
-      ephemerisType: Number.parseInt(r.EPHEMERIS_TYPE ?? "0", 10) || 0,
-      elementSetNo: Number.parseInt(r.ELEMENT_SET_NO ?? "0", 10) || 0,
-      revAtEpoch: Number.parseInt(r.REV_AT_EPOCH ?? "0", 10) || 0,
-      raw: r,
+      objectName: s(r.OBJECT_NAME),
+      objectId: s(r.OBJECT_ID),
+      refFrame: s(r.REF_FRAME),
+      meanElementTheory: s(r.MEAN_ELEMENT_THEORY),
+      epoch: epochRaw,
+      epochMs,
+      meanMotionRevPerDay: n(r.MEAN_MOTION) ?? 0,
+      eccentricity: n(r.ECCENTRICITY) ?? 0,
+      inclinationDeg: n(r.INCLINATION) ?? 0,
+      raanDeg: n(r.RA_OF_ASC_NODE) ?? 0,
+      argPericenterDeg: n(r.ARG_OF_PERICENTER) ?? 0,
+      meanAnomalyDeg: n(r.MEAN_ANOMALY) ?? 0,
+      bstar: n(r.BSTAR) ?? 0,
+      meanMotionDot: n(r.MEAN_MOTION_DOT) ?? 0,
+      meanMotionDdot: n(r.MEAN_MOTION_DDOT) ?? 0,
+      semimajorAxisKm: n(r.SEMIMAJOR_AXIS),
+      periodMin: n(r.PERIOD),
+      apogeeKm: n(r.APOAPSIS),
+      perigeeKm: n(r.PERIAPSIS),
+      objectType: s(r.OBJECT_TYPE) || null,
+      rcsSize: s(r.RCS_SIZE) || null,
+      launchDate: s(r.LAUNCH_DATE) || null,
+      decayDate: s(r.DECAY_DATE) || null,
+      ephemerisType: Number.parseInt(s(r.EPHEMERIS_TYPE) || "0", 10) || 0,
+      elementSetNo: Number.parseInt(s(r.ELEMENT_SET_NO) || "0", 10) || 0,
+      revAtEpoch: Number.parseInt(s(r.REV_AT_EPOCH) || "0", 10) || 0,
+      raw: r as Record<string, string>,
     });
   }
 
-  return { records };
+  return records;
 }

@@ -425,18 +425,25 @@ export class MasterMerge {
 
         // Element selection: the highest-priority source that actually holds one.
         //
-        // Operator ephemerides are stored under `state_source =
-        // 'operator_ephemeris'` with the real identity in `file_format` (`ocm` or
-        // `itc`), while the registry names them `starlink-ocm` / `starlink-itc`.
-        // Matching on `state_source` alone therefore found no OCM at all, and every
-        // Starlink silently fell back to its single-epoch TLE — the exact
-        // inversion of the intended policy. The mapping below is the fix.
-        const canonicalId = (e: SourceView["elements"][number]): string =>
-          e.sourceId === "operator_ephemeris"
-            ? e.fileFormat === "itc"
-              ? "starlink-itc"
-              : "starlink-ocm"
-            : e.sourceId;
+        // `trajectories.state_source` names the *kind* of element set (`tle`, `omm`,
+        // `operator_ephemeris`), not the registry id, so it cannot be matched against
+        // `trajectorySources()` directly. Every kind has to be mapped:
+        //
+        //   operator_ephemeris  → starlink-ocm / starlink-itc (by file_format)
+        //   tle                 → space-track     (the only TLE feed `ingest:tle` writes)
+        //   omm                 → spacebook-omm
+        //
+        // The operator case was handled and these two were not, so `ordered` came out
+        // empty for every object and `master_element_set` stayed at 0 rows — with the
+        // TLE and OMM trajectory rows sitting right there in the same database.
+        const canonicalId = (e: SourceView["elements"][number]): string => {
+          if (e.sourceId === "operator_ephemeris") {
+            return e.fileFormat === "itc" ? "starlink-itc" : "starlink-ocm";
+          }
+          if (e.sourceId === "tle") return "space-track";
+          if (e.sourceId === "omm") return "spacebook-omm";
+          return e.sourceId;
+        };
 
         const byCanonical = new Map<string, SourceView["elements"][number]>();
         for (const e of view.elements) {

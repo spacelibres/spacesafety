@@ -16,6 +16,115 @@
 
 ---
 
+## [0.1.93] - 2026-11-05
+
+整夜无人值守后核查定时下载。**四个源都在抓，无一断流**，但查出五处问题，
+其中两处让主库整整一周没有星历。
+
+### 核查结果
+
+| 源 | 状态 |
+|---|---|
+| Space-Track GP | 每 2 小时，69 824 条，正常 |
+| Space-Track CDM / TIP | 正常（中间一次限流，见下） |
+| Spacebook（9 个端点）| 正常，每 2 小时 |
+| DISCOS（6 个端点）| 正常，内容哈希未变，`unchanged` 是正确结果 |
+| KeepTrack | 每日一次 |
+| CelesTrak SOCRATES | 186 789 条，正常 |
+
+### 问题 1：调度器整夜在跑旧代码
+
+`--loop` 是常驻进程，不重载代码。它于 11-04 14:42 启动，而 v0.1.90 的改动
+提交于 18:09。后果：整夜 13 个周期仍调用旧的 KeepTrack 步骤，
+`socrates:sync` 一次也没执行，SOCRATES 表停在 16 小时前。
+
+`schedule:keepalive` 只检查「进程在不在」，在就是「没问题」。
+
+**修复**：keepalive 增加代码陈旧检测——比较 HEAD 提交时间与 `tools/`+`src/`
+最新 mtime 的较晚者，与进程启动时间（`/proc/<pid>/stat` 第 22 字段 + `btime`，
+不解析 `ps` 的本地化日期）。早于代码则自动重启。已实测触发。
+
+### 问题 2：Space-Track 限流被当成成功
+
+限流时 API 返回 **HTTP 200**，body 是：
+
+```json
+[{"error":"You've violated your query rate limit. …"}]
+```
+
+`spaceTrackGet` 把它当成正常 TLE 文本返回（`ok: true`、空列表），于是：
+
+- `sources:refresh` 报告「0 element sets」，记为 `failed: no element sets returned`——
+  说得出发生了什么，说不出为什么，且与「编目本来就是空的」无法区分；
+- `02:23` 那个 265 字节的错误体**被当数据存进了归档**。
+
+**修复**：识别 `[`/`{` 开头的响应体中的 `rate limit`，明确返回
+`Space-Track rate limit exceeded`。已删除脏归档（全库仅此 1 个），
+并把对应 `source_fetches` 记录改为 failed。
+
+### 问题 3：主库链路完全不在调度里
+
+项目有两套并行链路：
+
+| 链路 | 入口 | 写什么 | 在调度里 |
+|---|---|---|---|
+| 编目 | `sources:load` → 宽表 → 分类 | 宽表 157 列 | ✅ |
+| 主库 | `sources:refresh` → `master:build` | `object_sources`、`master_*`、`derived_state` | ❌ |
+
+因为 B 从不在调度里运行：
+
+- `object_sources` 空 → **派生层算不出任何轨道摘要**
+- `master_element_set` 空 → `master:build` 报「选定规范星历 0」
+
+而 TLE 数据一直躺在 `trajectories` 里，只是没人把它与「选哪一份」连起来。
+
+**修复**：调度器每个周期追加 `ingest:tle → master:build --skip-orbits`。
+这两步失败只告警不中断周期——上一轮的 TLE 仍然有效。
+
+### 问题 4：`canonicalId` 漏了两个映射
+
+`master-merge` 要把 `trajectories.state_source`（`tle`/`omm`/
+`operator_ephemeris`）映射到注册表 id 才能按优先级选星历。原来只映射了
+`operator_ephemeris`，`tle` 和 `omm` 原样传出，与注册表里的
+`space-track`/`spacebook-omm` 对不上，`ordered` 恒为空。
+
+**修复**：补全映射。`master_element_set` 0 → **32 932**。
+
+### 问题 5：`ingest:tle` 每批两次 API 调用
+
+4.2 万个对象 ÷ 每批 20 × 2 次（GP + OMM）= ~8 400 次请求，
+Space-Track 在几百次后返回 429，实测 **存了 280 个、失败 42 147 个**。
+
+而这些数据本来就在磁盘上：`sources:download` 每 2 小时写完整 GP（69 824 条）
+和完整 OMM（32 858 条）到归档。
+
+**修复**：默认读归档（`--online` 保留 API 路径）。42 427 个对象
+**全部写入，0 失败，无 API 调用**。同时把 `parseOmmRows` 从 `fetchOmm` 中
+抽出复用，避免两份映射逻辑漂移。
+
+### 新增：`npm run data:health`
+
+一屏回答「昨晚的数据到底好没好」。三条设计约束，各自对应一次踩过的坑：
+
+- **`ok` 不等于新鲜**：同时报「最后一次尝试」与「最后一次成功」
+- **表空不等于源空**：派生表行数与输入表并排展示
+- **200 带错误体也算失败**：`error` 非空就列出，不看 status
+
+### 验证
+
+- 端到端：`data:schedule --once` 输出「SOCRATES 全量已更新」与「主库链路已重建」，
+  两条新日志均出现。
+- `master:build` 轨道摘要 0 → **31 296**；派生行数 216 933 → **439 469**。
+- `data:health`：27 个端点中仅剩 Space-Track CDM 因限流失败（429，会自然恢复）。
+- `tsc --noEmit`、`test:distance` 7 项、`test:wide` 22 项、`check` 全部通过。
+
+### 已知未解
+
+Space-Track 账号处于限流状态（`space-track` 与 `space-track-cdm-public`），
+需等待窗口恢复。归档路径不受影响，CDM 数据以最后一次成功（11-04 22:01）为准。
+
+---
+
 ## [0.1.92] - 2026-11-04
 
 交会表的对象左右顺序固定为 NORAD 升序。
